@@ -5,4 +5,4 @@ python:
   - "3.5"
   - "3.6"
 install: make install
-script: make coverage
+script: make coverage && make lint
