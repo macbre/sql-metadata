@@ -16,6 +16,12 @@ class TestUtils(TestCase):
             "SELECT count(fwN.wiki_id) as wam_results_total FROM `fact_wam_scores` left join `fact_wam_scores` ON ((fwN.wiki_id = fwN.wiki_id) AND (fwN.time_id = FROM_UNIXTIME(N))) left join `dimension_wikis` ON ((fwN.wiki_id = dw.wiki_id)) WHERE (fwN.time_id = FROM_UNIXTIME(N)) AND (dw.url like X OR dw.title like X) AND fwN.vertical_id IN (XYZ) AND dw.lang = X AND (fwN.wiki_id NOT IN (XYZ)) AND ((dw.url IS NOT NULL AND dw.title IS NOT NULL))"
         )
 
+        # remove database selector
+        self.assertEquals(
+            preprocess_query("SELECT foo FROM `db`.`test`"),
+            "SELECT foo FROM test"
+        )
+
     def test_get_query_columns(self):
         self.assertListEqual(['*'],
                              get_query_columns('SELECT * FROM `test_table`'))
@@ -48,6 +54,9 @@ class TestUtils(TestCase):
                              get_query_tables('SELECT foo FROM `test_table`'))
 
         self.assertListEqual(['test_table'],
+                             get_query_tables('SELECT foo FROM `db`.`test_table`'))
+
+        self.assertListEqual(['test_table'],
                              get_query_tables('SELECT foo FROM test_table WHERE id = 1'))
 
         self.assertListEqual(['test_table', 'second_table'],
@@ -70,11 +79,21 @@ class TestUtils(TestCase):
         self.assertListEqual(['fact_wam_scores', 'dimension_wikis'],
                              get_query_tables("SELECT count(fwN.wiki_id) as wam_results_total FROM `fact_wam_scores` `fwN` left join `fact_wam_scores` `fwN` ON ((fwN.wiki_id = fwN.wiki_id) AND (fwN.time_id = FROM_UNIXTIME(N))) left join `dimension_wikis` `dw` ON ((fwN.wiki_id = dw.wiki_id)) WHERE (fwN.time_id = FROM_UNIXTIME(N)) AND (dw.url like X OR dw.title like X) AND fwN.vertical_id IN (XYZ) AND dw.lang = X AND (fwN.wiki_id NOT IN (XYZ)) AND ((dw.url IS NOT NULL AND dw.title IS NOT NULL))"))
 
+        self.assertListEqual(['revision', 'page', 'user'],
+                             get_query_tables("SELECT rev_id,rev_page,rev_text_id,rev_timestamp,rev_comment,rev_user_text,rev_user,rev_minor_edit,rev_deleted,rev_len,rev_parent_id,rev_shaN,page_namespace,page_title,page_id,page_latest,user_name FROM `revision` INNER JOIN `page` ON ((page_id = rev_page)) LEFT JOIN `wikicities_cN`.`user` ON ((rev_user != N) AND (user_id = rev_user)) WHERE rev_id = X LIMIT N"))
+
         # INSERT queries
         self.assertListEqual(['0070_insert_ignore_table'],
                              get_query_tables("INSERT IGNORE INTO `0070_insert_ignore_table` VALUES (9, '123', '2017-01-01');"))
 
         self.assertListEqual(['0070_insert_ignore_table'],
                              get_query_tables("INSERT into `0070_insert_ignore_table` VALUES (9, '123', '2017-01-01');"))
+
+        self.assertListEqual(['foo'],
+                             get_query_tables("INSERT INTO `foo` (id,text) VALUES (X,X)"))
+
+        # UPDATE queries
+        self.assertListEqual(['page'],
+                             get_query_tables("UPDATE `page` SET page_touched = X WHERE page_id = X"))
 
         # assert False
