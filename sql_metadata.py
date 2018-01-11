@@ -6,7 +6,7 @@ import re
 import sqlparse
 
 from sqlparse.sql import TokenList
-from sqlparse.tokens import Name, Whitespace, Wildcard, Punctuation
+from sqlparse.tokens import Name, Whitespace, Wildcard
 
 
 def preprocess_query(query):
@@ -104,7 +104,8 @@ def get_query_tables(query):
         elif token.ttype is Name or token.is_keyword:
             # print([last_keyword, last_token, token.value])
             # analyze the name tokens, column names and where condition values
-            if last_keyword in ['FROM', 'JOIN', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'INTO', 'UPDATE'] \
+            if last_keyword in ['FROM', 'JOIN', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN',
+                                'INTO', 'UPDATE'] \
                     and last_token not in ['AS'] \
                     and token.value not in ['AS']:
                 table_name = str(token.value.strip('`'))
