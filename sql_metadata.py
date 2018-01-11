@@ -8,8 +8,6 @@ import sqlparse
 from sqlparse.sql import TokenList
 from sqlparse.tokens import Name, Whitespace, Wildcard
 
-VERSION = '1.0'
-
 
 def preprocess_query(query):
     """

@@ -1,6 +1,6 @@
 from setuptools import setup
 
-from sql_metadata import VERSION
+VERSION = '1.0'
 
 # @see https://github.com/pypa/sampleproject/blob/master/setup.py
 setup(
@@ -36,7 +36,7 @@ setup(
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
     ],
-    py_modules=["sql_metadata.py"],
+    py_modules=["sql_metadata"],
     install_requires=[
         'coverage==4.4.2',
         'pylint==1.8.1',
