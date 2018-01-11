@@ -16,7 +16,7 @@ coverage:
 	coverage report $(coverage_options)
 
 lint:
-	pylint . --ignore=test
+	pylint sql_metadata.py
 
 publish:
 	# run git tag -a v0.0.0 before running make publish
