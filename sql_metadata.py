@@ -90,8 +90,6 @@ def get_query_tables(query):
         'UPDATE', 'SET',
     ]
 
-    print(query, get_query_tokens(query))
-
     for token in get_query_tokens(query):
         # print([token, token.ttype])
         if token.is_keyword and token.value.upper() in table_syntax_keywords:
