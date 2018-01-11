@@ -4,7 +4,7 @@ VERSION = '1.0'
 
 # @see https://github.com/pypa/sampleproject/blob/master/setup.py
 setup(
-    name='sqlmetadata',
+    name='sql_metadata',
     version=VERSION,
     author='Maciej Brencz',
     author_email='maciej.brencz@gmail.com',
