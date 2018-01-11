@@ -89,4 +89,11 @@ class TestUtils(TestCase):
         self.assertListEqual(['0070_insert_ignore_table'],
                              get_query_tables("INSERT into `0070_insert_ignore_table` VALUES (9, '123', '2017-01-01');"))
 
+        self.assertListEqual(['foo'],
+                             get_query_tables("INSERT INTO `foo` (id,text) VALUES (X,X)"))
+
+        # UPDATE queries
+        self.assertListEqual(['page'],
+                             get_query_tables("UPDATE `page` SET page_touched = X WHERE page_id = X"))
+
         # assert False

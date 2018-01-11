@@ -6,7 +6,7 @@ import re
 import sqlparse
 
 from sqlparse.sql import TokenList
-from sqlparse.tokens import Name, Whitespace, Wildcard
+from sqlparse.tokens import Name, Whitespace, Wildcard, Punctuation
 
 
 def preprocess_query(query):
@@ -85,19 +85,26 @@ def get_query_tables(query):
         # SELECT queries
         'FROM', 'WHERE', 'JOIN', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'ON',
         # INSERT queries
-        'INTO', 'VALUES'
+        'INTO', 'VALUES',
+        # UPDATE queries
+        'UPDATE', 'SET',
     ]
+
+    print(query, get_query_tokens(query))
 
     for token in get_query_tokens(query):
         # print([token, token.ttype])
         if token.is_keyword and token.value.upper() in table_syntax_keywords:
-            # keep the name of the last keyword
+            # keep the name of the last keyword, the next one can be a table name
             last_keyword = token.value.upper()
             # print('keyword', last_keyword)
+        elif str(token) == '(':
+            # reset the last_keyword for INSERT `foo` VALUES(id, bar) ...
+            last_keyword = None
         elif token.ttype is Name or token.is_keyword:
             # print([last_keyword, last_token, token.value])
             # analyze the name tokens, column names and where condition values
-            if last_keyword in ['FROM', 'JOIN', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'INTO'] \
+            if last_keyword in ['FROM', 'JOIN', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'INTO', 'UPDATE'] \
                     and last_token not in ['AS'] \
                     and token.value not in ['AS']:
                 table_name = str(token.value.strip('`'))
