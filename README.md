@@ -1,4 +1,8 @@
 # sql-metadata
+
+[![PyPI](https://img.shields.io/pypi/v/sql-metadata.svg)](https://pypi.python.org/pypi/sql-metadata)
+[![Build Status](https://travis-ci.org/macbre/sql-metadata.svg?branch=master)](https://travis-ci.org/macbre/sql-metadata)
+
 Uses tokenized query returned by [`python-sqlparse`](https://github.com/andialbrecht/sqlparse) and generates query metadata. Extracts column names and tables used by the query.
 
 ### Usage
