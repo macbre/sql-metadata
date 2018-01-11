@@ -21,6 +21,9 @@ def preprocess_query(query):
     # INNER JOIN `fact_wam_scores` `fwN`
     query = re.sub(r'(\s(FROM|JOIN)\s`[^`]+`)\s`[^`]+`', r'\1', query, flags=re.IGNORECASE)
 
+    # 2. `database`.`table` notation -> table
+    query = re.sub(r'`([^`]+)`.`([^`]+)`', r'\2', query)
+
     return query
 
 
@@ -97,7 +100,7 @@ def get_query_tables(query):
             if last_keyword in ['FROM', 'JOIN', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'INTO'] \
                     and last_token not in ['AS'] \
                     and token.value not in ['AS']:
-                table_name = token.value.strip('`')
+                table_name = str(token.value.strip('`'))
                 if table_name not in tables:
                     tables.append(table_name)
 
