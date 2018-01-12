@@ -82,6 +82,19 @@ class TestUtils(TestCase):
         self.assertListEqual(['revision', 'page', 'user'],
                              get_query_tables("SELECT rev_id,rev_page,rev_text_id,rev_timestamp,rev_comment,rev_user_text,rev_user,rev_minor_edit,rev_deleted,rev_len,rev_parent_id,rev_shaN,page_namespace,page_title,page_id,page_latest,user_name FROM `revision` INNER JOIN `page` ON ((page_id = rev_page)) LEFT JOIN `wikicities_cN`.`user` ON ((rev_user != N) AND (user_id = rev_user)) WHERE rev_id = X LIMIT N"))
 
+        # complex queries, take two
+        # @see https://github.com/macbre/sql-metadata/issues/6
+        self.assertListEqual(['foo_pageviews'],
+                             get_query_tables("SELECT 1 as c    FROM foo_pageviews      WHERE time_id = '2018-01-07 00:00:00'   AND period_id = '2' LIMIT 1"))
+
+        # table aliases
+        self.assertListEqual(['report_wiki_recent_pageviews', 'dimension_wikis'],
+                             get_query_tables("SELECT r.wiki_id AS id, pageviews_7day AS pageviews FROM report_wiki_recent_pageviews AS r INNER JOIN dimension_wikis AS d ON r.wiki_id = d.wiki_id WHERE d.public = '1' AND r.lang IN ( 'en', 'ru' ) AND r.hub_name = 'gaming' ORDER BY pageviews DESC LIMIT 300"))
+
+        # self joins
+        self.assertListEqual(['fact_wam_scores', 'dimension_wikis'],
+                             get_query_tables("SELECT  count(fw1.wiki_id) as wam_results_total  FROM `fact_wam_scores` `fw1` left join `fact_wam_scores` `fw2` ON ((fw1.wiki_id = fw2.wiki_id) AND (fw2.time_id = FROM_UNIXTIME(1466380800))) left join `dimension_wikis` `dw` ON ((fw1.wiki_id = dw.wiki_id))  WHERE (fw1.time_id = FROM_UNIXTIME(1466467200)) AND (dw.url like '%%' OR dw.title like '%%') AND fw1.vertical_id IN ('0','1','2','3','4','5','6','7')  AND (fw1.wiki_id NOT IN ('23312','70256','168929','463633','381622','524772','476782','9764','214934','170145','529622','52149','96420','390','468156','690804','197434','29197','88043','37317','466775','402313','169142','746246','119847','57268','1089624')) AND ((dw.url IS NOT NULL AND dw.title IS NOT NULL))"))
+
         # INSERT queries
         self.assertListEqual(['0070_insert_ignore_table'],
                              get_query_tables("INSERT IGNORE INTO `0070_insert_ignore_table` VALUES (9, '123', '2017-01-01');"))
