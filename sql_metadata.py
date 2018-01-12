@@ -22,7 +22,10 @@ def preprocess_query(query):
     query = re.sub(r'(\s(FROM|JOIN)\s`[^`]+`)\s`[^`]+`', r'\1', query, flags=re.IGNORECASE)
 
     # 2. `database`.`table` notation -> table
-    query = re.sub(r'`([^`]+)`.`([^`]+)`', r'\2', query)
+    query = re.sub(r'`([^`]+)`\.`([^`]+)`', r'\2', query)
+
+    # 2. `database`.`table` notation -> table
+    query = re.sub(r'([a-z_0-9]+)\.([a-z_0-9]+)', r'\2', query, flags=re.IGNORECASE)
 
     return query
 
@@ -49,8 +52,12 @@ def get_query_columns(query):
     last_keyword = None
     last_token = None
 
+    # print(preprocess_query(query))
+
+    keywords_ignored = ['AS', 'AND', 'OR', 'IN', 'IS', 'NOT', 'NOT NULL', 'LIKE']
+
     for token in get_query_tokens(query):
-        if token.is_keyword and token.value.upper() not in ['AS', 'AND', 'OR']:
+        if token.is_keyword and token.value.upper() not in keywords_ignored:
             # keep the name of the last keyword, e.g. SELECT, FROM, WHERE, (ORDER) BY
             last_keyword = token.value.upper()
             # print('keyword', last_keyword)
@@ -59,13 +66,14 @@ def get_query_columns(query):
             if last_keyword in ['SELECT', 'WHERE', 'BY'] and last_token not in ['AS']:
                 # print(last_keyword, last_token, token.value)
 
-                if token.value not in columns:
-                    columns.append(token.value)
+                if token.value not in columns \
+                        and token.value.upper() not in ['COUNT', 'MIN', 'MAX', 'FROM_UNIXTIME']:
+                    columns.append(str(token.value))
         elif token.ttype is Wildcard:
             # handle wildcard in SELECT part, but ignore count(*)
             # print(last_keyword, last_token, token.value)
             if last_keyword == 'SELECT' and last_token != '(':
-                columns.append(token.value)
+                columns.append(str(token.value))
 
         last_token = token.value.upper()
 

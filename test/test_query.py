@@ -8,18 +8,23 @@ class TestUtils(TestCase):
     def test_preprocess_query(self):
         self.assertEquals(
             preprocess_query('SELECT DISTINCT dw.lang FROM `dimension_wikis` `dw` INNER JOIN `fact_wam_scores` `fwN` ON ((dw.wiki_id = fwN.wiki_id)) WHERE fwN.time_id = FROM_UNIXTIME(N) ORDER BY dw.lang ASC'),
-            'SELECT DISTINCT dw.lang FROM `dimension_wikis` INNER JOIN `fact_wam_scores` ON ((dw.wiki_id = fwN.wiki_id)) WHERE fwN.time_id = FROM_UNIXTIME(N) ORDER BY dw.lang ASC'
+            'SELECT DISTINCT lang FROM `dimension_wikis` INNER JOIN `fact_wam_scores` ON ((wiki_id = wiki_id)) WHERE time_id = FROM_UNIXTIME(N) ORDER BY lang ASC'
         )
 
         self.assertEquals(
             preprocess_query("SELECT count(fwN.wiki_id) as wam_results_total FROM `fact_wam_scores` `fwN` left join `fact_wam_scores` `fwN` ON ((fwN.wiki_id = fwN.wiki_id) AND (fwN.time_id = FROM_UNIXTIME(N))) left join `dimension_wikis` `dw` ON ((fwN.wiki_id = dw.wiki_id)) WHERE (fwN.time_id = FROM_UNIXTIME(N)) AND (dw.url like X OR dw.title like X) AND fwN.vertical_id IN (XYZ) AND dw.lang = X AND (fwN.wiki_id NOT IN (XYZ)) AND ((dw.url IS NOT NULL AND dw.title IS NOT NULL))"),
-            "SELECT count(fwN.wiki_id) as wam_results_total FROM `fact_wam_scores` left join `fact_wam_scores` ON ((fwN.wiki_id = fwN.wiki_id) AND (fwN.time_id = FROM_UNIXTIME(N))) left join `dimension_wikis` ON ((fwN.wiki_id = dw.wiki_id)) WHERE (fwN.time_id = FROM_UNIXTIME(N)) AND (dw.url like X OR dw.title like X) AND fwN.vertical_id IN (XYZ) AND dw.lang = X AND (fwN.wiki_id NOT IN (XYZ)) AND ((dw.url IS NOT NULL AND dw.title IS NOT NULL))"
+            "SELECT count(wiki_id) as wam_results_total FROM `fact_wam_scores` left join `fact_wam_scores` ON ((wiki_id = wiki_id) AND (time_id = FROM_UNIXTIME(N))) left join `dimension_wikis` ON ((wiki_id = wiki_id)) WHERE (time_id = FROM_UNIXTIME(N)) AND (url like X OR title like X) AND vertical_id IN (XYZ) AND lang = X AND (wiki_id NOT IN (XYZ)) AND ((url IS NOT NULL AND title IS NOT NULL))"
         )
 
         # remove database selector
         self.assertEquals(
             preprocess_query("SELECT foo FROM `db`.`test`"),
             "SELECT foo FROM test"
+        )
+
+        self.assertEquals(
+            preprocess_query("SELECT r1.wiki_id AS id FROM report_wiki_recent_pageviews AS r1 INNER JOIN dimension_wikis AS d ON r.wiki_id = d.wiki_id"),
+            "SELECT wiki_id AS id FROM report_wiki_recent_pageviews AS r1 INNER JOIN dimension_wikis AS d ON wiki_id = wiki_id"
         )
 
     def test_get_query_columns(self):
@@ -29,10 +34,19 @@ class TestUtils(TestCase):
         self.assertListEqual(['foo'],
                              get_query_columns('SELECT foo FROM `test_table`'))
 
+        self.assertListEqual(['foo'],
+                             get_query_columns('SELECT count(foo) FROM `test_table`'))
+
+        self.assertListEqual(['foo', 'time_id'],
+                             get_query_columns('SELECT COUNT(foo), max(time_id) FROM `test_table`'))
+
         self.assertListEqual(['id', 'foo'],
                              get_query_columns('SELECT id, foo FROM test_table WHERE id = 3'))
 
-        self.assertListEqual(['foo', 'count', 'id'],
+        self.assertListEqual(['id', 'foo', 'foo_id', 'bar'],
+                             get_query_columns('SELECT id, foo FROM test_table WHERE foo_id = 3 AND bar = 5'))
+
+        self.assertListEqual(['foo', 'id'],
                              get_query_columns('SELECT foo, count(*) as bar FROM `test_table` WHERE id = 3'))
 
         self.assertListEqual(['foo', 'test'],
@@ -40,6 +54,28 @@ class TestUtils(TestCase):
 
         self.assertListEqual(['bar'],
                              get_query_columns('SELECT /* a comment */ bar FROM test_table'))
+
+        # complex queries, take two
+        # @see https://github.com/macbre/sql-metadata/issues/6
+        self.assertListEqual(['time_id', 'period_id'],
+                             get_query_columns("SELECT 1 as c    FROM foo_pageviews      WHERE time_id = '2018-01-07 00:00:00'   AND period_id = '2' LIMIT 1"))
+
+        # table aliases
+        self.assertListEqual(['wiki_id', 'pageviews_7day', 'is_public', 'lang', 'hub_name', 'pageviews'],
+                             get_query_columns("SELECT r.wiki_id AS id, pageviews_7day AS pageviews FROM report_wiki_recent_pageviews AS r "
+                                               "INNER JOIN dimension_wikis AS d ON r.wiki_id = d.wiki_id WHERE d.is_public = '1' "
+                                               "AND r.lang IN ( 'en', 'ru' ) AND r.hub_name = 'gaming' ORDER BY pageviews DESC LIMIT 300"))
+
+        # self joins
+        self.assertListEqual(['wiki_id', 'time_id', 'url', 'title', 'vertical_id'],
+                             get_query_columns("SELECT  count(fw1.wiki_id) as wam_results_total  FROM `fact_wam_scores` `fw1` "
+                                               "left join `fact_wam_scores` `fw2` ON ((fw1.wiki_id = fw2.wiki_id) AND "
+                                               "(fw2.time_id = FROM_UNIXTIME(1466380800))) left join `dimension_wikis` `dw` "
+                                               "ON ((fw1.wiki_id = dw.wiki_id))  WHERE (fw1.time_id = FROM_UNIXTIME(1466467200)) "
+                                               "AND (dw.url like '%%' OR dw.title like '%%') AND fw1.vertical_id IN "
+                                               "('0','1','2','3','4','5','6','7')  AND (fw1.wiki_id NOT "
+                                               "IN ('23312','70256','168929','463633','381622','1089624')) "
+                                               "AND ((dw.url IS NOT NULL AND dw.title IS NOT NULL))"))
 
         # assert False
 
@@ -81,6 +117,19 @@ class TestUtils(TestCase):
 
         self.assertListEqual(['revision', 'page', 'user'],
                              get_query_tables("SELECT rev_id,rev_page,rev_text_id,rev_timestamp,rev_comment,rev_user_text,rev_user,rev_minor_edit,rev_deleted,rev_len,rev_parent_id,rev_shaN,page_namespace,page_title,page_id,page_latest,user_name FROM `revision` INNER JOIN `page` ON ((page_id = rev_page)) LEFT JOIN `wikicities_cN`.`user` ON ((rev_user != N) AND (user_id = rev_user)) WHERE rev_id = X LIMIT N"))
+
+        # complex queries, take two
+        # @see https://github.com/macbre/sql-metadata/issues/6
+        self.assertListEqual(['foo_pageviews'],
+                             get_query_tables("SELECT 1 as c    FROM foo_pageviews      WHERE time_id = '2018-01-07 00:00:00'   AND period_id = '2' LIMIT 1"))
+
+        # table aliases
+        self.assertListEqual(['report_wiki_recent_pageviews', 'dimension_wikis'],
+                             get_query_tables("SELECT r.wiki_id AS id, pageviews_7day AS pageviews FROM report_wiki_recent_pageviews AS r INNER JOIN dimension_wikis AS d ON r.wiki_id = d.wiki_id WHERE d.public = '1' AND r.lang IN ( 'en', 'ru' ) AND r.hub_name = 'gaming' ORDER BY pageviews DESC LIMIT 300"))
+
+        # self joins
+        self.assertListEqual(['fact_wam_scores', 'dimension_wikis'],
+                             get_query_tables("SELECT  count(fw1.wiki_id) as wam_results_total  FROM `fact_wam_scores` `fw1` left join `fact_wam_scores` `fw2` ON ((fw1.wiki_id = fw2.wiki_id) AND (fw2.time_id = FROM_UNIXTIME(1466380800))) left join `dimension_wikis` `dw` ON ((fw1.wiki_id = dw.wiki_id))  WHERE (fw1.time_id = FROM_UNIXTIME(1466467200)) AND (dw.url like '%%' OR dw.title like '%%') AND fw1.vertical_id IN ('0','1','2','3','4','5','6','7')  AND (fw1.wiki_id NOT IN ('23312','70256','168929','463633','381622','524772','476782','9764','214934','170145','529622','52149','96420','390','468156','690804','197434','29197','88043','37317','466775','402313','169142','746246','119847','57268','1089624')) AND ((dw.url IS NOT NULL AND dw.title IS NOT NULL))"))
 
         # INSERT queries
         self.assertListEqual(['0070_insert_ignore_table'],
