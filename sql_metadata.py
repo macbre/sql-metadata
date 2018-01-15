@@ -55,6 +55,7 @@ def get_query_columns(query):
     # print(preprocess_query(query))
 
     keywords_ignored = ['AS', 'AND', 'OR', 'IN', 'IS', 'NOT', 'NOT NULL', 'LIKE']
+    functions_ignored = ['COUNT', 'MIN', 'MAX', 'FROM_UNIXTIME', 'DATE_FORMAT']
 
     for token in get_query_tokens(query):
         if token.is_keyword and token.value.upper() not in keywords_ignored:
@@ -67,7 +68,7 @@ def get_query_columns(query):
                 # print(last_keyword, last_token, token.value)
 
                 if token.value not in columns \
-                        and token.value.upper() not in ['COUNT', 'MIN', 'MAX', 'FROM_UNIXTIME']:
+                        and token.value.upper() not in functions_ignored:
                     columns.append(str(token.value))
         elif token.ttype is Wildcard:
             # handle wildcard in SELECT part, but ignore count(*)
