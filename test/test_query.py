@@ -77,6 +77,9 @@ class TestUtils(TestCase):
                                                "IN ('23312','70256','168929','463633','381622','1089624')) "
                                                "AND ((dw.url IS NOT NULL AND dw.title IS NOT NULL))"))
 
+        self.assertListEqual(['time_id', 'pageviews', 'period_id', 'wiki_id'],
+                             get_query_columns("SELECT date_format(time_id,'%Y-%m-%d') AS date, pageviews AS cnt         FROM rollup_wiki_pageviews      WHERE period_id = '2'   AND wiki_id = '1676379'         AND time_id BETWEEN '2018-01-08'        AND '2018-01-01'"))
+
         # assert False
 
     def test_get_query_tables(self):
@@ -130,6 +133,9 @@ class TestUtils(TestCase):
         # self joins
         self.assertListEqual(['fact_wam_scores', 'dimension_wikis'],
                              get_query_tables("SELECT  count(fw1.wiki_id) as wam_results_total  FROM `fact_wam_scores` `fw1` left join `fact_wam_scores` `fw2` ON ((fw1.wiki_id = fw2.wiki_id) AND (fw2.time_id = FROM_UNIXTIME(1466380800))) left join `dimension_wikis` `dw` ON ((fw1.wiki_id = dw.wiki_id))  WHERE (fw1.time_id = FROM_UNIXTIME(1466467200)) AND (dw.url like '%%' OR dw.title like '%%') AND fw1.vertical_id IN ('0','1','2','3','4','5','6','7')  AND (fw1.wiki_id NOT IN ('23312','70256','168929','463633','381622','524772','476782','9764','214934','170145','529622','52149','96420','390','468156','690804','197434','29197','88043','37317','466775','402313','169142','746246','119847','57268','1089624')) AND ((dw.url IS NOT NULL AND dw.title IS NOT NULL))"))
+
+        self.assertListEqual(['rollup_wiki_pageviews'],
+                             get_query_tables("SELECT date_format(time_id,'%Y-%m-%d') AS date, pageviews AS cnt         FROM rollup_wiki_pageviews      WHERE period_id = '2'   AND wiki_id = '1676379'         AND time_id BETWEEN '2018-01-08'        AND '2018-01-01'"))
 
         # INSERT queries
         self.assertListEqual(['0070_insert_ignore_table'],
