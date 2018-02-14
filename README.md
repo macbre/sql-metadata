@@ -22,6 +22,12 @@ pip install sql_metadata
 
 >>> sql_metadata.get_query_tables("SELECT test, id FROM foo, bar")
 [u'foo', u'bar']
+
+>>> sql_metadata.get_query_limit_and_offset('SELECT foo_limit FROM bar_offset LIMIT 50 OFFSET 1000')
+(50, 1000)
+
+>>> sql_metadata.get_query_limit_and_offset('SELECT foo_limit FROM bar_offset limit 2000,50')
+(50, 2000)
 ```
 
 > See `test/test_query.py` file for more examples of a bit more complex queries.
