@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from sql_metadata import preprocess_query, get_query_columns, get_query_tables
+from sql_metadata import preprocess_query, get_query_columns, get_query_tables, get_query_limit_and_offset
 
 
 class TestUtils(TestCase):
@@ -152,3 +152,37 @@ class TestUtils(TestCase):
                              get_query_tables("UPDATE `page` SET page_touched = X WHERE page_id = X"))
 
         # assert False
+
+    def test_get_query_limit_and_offset(self):
+        self.assertIsNone(get_query_limit_and_offset('SELECT foo_limit FROM bar_offset'))
+        self.assertIsNone(get_query_limit_and_offset('SELECT foo_limit FROM bar_offset /* limit 1000,50 */'))
+
+        self.assertEquals(
+            (50, 0),
+            get_query_limit_and_offset('SELECT foo_limit FROM bar_offset LIMIT 50')
+        )
+
+        self.assertEquals(
+            (50, 1000),
+            get_query_limit_and_offset('SELECT foo_limit FROM bar_offset LIMIT 50 OFFSET 1000')
+        )
+
+        self.assertEquals(
+            (50, 1000),
+            get_query_limit_and_offset('SELECT foo_limit FROM bar_offset Limit 50 offset 1000')
+        )
+
+        self.assertEquals(
+            (50, 1000),
+            get_query_limit_and_offset('SELECT foo_limit FROM bar_offset LIMIT 1000, 50')
+        )
+
+        self.assertEquals(
+            (50, 1000),
+            get_query_limit_and_offset('SELECT foo_limit FROM bar_offset LIMIT 1000,50')
+        )
+
+        self.assertEquals(
+            (50, 1000),
+            get_query_limit_and_offset('SELECT foo_limit FROM bar_offset limit 1000,50')
+        )

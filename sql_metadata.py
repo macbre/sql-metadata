@@ -6,7 +6,7 @@ import re
 import sqlparse
 
 from sqlparse.sql import TokenList
-from sqlparse.tokens import Name, Whitespace, Wildcard
+from sqlparse.tokens import Name, Whitespace, Wildcard, Number, Punctuation
 
 
 def preprocess_query(query):
@@ -122,3 +122,42 @@ def get_query_tables(query):
         last_token = token.value.upper()
 
     return tables
+
+
+def get_query_limit_and_offset(query):
+    """
+    :type query str
+    :rtype: (int, int)
+    """
+    limit = None
+    offset = None
+    last_keyword = None
+    last_token = None
+
+    # print(query)
+    for token in get_query_tokens(query):
+        # print([token, token.ttype, last_keyword])
+
+        if token.is_keyword and token.value.upper() in ['LIMIT', 'OFFSET']:
+            last_keyword = token.value.upper()
+        elif token.ttype is Number.Integer:
+            # print([token, last_keyword, last_token_was_integer])
+            if last_keyword == 'LIMIT':
+                # LIMIT <limit>
+                limit = int(token.value)
+                last_keyword = None
+            elif last_keyword == 'OFFSET':
+                # OFFSET <offset>
+                offset = int(token.value)
+                last_keyword = None
+            elif last_token and last_token.ttype is Punctuation:
+                # LIMIT <offset>,<limit>
+                offset = limit
+                limit = int(token.value)
+
+        last_token = token
+
+    if limit is None:
+        return None
+
+    return limit, offset or 0
