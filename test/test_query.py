@@ -186,3 +186,8 @@ class TestUtils(TestCase):
             (50, 1000),
             get_query_limit_and_offset('SELECT foo_limit FROM bar_offset limit 1000,50')
         )
+
+        self.assertEquals(
+            (200, 927600),
+            get_query_limit_and_offset("SELECT /* CategoryPaginationViewer::processSection */  page_namespace,page_title,page_len,page_is_redirect,cl_sortkey_prefix  FROM `page` INNER JOIN `categorylinks` FORCE INDEX (cl_sortkey) ON ((cl_from = page_id))  WHERE cl_type = 'page' AND cl_to = 'Spotify/Song'  ORDER BY cl_sortkey LIMIT 927600,200")
+        )
