@@ -37,10 +37,14 @@ setup(
         'Programming Language :: Python :: 3.6',
     ],
     py_modules=["sql_metadata"],
+    extras_require={
+        'dev': [
+            'coverage==4.5.1',
+            'pylint==1.8.2',
+            'pytest==3.4.0',
+        ]
+    },
     install_requires=[
-        'coverage==4.4.2',
-        'pylint==1.8.1',
-        'pytest>=3.2.3',
         'sqlparse==0.2.4',
     ]
 )
