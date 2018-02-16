@@ -1,6 +1,6 @@
 from setuptools import setup
 
-VERSION = '1.1.0'
+VERSION = '1.1.1'
 
 # @see https://github.com/pypa/sampleproject/blob/master/setup.py
 setup(
@@ -40,7 +40,7 @@ setup(
     install_requires=[
         'coverage==4.4.2',
         'pylint==1.8.1',
-        'pytest==3.2.3',
+        'pytest>=3.2.3',
         'sqlparse==0.2.4',
     ]
 )
