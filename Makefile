@@ -2,6 +2,7 @@ coverage_options = --include='sql_metadata.py' --omit='test/*'
 
 install:
 	pip install -e .
+	pip install -e .[dev]
 
 test:
 	py.test
