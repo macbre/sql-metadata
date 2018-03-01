@@ -64,19 +64,23 @@ def get_query_columns(query):
             # print('keyword', last_keyword)
         elif token.ttype is Name:
             # analyze the name tokens, column names and where condition values
-            if last_keyword in ['SELECT', 'WHERE', 'BY'] and last_token not in ['AS']:
+            if last_keyword in ['SELECT', 'WHERE', 'BY'] and last_token.value.upper() not in ['AS']:
                 # print(last_keyword, last_token, token.value)
 
                 if token.value not in columns \
                         and token.value.upper() not in functions_ignored:
                     columns.append(str(token.value))
+            elif last_keyword in ['INTO'] and last_token.ttype is Punctuation:
+                # INSERT INTO `foo` (col1, `col2`) VALUES (..)
+                # print(last_keyword, token, last_token)
+                columns.append(str(token.value).strip('`'))
         elif token.ttype is Wildcard:
             # handle wildcard in SELECT part, but ignore count(*)
             # print(last_keyword, last_token, token.value)
-            if last_keyword == 'SELECT' and last_token != '(':
+            if last_keyword == 'SELECT' and last_token.value != '(':
                 columns.append(str(token.value))
 
-        last_token = token.value.upper()
+        last_token = token
 
     return columns
 
