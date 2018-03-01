@@ -80,6 +80,8 @@ class TestUtils(TestCase):
         self.assertListEqual(['time_id', 'pageviews', 'period_id', 'wiki_id'],
                              get_query_columns("SELECT date_format(time_id,'%Y-%m-%d') AS date, pageviews AS cnt         FROM rollup_wiki_pageviews      WHERE period_id = '2'   AND wiki_id = '1676379'         AND time_id BETWEEN '2018-01-08'        AND '2018-01-01'"))
 
+        self.assertListEqual(['article_id', 'user_id', 'time'],
+                             get_query_columns("INSERT /* VoteHelper::addVote xxx */  INTO `page_vote` (article_id,user_id,`time`) VALUES ('442001','27574631','20180228130846')"))
         # assert False
 
     def test_get_query_tables(self):
@@ -146,6 +148,9 @@ class TestUtils(TestCase):
 
         self.assertListEqual(['foo'],
                              get_query_tables("INSERT INTO `foo` (id,text) VALUES (X,X)"))
+
+        self.assertListEqual(['page_vote'],
+                             get_query_tables("INSERT /* VoteHelper::addVote xxx */  INTO `page_vote` (article_id,user_id,time) VALUES ('442001','27574631','20180228130846')"))
 
         # UPDATE queries
         self.assertListEqual(['page'],
