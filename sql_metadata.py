@@ -64,7 +64,8 @@ def get_query_columns(query):
             # print('keyword', last_keyword)
         elif token.ttype is Name:
             # analyze the name tokens, column names and where condition values
-            if last_keyword in ['SELECT', 'WHERE', 'BY'] and last_token.value.upper() not in ['AS']:
+            if last_keyword in ['SELECT', 'WHERE', 'BY', 'ON'] \
+                    and last_token.value.upper() not in ['AS']:
                 # print(last_keyword, last_token, token.value)
 
                 if token.value not in columns \
@@ -103,6 +104,8 @@ def get_query_tables(query):
         'UPDATE', 'SET',
     ]
 
+    # print(query, get_query_tokens(query))
+
     for token in get_query_tokens(query):
         # print([token, token.ttype])
         if token.is_keyword and token.value.upper() in table_syntax_keywords:
@@ -111,6 +114,9 @@ def get_query_tables(query):
             # print('keyword', last_keyword)
         elif str(token) == '(':
             # reset the last_keyword for INSERT `foo` VALUES(id, bar) ...
+            last_keyword = None
+        elif token.is_keyword and str(token) == 'FORCE':
+            # reset the last_keyword for "SELECT x FORCE INDEX" queries
             last_keyword = None
         elif token.ttype is Name or token.is_keyword:
             # print([last_keyword, last_token, token.value])
