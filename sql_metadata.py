@@ -36,8 +36,13 @@ def get_query_tokens(query):
     :rtype: list[sqlparse.sql.Token]
     """
     query = preprocess_query(query)
+    parsed = sqlparse.parse(query)
 
-    tokens = TokenList(sqlparse.parse(query)[0].tokens).flatten()
+    # handle empty queries (#12)
+    if not parsed:
+        return []
+
+    tokens = TokenList(parsed[0].tokens).flatten()
     # print([(token.value, token.ttype) for token in tokens])
 
     return [token for token in tokens if token.ttype is not Whitespace]
