@@ -1,9 +1,24 @@
 from unittest import TestCase
 
-from sql_metadata import preprocess_query, get_query_columns, get_query_tables, get_query_limit_and_offset
+from sql_metadata import preprocess_query, get_query_tokens,\
+    get_query_columns, get_query_tables, get_query_limit_and_offset
+
+from sqlparse.tokens import DML, Keyword
 
 
 class TestUtils(TestCase):
+
+    def test_get_query_tokens(self):
+        assert get_query_tokens("") == []
+
+        tokens = get_query_tokens("SELECT * FROM foo")
+
+        assert len(tokens) == 4
+
+        assert tokens[0].ttype is DML
+        assert str(tokens[0]) == 'SELECT'
+        assert tokens[2].ttype is Keyword
+        assert str(tokens[2]) == 'FROM'
 
     def test_preprocess_query(self):
         self.assertEquals(
