@@ -166,6 +166,28 @@ class TestUtils(TestCase):
 
         # assert False
 
+    def test_joins(self):
+        self.assertListEqual(['redirect', 'page'],
+                             get_query_tables("SELECT  page_title  FROM `redirect` INNER JOIN `page` "
+                                              "ON (rd_title = 'foo' AND rd_namespace = '100' AND (page_id = rd_from))"))
+
+        self.assertListEqual(['page_title', 'rd_title', 'rd_namespace', 'page_id', 'rd_from'],
+                             get_query_columns("SELECT  page_title  FROM `redirect` INNER JOIN `page` "
+                                               "ON (rd_title = 'foo' AND rd_namespace = '100' AND (page_id = rd_from))"))
+
+    def test_handle_force_index(self):
+        self.assertListEqual(['page', 'categorylinks'],
+                             get_query_tables("SELECT  page_title,page_namespace  FROM `page` FORCE INDEX (page_random) "
+                                              "JOIN `categorylinks` ON ((page_id=cl_from))  WHERE page_is_redirect = '0' "
+                                              "AND (page_random >= 0.197372293871) AND cl_to = 'Muppet_Characters'  ORDER BY page_random LIMIT 1"))
+
+        self.assertListEqual(['page_title', 'page_namespace', 'page_id', 'cl_from', 'page_is_redirect', 'page_random', 'cl_to'],
+                             get_query_columns("SELECT  page_title,page_namespace  FROM `page` FORCE INDEX (page_random) "
+                                               "JOIN `categorylinks` ON ((page_id=cl_from))  WHERE page_is_redirect = '0' "
+                                               "AND (page_random >= 0.197372293871) AND cl_to = 'Muppet_Characters'  ORDER BY page_random LIMIT 1"))
+
+        # assert False
+
     def test_get_query_limit_and_offset(self):
         self.assertIsNone(get_query_limit_and_offset('SELECT foo_limit FROM bar_offset'))
         self.assertIsNone(get_query_limit_and_offset('SELECT foo_limit FROM bar_offset /* limit 1000,50 */'))
