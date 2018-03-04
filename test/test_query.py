@@ -82,6 +82,10 @@ class TestUtils(TestCase):
 
         self.assertListEqual(['article_id', 'user_id', 'time'],
                              get_query_columns("INSERT /* VoteHelper::addVote xxx */  INTO `page_vote` (article_id,user_id,`time`) VALUES ('442001','27574631','20180228130846')"))
+
+        # REPLACE queries
+        self.assertListEqual(['pp_page', 'pp_propname', 'pp_value'],
+                             get_query_columns("REPLACE INTO `page_props` (pp_page,pp_propname,pp_value) VALUES ('47','infoboxes','')"))
         # assert False
 
     def test_get_query_tables(self):
@@ -155,6 +159,10 @@ class TestUtils(TestCase):
         # UPDATE queries
         self.assertListEqual(['page'],
                              get_query_tables("UPDATE `page` SET page_touched = X WHERE page_id = X"))
+
+        # REPLACE queries
+        self.assertListEqual(['page_props'],
+                             get_query_tables("REPLACE INTO `page_props` (pp_page,pp_propname,pp_value) VALUES ('47','infoboxes','')"))
 
         # assert False
 
