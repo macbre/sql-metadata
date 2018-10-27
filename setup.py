@@ -40,8 +40,8 @@ setup(
     extras_require={
         'dev': [
             'coverage==4.5.1',
-            'pylint==1.8.2',
-            'pytest==3.4.0',
+            'pylint==1.9.2', # 2.x branch is for Python 3
+            'pytest==3.9.3',
         ]
     },
     install_requires=[
