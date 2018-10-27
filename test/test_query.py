@@ -178,3 +178,9 @@ def test_get_query_limit_and_offset():
         "INNER JOIN `categorylinks` FORCE INDEX (cl_sortkey) ON ((cl_from = page_id))  "
         "WHERE cl_type = 'page' AND cl_to = 'Spotify/Song'  "
         "ORDER BY cl_sortkey LIMIT 927600,200") == (200, 927600)
+
+
+def test_insert_into_select():
+    query = "INSERT INTO foo SELECT * FROM bar"
+    assert get_query_tables(query) == ['foo', 'bar']
+    assert get_query_columns(query) == ['*']

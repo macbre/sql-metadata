@@ -124,12 +124,12 @@ def get_query_tables(query):
             # reset the last_keyword for "SELECT x FORCE INDEX" queries
             last_keyword = None
         elif token.ttype is Name or token.is_keyword:
-            # print([last_keyword, last_token, token.value])
+            print([last_keyword, last_token, token.value])
             # analyze the name tokens, column names and where condition values
             if last_keyword in ['FROM', 'JOIN', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN',
                                 'INTO', 'UPDATE'] \
                     and last_token not in ['AS'] \
-                    and token.value not in ['AS']:
+                    and token.value not in ['AS', 'SELECT']:
                 table_name = str(token.value.strip('`'))
                 if table_name not in tables:
                     tables.append(table_name)
