@@ -3,7 +3,8 @@
 [![PyPI](https://img.shields.io/pypi/v/sql_metadata.svg)](https://pypi.python.org/pypi/sql_metadata)
 [![Build Status](https://travis-ci.org/macbre/sql-metadata.svg?branch=master)](https://travis-ci.org/macbre/sql-metadata)
 
-Uses tokenized query returned by [`python-sqlparse`](https://github.com/andialbrecht/sqlparse) and generates query metadata. Extracts column names and tables used by the query.
+Uses tokenized query returned by [`python-sqlparse`](https://github.com/andialbrecht/sqlparse) and generates query metadata.
+Extracts column names and tables used by the query. Provides a helper for normalization of SQL queries.
 
 ### Usage
 
@@ -34,3 +35,13 @@ pip install sql_metadata
 ```
 
 > See `test/test_query.py` file for more examples of a bit more complex queries.
+
+#### Queries normalization
+
+```python
+>>> from sql_metadata import generalize_sql
+>>> generalize_sql('SELECT /* Test */ foo FROM bar WHERE id in (1, 2, 56)')
+'SELECT foo FROM bar WHERE id in (XYZ)'
+```
+
+> See `test/test_normalization.py` file for more examples of a bit more complex queries.
