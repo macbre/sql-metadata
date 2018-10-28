@@ -123,8 +123,11 @@ def get_query_tables(query):
         elif token.is_keyword and str(token) == 'FORCE':
             # reset the last_keyword for "SELECT x FORCE INDEX" queries
             last_keyword = None
+        elif token.is_keyword and str(token) == 'SELECT' and last_keyword == 'INTO':
+            # reset the last_keyword for "INSERT INTO SELECT" queries
+            last_keyword = None
         elif token.ttype is Name or token.is_keyword:
-            print([last_keyword, last_token, token.value])
+            # print([last_keyword, last_token, token.value])
             # analyze the name tokens, column names and where condition values
             if last_keyword in ['FROM', 'JOIN', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN',
                                 'INTO', 'UPDATE'] \

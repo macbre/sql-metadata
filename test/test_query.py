@@ -181,6 +181,15 @@ def test_get_query_limit_and_offset():
 
 
 def test_insert_into_select():
+    # https://dev.mysql.com/doc/refman/5.7/en/insert-select.html
     query = "INSERT INTO foo SELECT * FROM bar"
     assert get_query_tables(query) == ['foo', 'bar']
     assert get_query_columns(query) == ['*']
+
+    query = "INSERT INTO foo SELECT id, price FROM bar"
+    assert get_query_tables(query) == ['foo', 'bar']
+    assert get_query_columns(query) == ['id', 'price']
+
+    query = "INSERT INTO foo SELECT id, price FROM bar WHERE qty > 200"
+    assert get_query_tables(query) == ['foo', 'bar']
+    assert get_query_columns(query) == ['id', 'price', 'qty']
