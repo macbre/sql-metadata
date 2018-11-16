@@ -39,9 +39,9 @@ setup(
     py_modules=["sql_metadata"],
     extras_require={
         'dev': [
-            'coverage==4.5.1',
-            'pylint==1.9.2', # 2.x branch is for Python 3
-            'pytest==3.9.3',
+            'coverage==4.5.2',
+            'pylint>=1.9.2, <=2.1.1',  # 2.x branch is for Python 3
+            'pytest==4.0.0',
         ]
     },
     install_requires=[
