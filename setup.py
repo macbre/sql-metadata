@@ -2,6 +2,10 @@ from setuptools import setup
 
 VERSION = '1.2'
 
+# @see https://packaging.python.org/tutorials/packaging-projects/#creating-setup-py
+with open("README.md", "r") as fh:
+    long_description = fh.read()
+
 # @see https://github.com/pypa/sampleproject/blob/master/setup.py
 setup(
     name='sql_metadata',
@@ -10,6 +14,8 @@ setup(
     author_email='maciej.brencz@gmail.com',
     license='MIT',
     description='Uses tokenized query returned by python-sqlparse and generates query metadata',
+    long_description=long_description,
+    long_description_content_type="text/markdown",
     url='https://github.com/macbre/sql-metadata',
     # https://pypi.python.org/pypi?%3Aaction=list_classifiers
     classifiers=[
