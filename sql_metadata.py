@@ -21,11 +21,11 @@ def preprocess_query(query):
     # INNER JOIN `fact_wam_scores` `fwN`
     query = re.sub(r'(\s(FROM|JOIN)\s`[^`]+`)\s`[^`]+`', r'\1', query, flags=re.IGNORECASE)
 
-    # 2. `database`.`table` notation -> table
-    query = re.sub(r'`([^`]+)`\.`([^`]+)`', r'\2', query)
+    # 2. `database`.`table` notation -> database.table
+    query = re.sub(r'`([^`]+)`\.`([^`]+)`', r'\1.\2', query)
 
-    # 2. `database`.`table` notation -> table
-    query = re.sub(r'([a-z_0-9]+)\.([a-z_0-9]+)', r'\2', query, flags=re.IGNORECASE)
+    # 2. database.table notation -> table
+    # query = re.sub(r'([a-z_0-9]+)\.([a-z_0-9]+)', r'\2', query, flags=re.IGNORECASE)
 
     return query
 
