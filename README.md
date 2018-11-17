@@ -21,8 +21,14 @@ pip install sql_metadata
 >>> sql_metadata.get_query_columns("SELECT test, id FROM foo, bar")
 [u'test', u'id']
 
+>>> sql_metadata.get_query_tables("SELECT a.* FROM product_a.users AS a JOIN product_b.users AS b ON a.ip_address = b.ip_address")
+['product_a.users', 'product_b.users']
+
 >>> sql_metadata.get_query_columns("INSERT /* VoteHelper::addVote xxx */  INTO `page_vote` (article_id,user_id,`time`) VALUES ('442001','27574631','20180228130846')")
 ['article_id', 'user_id', 'time']
+
+>>> sql_metadata.get_query_columns("SELECT a.* FROM product_a.users AS a JOIN product_b.users AS b ON a.ip_address = b.ip_address")
+['a.*', 'a.ip_address', 'b.ip_address']
 
 >>> sql_metadata.get_query_tables("SELECT test, id FROM foo, bar")
 [u'foo', u'bar']

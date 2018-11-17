@@ -9,6 +9,24 @@ from sqlparse.sql import TokenList
 from sqlparse.tokens import Name, Whitespace, Wildcard, Number, Punctuation
 
 
+def unique(_list):
+    """
+    Makes the list have unique items only and maintains the order
+
+    list(set()) won't provide that
+
+    :type _list list
+    :rtype: list
+    """
+    ret = []
+
+    for item in _list:
+        if item not in ret:
+            ret.append(item)
+
+    return ret
+
+
 def preprocess_query(query):
     """
     Perform initial query cleanup
@@ -21,11 +39,11 @@ def preprocess_query(query):
     # INNER JOIN `fact_wam_scores` `fwN`
     query = re.sub(r'(\s(FROM|JOIN)\s`[^`]+`)\s`[^`]+`', r'\1', query, flags=re.IGNORECASE)
 
-    # 2. `database`.`table` notation -> table
-    query = re.sub(r'`([^`]+)`\.`([^`]+)`', r'\2', query)
+    # 2. `database`.`table` notation -> database.table
+    query = re.sub(r'`([^`]+)`\.`([^`]+)`', r'\1.\2', query)
 
-    # 2. `database`.`table` notation -> table
-    query = re.sub(r'([a-z_0-9]+)\.([a-z_0-9]+)', r'\2', query, flags=re.IGNORECASE)
+    # 2. database.table notation -> table
+    # query = re.sub(r'([a-z_0-9]+)\.([a-z_0-9]+)', r'\2', query, flags=re.IGNORECASE)
 
     return query
 
@@ -73,22 +91,36 @@ def get_query_columns(query):
                     and last_token.value.upper() not in ['AS']:
                 # print(last_keyword, last_token, token.value)
 
-                if token.value not in columns \
-                        and token.value.upper() not in functions_ignored:
-                    columns.append(str(token.value))
+                if token.value.upper() not in functions_ignored:
+                    if str(last_token) == '.':
+                        # print('DOT', last_token, columns[-1])
+
+                        # we have table.column notation example
+                        # append column name to the last entry of columns
+                        # as it is a table name in fact
+                        table_name = columns[-1]
+                        columns[-1] = '{}.{}'.format(table_name, token)
+                    else:
+                        columns.append(str(token.value))
             elif last_keyword in ['INTO'] and last_token.ttype is Punctuation:
                 # INSERT INTO `foo` (col1, `col2`) VALUES (..)
-                # print(last_keyword, token, last_token)
+                #  print(last_keyword, token, last_token)
                 columns.append(str(token.value).strip('`'))
         elif token.ttype is Wildcard:
-            # handle wildcard in SELECT part, but ignore count(*)
+            # handle * wildcard in SELECT part, but ignore count(*)
             # print(last_keyword, last_token, token.value)
             if last_keyword == 'SELECT' and last_token.value != '(':
-                columns.append(str(token.value))
+
+                if str(last_token) == '.':
+                    # handle SELECT foo.*
+                    table_name = columns[-1]
+                    columns[-1] = '{}.{}'.format(table_name, str(token))
+                else:
+                    columns.append(str(token.value))
 
         last_token = token
 
-    return columns
+    return unique(columns)
 
 
 def get_query_tables(query):
@@ -133,13 +165,20 @@ def get_query_tables(query):
                                 'INTO', 'UPDATE'] \
                     and last_token not in ['AS'] \
                     and token.value not in ['AS', 'SELECT']:
-                table_name = str(token.value.strip('`'))
-                if table_name not in tables:
+
+                if last_token == '.':
+                    # we have database.table notation example
+                    # append table name to the last entry of tables
+                    # as it is a database name in fact
+                    database_name = tables[-1]
+                    tables[-1] = '{}.{}'.format(database_name, token)
+                else:
+                    table_name = str(token.value.strip('`'))
                     tables.append(table_name)
 
         last_token = token.value.upper()
 
-    return tables
+    return unique(tables)
 
 
 def get_query_limit_and_offset(query):

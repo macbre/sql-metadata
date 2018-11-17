@@ -19,21 +19,22 @@ def test_get_query_tokens():
 
 def test_preprocess_query():
     assert preprocess_query('SELECT DISTINCT dw.lang FROM `dimension_wikis` `dw` INNER JOIN `fact_wam_scores` `fwN` ON ((dw.wiki_id = fwN.wiki_id)) WHERE fwN.time_id = FROM_UNIXTIME(N) ORDER BY dw.lang ASC') == \
-        'SELECT DISTINCT lang FROM `dimension_wikis` INNER JOIN `fact_wam_scores` ON ((wiki_id = wiki_id)) WHERE time_id = FROM_UNIXTIME(N) ORDER BY lang ASC'
+        'SELECT DISTINCT dw.lang FROM `dimension_wikis` INNER JOIN `fact_wam_scores` ON ((dw.wiki_id = fwN.wiki_id)) WHERE fwN.time_id = FROM_UNIXTIME(N) ORDER BY dw.lang ASC'
 
     assert preprocess_query("SELECT count(fwN.wiki_id) as wam_results_total FROM `fact_wam_scores` `fwN` left join `fact_wam_scores` `fwN` ON ((fwN.wiki_id = fwN.wiki_id) AND (fwN.time_id = FROM_UNIXTIME(N))) left join `dimension_wikis` `dw` ON ((fwN.wiki_id = dw.wiki_id)) WHERE (fwN.time_id = FROM_UNIXTIME(N)) AND (dw.url like X OR dw.title like X) AND fwN.vertical_id IN (XYZ) AND dw.lang = X AND (fwN.wiki_id NOT IN (XYZ)) AND ((dw.url IS NOT NULL AND dw.title IS NOT NULL))") == \
-        "SELECT count(wiki_id) as wam_results_total FROM `fact_wam_scores` left join `fact_wam_scores` ON ((wiki_id = wiki_id) AND (time_id = FROM_UNIXTIME(N))) left join `dimension_wikis` ON ((wiki_id = wiki_id)) WHERE (time_id = FROM_UNIXTIME(N)) AND (url like X OR title like X) AND vertical_id IN (XYZ) AND lang = X AND (wiki_id NOT IN (XYZ)) AND ((url IS NOT NULL AND title IS NOT NULL))"
+        "SELECT count(fwN.wiki_id) as wam_results_total FROM `fact_wam_scores` left join `fact_wam_scores` ON ((fwN.wiki_id = fwN.wiki_id) AND (fwN.time_id = FROM_UNIXTIME(N))) left join `dimension_wikis` ON ((fwN.wiki_id = dw.wiki_id)) WHERE (fwN.time_id = FROM_UNIXTIME(N)) AND (dw.url like X OR dw.title like X) AND fwN.vertical_id IN (XYZ) AND dw.lang = X AND (fwN.wiki_id NOT IN (XYZ)) AND ((dw.url IS NOT NULL AND dw.title IS NOT NULL))"
 
-    # remove database selector
+    # normalize database selector
     assert preprocess_query("SELECT foo FROM `db`.`test`") == \
-        "SELECT foo FROM test"
+        "SELECT foo FROM db.test"
 
     assert preprocess_query("SELECT r1.wiki_id AS id FROM report_wiki_recent_pageviews AS r1 INNER JOIN dimension_wikis AS d ON r.wiki_id = d.wiki_id") == \
-        "SELECT wiki_id AS id FROM report_wiki_recent_pageviews AS r1 INNER JOIN dimension_wikis AS d ON wiki_id = wiki_id"
+        "SELECT r1.wiki_id AS id FROM report_wiki_recent_pageviews AS r1 INNER JOIN dimension_wikis AS d ON r.wiki_id = d.wiki_id"
 
 
 def test_get_query_columns():
     assert get_query_columns('SELECT * FROM `test_table`') == ['*']
+    assert get_query_columns('SELECT foo.* FROM `test_table`') == ['foo.*']
     assert get_query_columns('SELECT foo FROM `test_table`') == ['foo']
     assert get_query_columns('SELECT count(foo) FROM `test_table`') == ['foo']
     assert get_query_columns('SELECT COUNT(foo), max(time_id) FROM `test_table`') == ['foo', 'time_id']
@@ -51,7 +52,8 @@ def test_get_query_columns_complex():
     # table aliases
     assert get_query_columns("SELECT r.wiki_id AS id, pageviews_7day AS pageviews FROM report_wiki_recent_pageviews AS r "
         "INNER JOIN dimension_wikis AS d ON r.wiki_id = d.wiki_id WHERE d.is_public = '1' "
-        "AND r.lang IN ( 'en', 'ru' ) AND r.hub_name = 'gaming' ORDER BY pageviews DESC LIMIT 300") == ['wiki_id', 'pageviews_7day', 'is_public', 'lang', 'hub_name', 'pageviews']
+        "AND r.lang IN ( 'en', 'ru' ) AND r.hub_name = 'gaming' ORDER BY pageviews DESC LIMIT 300") \
+        == ['r.wiki_id', 'pageviews_7day', 'd.wiki_id', 'd.is_public', 'r.lang', 'r.hub_name', 'pageviews']
 
     # self joins
     assert get_query_columns("SELECT  count(fw1.wiki_id) as wam_results_total  FROM `fact_wam_scores` `fw1` "
@@ -61,7 +63,8 @@ def test_get_query_columns_complex():
         "AND (dw.url like '%%' OR dw.title like '%%') AND fw1.vertical_id IN "
         "('0','1','2','3','4','5','6','7')  AND (fw1.wiki_id NOT "
         "IN ('23312','70256','168929','463633','381622','1089624')) "
-        "AND ((dw.url IS NOT NULL AND dw.title IS NOT NULL))") == ['wiki_id', 'time_id', 'url', 'title', 'vertical_id']
+        "AND ((dw.url IS NOT NULL AND dw.title IS NOT NULL))") \
+        == ['fw1.wiki_id', 'fw2.wiki_id', 'fw2.time_id', 'dw.wiki_id', 'fw1.time_id', 'dw.url', 'dw.title', 'fw1.vertical_id']
 
     assert get_query_columns("SELECT date_format(time_id,'%Y-%m-%d') AS date, pageviews AS cnt         FROM rollup_wiki_pageviews      WHERE period_id = '2'   AND wiki_id = '1676379'         AND time_id BETWEEN '2018-01-08'        AND '2018-01-01'") == ['time_id', 'pageviews', 'period_id', 'wiki_id']
 
@@ -69,6 +72,10 @@ def test_get_query_columns_complex():
 
     # REPLACE queries
     assert get_query_columns("REPLACE INTO `page_props` (pp_page,pp_propname,pp_value) VALUES ('47','infoboxes','')") == ['pp_page', 'pp_propname', 'pp_value']
+
+    # JOINs
+    assert ['a.*', 'a.ip_address', 'b.ip_address'] == \
+        get_query_columns("SELECT a.* FROM product_a.users AS a JOIN product_b.users AS b ON a.ip_address = b.ip_address")
 
 
 def test_get_query_tables():
@@ -78,7 +85,9 @@ def test_get_query_tables():
 
     assert ['test_table'] == get_query_tables('SELECT foo FROM `test_table`')
 
-    assert ['test_table'] == get_query_tables('SELECT foo FROM `db`.`test_table`')
+    assert ['s.t'] == get_query_tables('SELECT * FROM s.t')
+
+    assert ['db.test_table'] == get_query_tables('SELECT foo FROM `db`.`test_table`')
 
     assert ['test_table'] == get_query_tables('SELECT foo FROM test_table WHERE id = 1')
 
@@ -99,7 +108,7 @@ def test_get_query_tables():
     assert ['fact_wam_scores', 'dimension_wikis'] == \
          get_query_tables("SELECT count(fwN.wiki_id) as wam_results_total FROM `fact_wam_scores` `fwN` left join `fact_wam_scores` `fwN` ON ((fwN.wiki_id = fwN.wiki_id) AND (fwN.time_id = FROM_UNIXTIME(N))) left join `dimension_wikis` `dw` ON ((fwN.wiki_id = dw.wiki_id)) WHERE (fwN.time_id = FROM_UNIXTIME(N)) AND (dw.url like X OR dw.title like X) AND fwN.vertical_id IN (XYZ) AND dw.lang = X AND (fwN.wiki_id NOT IN (XYZ)) AND ((dw.url IS NOT NULL AND dw.title IS NOT NULL))")
 
-    assert ['revision', 'page', 'user'] == \
+    assert ['revision', 'page', 'wikicities_cN.user'] == \
          get_query_tables("SELECT rev_id,rev_page,rev_text_id,rev_timestamp,rev_comment,rev_user_text,rev_user,rev_minor_edit,rev_deleted,rev_len,rev_parent_id,rev_shaN,page_namespace,page_title,page_id,page_latest,user_name FROM `revision` INNER JOIN `page` ON ((page_id = rev_page)) LEFT JOIN `wikicities_cN`.`user` ON ((rev_user != N) AND (user_id = rev_user)) WHERE rev_id = X LIMIT N")
 
     # complex queries, take two
@@ -138,6 +147,10 @@ def test_get_query_tables():
     # REPLACE queries
     assert ['page_props'] == \
         get_query_tables("REPLACE INTO `page_props` (pp_page,pp_propname,pp_value) VALUES ('47','infoboxes','')")
+
+    # JOINs
+    assert ['product_a.users', 'product_b.users'] == \
+        get_query_tables("SELECT a.* FROM product_a.users AS a JOIN product_b.users AS b ON a.ip_address = b.ip_address")
 
 
 def test_joins():
