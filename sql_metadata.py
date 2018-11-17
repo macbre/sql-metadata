@@ -133,13 +133,28 @@ def get_query_tables(query):
                                 'INTO', 'UPDATE'] \
                     and last_token not in ['AS'] \
                     and token.value not in ['AS', 'SELECT']:
-                table_name = str(token.value.strip('`'))
-                if table_name not in tables:
+
+                if last_token == '.':
+                    # we have database.table notation example
+                    # append table name to the last entry of tables
+                    # as it is a database name in fact
+                    database_name = tables[-1]
+                    tables[-1] = '{}.{}'.format(database_name, token)
+                else:
+                    table_name = str(token.value.strip('`'))
                     tables.append(table_name)
 
         last_token = token.value.upper()
 
-    return tables
+    # make tables list unique,
+    # but keep the order - list(set()) will not provide that
+    ret = []
+
+    for table in tables:
+        if table not in ret:
+            ret.append(table)
+
+    return ret
 
 
 def get_query_limit_and_offset(query):

@@ -78,7 +78,9 @@ def test_get_query_tables():
 
     assert ['test_table'] == get_query_tables('SELECT foo FROM `test_table`')
 
-    assert ['test_table'] == get_query_tables('SELECT foo FROM `db`.`test_table`')
+    assert ['s.t'] == get_query_tables('SELECT * FROM s.t')
+
+    assert ['db.test_table'] == get_query_tables('SELECT foo FROM `db`.`test_table`')
 
     assert ['test_table'] == get_query_tables('SELECT foo FROM test_table WHERE id = 1')
 
@@ -99,7 +101,7 @@ def test_get_query_tables():
     assert ['fact_wam_scores', 'dimension_wikis'] == \
          get_query_tables("SELECT count(fwN.wiki_id) as wam_results_total FROM `fact_wam_scores` `fwN` left join `fact_wam_scores` `fwN` ON ((fwN.wiki_id = fwN.wiki_id) AND (fwN.time_id = FROM_UNIXTIME(N))) left join `dimension_wikis` `dw` ON ((fwN.wiki_id = dw.wiki_id)) WHERE (fwN.time_id = FROM_UNIXTIME(N)) AND (dw.url like X OR dw.title like X) AND fwN.vertical_id IN (XYZ) AND dw.lang = X AND (fwN.wiki_id NOT IN (XYZ)) AND ((dw.url IS NOT NULL AND dw.title IS NOT NULL))")
 
-    assert ['revision', 'page', 'user'] == \
+    assert ['revision', 'page', 'wikicities_cN.user'] == \
          get_query_tables("SELECT rev_id,rev_page,rev_text_id,rev_timestamp,rev_comment,rev_user_text,rev_user,rev_minor_edit,rev_deleted,rev_len,rev_parent_id,rev_shaN,page_namespace,page_title,page_id,page_latest,user_name FROM `revision` INNER JOIN `page` ON ((page_id = rev_page)) LEFT JOIN `wikicities_cN`.`user` ON ((rev_user != N) AND (user_id = rev_user)) WHERE rev_id = X LIMIT N")
 
     # complex queries, take two
@@ -138,6 +140,10 @@ def test_get_query_tables():
     # REPLACE queries
     assert ['page_props'] == \
         get_query_tables("REPLACE INTO `page_props` (pp_page,pp_propname,pp_value) VALUES ('47','infoboxes','')")
+
+    # JOINs
+    assert ['product_a.users', 'product_b.users'] == \
+        get_query_tables("SELECT a.* FROM product_a.users AS a JOIN product_b.users AS b ON a.ip_address = b.ip_address")
 
 
 def test_joins():
