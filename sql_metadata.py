@@ -95,11 +95,11 @@ def get_query_columns(query):
                     if str(last_token) == '.':
                         # print('DOT', last_token, columns[-1])
 
-                        # we have database.table notation example
-                        # append table name to the last entry of columns
-                        # as it is a database name in fact
-                        database_name = columns[-1]
-                        columns[-1] = '{}.{}'.format(database_name, token)
+                        # we have table.column notation example
+                        # append column name to the last entry of columns
+                        # as it is a table name in fact
+                        table_name = columns[-1]
+                        columns[-1] = '{}.{}'.format(table_name, token)
                     else:
                         columns.append(str(token.value))
             elif last_keyword in ['INTO'] and last_token.ttype is Punctuation:
@@ -113,8 +113,8 @@ def get_query_columns(query):
 
                 if str(last_token) == '.':
                     # handle SELECT foo.*
-                    database_name = columns[-1]
-                    columns[-1] = '{}.{}'.format(database_name, str(token))
+                    table_name = columns[-1]
+                    columns[-1] = '{}.{}'.format(table_name, str(token))
                 else:
                     columns.append(str(token.value))
 
