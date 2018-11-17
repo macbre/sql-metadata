@@ -9,6 +9,24 @@ from sqlparse.sql import TokenList
 from sqlparse.tokens import Name, Whitespace, Wildcard, Number, Punctuation
 
 
+def unique(_list):
+    """
+    Makes the list have unique items only and maintains the order
+
+    list(set()) won't provide that
+
+    :type _list list
+    :rtype: list
+    """
+    ret = []
+
+    for item in _list:
+        if item not in ret:
+            ret.append(item)
+
+    return ret
+
+
 def preprocess_query(query):
     """
     Perform initial query cleanup
@@ -146,15 +164,7 @@ def get_query_tables(query):
 
         last_token = token.value.upper()
 
-    # make tables list unique,
-    # but keep the order - list(set()) will not provide that
-    ret = []
-
-    for table in tables:
-        if table not in ret:
-            ret.append(table)
-
-    return ret
+    return unique(tables)
 
 
 def get_query_limit_and_offset(query):
