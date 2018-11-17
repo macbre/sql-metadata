@@ -34,6 +34,7 @@ def test_preprocess_query():
 
 def test_get_query_columns():
     assert get_query_columns('SELECT * FROM `test_table`') == ['*']
+    assert get_query_columns('SELECT foo.* FROM `test_table`') == ['foo.*']
     assert get_query_columns('SELECT foo FROM `test_table`') == ['foo']
     assert get_query_columns('SELECT count(foo) FROM `test_table`') == ['foo']
     assert get_query_columns('SELECT COUNT(foo), max(time_id) FROM `test_table`') == ['foo', 'time_id']
@@ -51,7 +52,8 @@ def test_get_query_columns_complex():
     # table aliases
     assert get_query_columns("SELECT r.wiki_id AS id, pageviews_7day AS pageviews FROM report_wiki_recent_pageviews AS r "
         "INNER JOIN dimension_wikis AS d ON r.wiki_id = d.wiki_id WHERE d.is_public = '1' "
-        "AND r.lang IN ( 'en', 'ru' ) AND r.hub_name = 'gaming' ORDER BY pageviews DESC LIMIT 300") == ['wiki_id', 'pageviews_7day', 'is_public', 'lang', 'hub_name', 'pageviews']
+        "AND r.lang IN ( 'en', 'ru' ) AND r.hub_name = 'gaming' ORDER BY pageviews DESC LIMIT 300") \
+        == ['r.wiki_id', 'pageviews_7day', 'd.wiki_id', 'd.is_public', 'r.lang', 'r.hub_name', 'pageviews']
 
     # self joins
     assert get_query_columns("SELECT  count(fw1.wiki_id) as wam_results_total  FROM `fact_wam_scores` `fw1` "
@@ -61,7 +63,8 @@ def test_get_query_columns_complex():
         "AND (dw.url like '%%' OR dw.title like '%%') AND fw1.vertical_id IN "
         "('0','1','2','3','4','5','6','7')  AND (fw1.wiki_id NOT "
         "IN ('23312','70256','168929','463633','381622','1089624')) "
-        "AND ((dw.url IS NOT NULL AND dw.title IS NOT NULL))") == ['wiki_id', 'time_id', 'url', 'title', 'vertical_id']
+        "AND ((dw.url IS NOT NULL AND dw.title IS NOT NULL))") \
+        == ['fw1.wiki_id', 'fw2.wiki_id', 'fw2.time_id', 'dw.wiki_id', 'fw1.time_id', 'dw.url', 'dw.title', 'fw1.vertical_id']
 
     assert get_query_columns("SELECT date_format(time_id,'%Y-%m-%d') AS date, pageviews AS cnt         FROM rollup_wiki_pageviews      WHERE period_id = '2'   AND wiki_id = '1676379'         AND time_id BETWEEN '2018-01-08'        AND '2018-01-01'") == ['time_id', 'pageviews', 'period_id', 'wiki_id']
 
@@ -69,6 +72,10 @@ def test_get_query_columns_complex():
 
     # REPLACE queries
     assert get_query_columns("REPLACE INTO `page_props` (pp_page,pp_propname,pp_value) VALUES ('47','infoboxes','')") == ['pp_page', 'pp_propname', 'pp_value']
+
+    # JOINs
+    assert ['a.*', 'a.ip_address', 'b.ip_address'] == \
+        get_query_columns("SELECT a.* FROM product_a.users AS a JOIN product_b.users AS b ON a.ip_address = b.ip_address")
 
 
 def test_get_query_tables():

@@ -91,22 +91,36 @@ def get_query_columns(query):
                     and last_token.value.upper() not in ['AS']:
                 # print(last_keyword, last_token, token.value)
 
-                if token.value not in columns \
-                        and token.value.upper() not in functions_ignored:
-                    columns.append(str(token.value))
+                if token.value.upper() not in functions_ignored:
+                    if str(last_token) == '.':
+                        # print('DOT', last_token, columns[-1])
+
+                        # we have database.table notation example
+                        # append table name to the last entry of columns
+                        # as it is a database name in fact
+                        database_name = columns[-1]
+                        columns[-1] = '{}.{}'.format(database_name, token)
+                    else:
+                        columns.append(str(token.value))
             elif last_keyword in ['INTO'] and last_token.ttype is Punctuation:
                 # INSERT INTO `foo` (col1, `col2`) VALUES (..)
-                # print(last_keyword, token, last_token)
+                #  print(last_keyword, token, last_token)
                 columns.append(str(token.value).strip('`'))
         elif token.ttype is Wildcard:
-            # handle wildcard in SELECT part, but ignore count(*)
+            # handle * wildcard in SELECT part, but ignore count(*)
             # print(last_keyword, last_token, token.value)
             if last_keyword == 'SELECT' and last_token.value != '(':
-                columns.append(str(token.value))
+
+                if str(last_token) == '.':
+                    # handle SELECT foo.*
+                    database_name = columns[-1]
+                    columns[-1] = '{}.{}'.format(database_name, str(token))
+                else:
+                    columns.append(str(token.value))
 
         last_token = token
 
-    return columns
+    return unique(columns)
 
 
 def get_query_tables(query):
