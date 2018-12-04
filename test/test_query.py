@@ -166,3 +166,9 @@ def test_cast_and_convert_functions():
     # https://dev.mysql.com/doc/refman/8.0/en/cast-functions.html
     assert get_query_columns('SELECT count(c) as test, id FROM foo where cast(d as bigint) > e') == ['c', 'id', 'd', 'e']
     assert get_query_columns('SELECT CONVERT(latin1_column USING utf8) FROM latin1_table;') == ['latin1_column']
+
+
+def test_case_syntax():
+    # https://dev.mysql.com/doc/refman/8.0/en/case.html
+    assert get_query_columns('select case when p > 0 then 1 else 0 end as cs from c where g > f') == ['p', 'g', 'f']
+    assert get_query_tables('select case when p > 0 then 1 else 0 end as cs from c where g > f') == ['c']
