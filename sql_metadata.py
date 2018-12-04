@@ -78,7 +78,7 @@ def get_query_columns(query):
     # print(preprocess_query(query))
 
     keywords_ignored = ['AS', 'AND', 'OR', 'IN', 'IS', 'NOT', 'NOT NULL', 'LIKE']
-    functions_ignored = ['COUNT', 'MIN', 'MAX', 'FROM_UNIXTIME', 'DATE_FORMAT']
+    functions_ignored = ['COUNT', 'MIN', 'MAX', 'FROM_UNIXTIME', 'DATE_FORMAT', 'CAST', 'CONVERT']
 
     for token in get_query_tokens(query):
         if token.is_keyword and token.value.upper() not in keywords_ignored:
