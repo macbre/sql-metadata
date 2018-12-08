@@ -6,6 +6,12 @@
 Uses tokenized query returned by [`python-sqlparse`](https://github.com/andialbrecht/sqlparse) and generates query metadata.
 Extracts column names and tables used by the query. Provides a helper for normalization of SQL queries.
 
+Supported queries syntax:
+
+* MySQL
+* PostgreSQL
+* [Apache Hive](https://cwiki.apache.org/confluence/display/Hive/LanguageManual+DML)
+
 ### Usage
 
 ```

@@ -112,6 +112,10 @@ def test_joins():
         get_query_tables("SELECT  page_title  FROM `redirect` INNER JOIN `page` "
                          "ON (rd_title = 'foo' AND rd_namespace = '100' AND (page_id = rd_from))")
 
+    assert ['redirect', 'page'] == \
+        get_query_tables("SELECT  page_title  FROM `redirect` INNER JOIN `page` `foo` "
+                         "ON (rd_title = 'foo' AND rd_namespace = '100' AND (foo.page_id = rd_from))")
+
     assert ['page_title', 'rd_title', 'rd_namespace', 'page_id', 'rd_from'] == \
         get_query_columns("SELECT  page_title  FROM `redirect` INNER JOIN `page` "
                           "ON (rd_title = 'foo' AND rd_namespace = '100' AND (page_id = rd_from))")
