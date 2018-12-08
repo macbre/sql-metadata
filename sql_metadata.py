@@ -144,12 +144,14 @@ def get_query_tables(query):
         'INTO', 'VALUES',
         # UPDATE queries
         'UPDATE', 'SET',
+        # Hive queries
+        'TABLE',  # INSERT TABLE
     ]
 
     # print(query, get_query_tokens(query))
 
     for token in get_query_tokens(query):
-        # print([token, token.ttype])
+        # print([token, token.ttype, last_token, last_keyword])
         if token.is_keyword and token.value.upper() in table_syntax_keywords:
             # keep the name of the last keyword, the next one can be a table name
             last_keyword = token.value.upper()
@@ -160,14 +162,14 @@ def get_query_tables(query):
         elif token.is_keyword and str(token) == 'FORCE':
             # reset the last_keyword for "SELECT x FORCE INDEX" queries
             last_keyword = None
-        elif token.is_keyword and str(token) == 'SELECT' and last_keyword == 'INTO':
-            # reset the last_keyword for "INSERT INTO SELECT" queries
+        elif token.is_keyword and str(token) == 'SELECT' and last_keyword in ['INTO', 'TABLE']:
+            # reset the last_keyword for "INSERT INTO SELECT" and "INSERT TABLE SELECT" queries
             last_keyword = None
         elif token.ttype is Name or token.is_keyword:
             # print([last_keyword, last_token, token.value])
             # analyze the name tokens, column names and where condition values
             if last_keyword in ['FROM', 'JOIN', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN',
-                                'INTO', 'UPDATE'] \
+                                'INTO', 'UPDATE', 'TABLE'] \
                     and last_token not in ['AS'] \
                     and token.value not in ['AS', 'SELECT']:
 
@@ -177,6 +179,7 @@ def get_query_tables(query):
                     # as it is a database name in fact
                     database_name = tables[-1]
                     tables[-1] = '{}.{}'.format(database_name, token)
+                    last_keyword = None
                 else:
                     table_name = str(token.value.strip('`'))
                     tables.append(table_name)
