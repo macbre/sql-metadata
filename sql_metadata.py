@@ -180,6 +180,10 @@ def get_query_tables(query):
                     database_name = tables[-1]
                     tables[-1] = '{}.{}'.format(database_name, token)
                     last_keyword = None
+                elif last_token != ',' and last_token != last_keyword:
+                    # it's not a list of tables, e.g. SELECT * FROM foo, bar
+                    # hence, it can be the case of alias without AS, e.g. SELECT * FROM foo bar
+                    pass
                 else:
                     table_name = str(token.value.strip('`'))
                     tables.append(table_name)
