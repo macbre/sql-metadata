@@ -14,6 +14,13 @@ def test_get_query_columns():
     assert get_query_columns('SELECT /* a comment */ bar FROM test_table') == ['bar']
 
 
+def test_get_query_columns_order_by():
+    assert get_query_columns("SELECT foo FROM bar ORDER BY id") == ['foo', 'id']
+    assert get_query_columns("SELECT foo FROM bar WHERE id > 20 ORDER BY id") == ['foo', 'id']
+    assert get_query_columns("SELECT id, foo FROM bar ORDER BY id DESC") == ['id', 'foo']
+    assert get_query_columns("SELECT user_id,foo FROM bar ORDER BY id LIMIT 20") == ['user_id', 'foo', 'id']
+
+
 def test_get_query_columns_complex():
     # @see https://github.com/macbre/sql-metadata/issues/6
     assert get_query_columns("SELECT 1 as c    FROM foo_pageviews      WHERE time_id = '2018-01-07 00:00:00'   AND period_id = '2' LIMIT 1") == ['time_id', 'period_id']

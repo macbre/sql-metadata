@@ -98,6 +98,19 @@ def test_get_query_tables():
     assert ['page'] == \
         get_query_tables("UPDATE `page` SET page_touched = X WHERE page_id = X")
 
+    # ORDER BY
+    assert ['bar'] == \
+        get_query_tables("SELECT foo FROM bar ORDER BY id")
+
+    assert ['bar'] == \
+        get_query_tables("SELECT foo FROM bar WHERE id > 20 ORDER BY id")
+
+    assert ['bar'] == \
+        get_query_tables("SELECT foo FROM bar ORDER BY id DESC")
+
+    assert ['bar'] == \
+        get_query_tables("SELECT foo FROM bar ORDER BY id LIMIT 20")
+
     # REPLACE queries
     assert ['page_props'] == \
         get_query_tables("REPLACE INTO `page_props` (pp_page,pp_propname,pp_value) VALUES ('47','infoboxes','')")

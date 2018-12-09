@@ -159,8 +159,8 @@ def get_query_tables(query):
         elif str(token) == '(':
             # reset the last_keyword for INSERT `foo` VALUES(id, bar) ...
             last_keyword = None
-        elif token.is_keyword and str(token) == 'FORCE':
-            # reset the last_keyword for "SELECT x FORCE INDEX" queries
+        elif token.is_keyword and str(token) in ['FORCE', 'ORDER']:
+            # reset the last_keyword for "SELECT x FORCE INDEX" queries and "SELECT x ORDER BY"
             last_keyword = None
         elif token.is_keyword and str(token) == 'SELECT' and last_keyword in ['INTO', 'TABLE']:
             # reset the last_keyword for "INSERT INTO SELECT" and "INSERT TABLE SELECT" queries
