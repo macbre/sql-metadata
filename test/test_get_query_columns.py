@@ -52,3 +52,10 @@ def test_get_query_columns_complex():
     # JOINs
     assert ['a.*', 'a.ip_address', 'b.ip_address'] == \
         get_query_columns("SELECT a.* FROM product_a.users AS a JOIN product_b.users AS b ON a.ip_address = b.ip_address")
+
+
+def test_select_aliases():
+    assert get_query_columns('SELECT e.foo FROM bar AS e') == ['e.foo']
+    assert get_query_columns('SELECT e.foo FROM bar e') == ['e.foo']
+    assert get_query_columns('SELECT e.foo FROM (SELECT * FROM bar) AS e') == ['e.foo', '*']
+    assert get_query_columns('SELECT e.foo FROM (SELECT * FROM bar) e') == ['e.foo', '*']

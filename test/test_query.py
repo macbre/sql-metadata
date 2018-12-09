@@ -189,3 +189,10 @@ def test_case_syntax():
     # https://dev.mysql.com/doc/refman/8.0/en/case.html
     assert get_query_columns('select case when p > 0 then 1 else 0 end as cs from c where g > f') == ['p', 'g', 'f']
     assert get_query_tables('select case when p > 0 then 1 else 0 end as cs from c where g > f') == ['c']
+
+
+def test_select_aliases():
+    assert get_query_tables('SELECT e.foo FROM bar AS e') == ['bar']
+    assert get_query_tables('SELECT e.foo FROM bar e') == ['bar']
+    assert get_query_tables('SELECT e.foo FROM (SELECT * FROM bar) AS e') == ['bar']
+    assert get_query_tables('SELECT e.foo FROM (SELECT * FROM bar) e') == ['bar']
