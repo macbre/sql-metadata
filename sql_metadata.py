@@ -12,9 +12,7 @@ from sqlparse.tokens import Name, Whitespace, Wildcard, Number, Punctuation
 def unique(_list):
     """
     Makes the list have unique items only and maintains the order
-
     list(set()) won't provide that
-
     :type _list list
     :rtype: list
     """
@@ -30,7 +28,6 @@ def unique(_list):
 def preprocess_query(query):
     """
     Perform initial query cleanup
-
     :type query str
     :rtype str
     """
@@ -151,7 +148,7 @@ def get_query_tables(query):
     # print(query, get_query_tokens(query))
 
     for token in get_query_tokens(query):
-        # print([token, token.ttype, last_token, last_keyword])
+        # print([token, token.ttype, last_token, last_keyword,token.is_keyword,token.value.upper()])
         if token.is_keyword and token.value.upper() in table_syntax_keywords:
             # keep the name of the last keyword, the next one can be a table name
             last_keyword = token.value.upper()
@@ -180,7 +177,7 @@ def get_query_tables(query):
                     database_name = tables[-1]
                     tables[-1] = '{}.{}'.format(database_name, token)
                     last_keyword = None
-                elif last_token not in [',', last_keyword]:
+                elif last_token not in [',','\n', last_keyword]:
                     # it's not a list of tables, e.g. SELECT * FROM foo, bar
                     # hence, it can be the case of alias without AS, e.g. SELECT * FROM foo bar
                     pass
@@ -236,7 +233,6 @@ def get_query_limit_and_offset(query):
 def normalize_likes(sql):
     """
     Normalize and wrap LIKE statements
-
     :type sql str
     :rtype: str
     """
@@ -259,7 +255,6 @@ def normalize_likes(sql):
 def remove_comments_from_sql(sql):
     """
     Removes comments from SQL query
-
     :type sql str|None
     :rtype: str
     """
@@ -269,9 +264,7 @@ def remove_comments_from_sql(sql):
 def generalize_sql(sql):
     """
     Removes most variables from an SQL query and replaces them with X or N for numbers.
-
     Based on Mediawiki's DatabaseBase::generalizeSQL
-
     :type sql str|None
     :rtype: str
     """
