@@ -33,24 +33,18 @@ setup(
         # Pick your license as you wish
         'License :: OSI Approved :: MIT License',
 
-        # Specify the Python versions you support here. In particular, ensure
-        # that you indicate whether you support Python 2, Python 3 or both.
-        'Programming Language :: Python :: 2',
-        'Programming Language :: Python :: 2.7',
+        # Specify the Python versions you support here.
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.4',
-        'Programming Language :: Python :: 3.5',
-        'Programming Language :: Python :: 3.6',
     ],
     py_modules=["sql_metadata"],
     extras_require={
         'dev': [
-            'coverage==4.5.2',
-            'pylint>=1.9.2, <=2.1.1',  # 2.x branch is for Python 3
-            'pytest==4.0.0',
+            'coverage==5.0.4',
+            'pylint==2.4.4',
+            'pytest==5.4.1',
         ]
     },
     install_requires=[
-        'sqlparse==0.2.4',
+        'sqlparse==0.3.1',
     ]
 )
