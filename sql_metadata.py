@@ -27,13 +27,16 @@ def unique(_list):
     return ret
 
 
-def preprocess_query(query):
+def preprocess_query(query: str) -> str:
     """
     Perform initial query cleanup
 
     :type query str
     :rtype str
     """
+    # 0. remove newlines
+    query = query.replace('\n', ' ')
+
     # 1. remove aliases
     # FROM `dimension_wikis` `dw`
     # INNER JOIN `fact_wam_scores` `fwN`
