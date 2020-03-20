@@ -45,6 +45,6 @@ setup(
         ]
     },
     install_requires=[
-        'sqlparse==0.2.4',
+        'sqlparse==0.3.1',
     ]
 )
