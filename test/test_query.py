@@ -31,6 +31,11 @@ def test_preprocess_query():
     assert preprocess_query("SELECT r1.wiki_id AS id FROM report_wiki_recent_pageviews AS r1 INNER JOIN dimension_wikis AS d ON r.wiki_id = d.wiki_id") == \
         "SELECT r1.wiki_id AS id FROM report_wiki_recent_pageviews AS r1 INNER JOIN dimension_wikis AS d ON r.wiki_id = d.wiki_id"
 
+    # normalize newlines
+    assert preprocess_query("SELECT foo,\nid\nFROM `db`.`test`") == \
+        "SELECT foo, id FROM db.test"
+
+
 
 def test_get_query_tables():
     assert ['test_table'] == get_query_tables('SELECT * FROM `test_table`')
@@ -196,3 +201,29 @@ def test_select_aliases():
     assert get_query_tables('SELECT e.foo FROM bar e') == ['bar']
     assert get_query_tables('SELECT e.foo FROM (SELECT * FROM bar) AS e') == ['bar']
     assert get_query_tables('SELECT e.foo FROM (SELECT * FROM bar) e') == ['bar']
+
+
+def test_multiline_queries():
+    query = """
+SELECT
+COUNT(1)
+FROM
+(SELECT
+task_id
+FROM
+some_task_detail
+WHERE
+STATUS = 1
+) a
+JOIN (
+SELECT
+task_id
+FROM
+some_task
+WHERE
+task_type_id = 80
+) b ON a.task_id = b.task_id;
+    """.strip()
+
+    assert get_query_tables(query) == ['some_task_detail', 'some_task']
+    #   assert get_query_columns(query) == ['task_id', 'STATUS', 'a', 'task_type_id', 'b', 'a.task_id', 'b.task_id']

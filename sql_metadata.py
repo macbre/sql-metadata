@@ -2,6 +2,7 @@
 This module provides SQL query parsing functions
 """
 import re
+from typing import List, Tuple, Optional
 
 import sqlparse
 
@@ -9,7 +10,7 @@ from sqlparse.sql import TokenList
 from sqlparse.tokens import Name, Whitespace, Wildcard, Number, Punctuation
 
 
-def unique(_list):
+def unique(_list: List) -> List:
     """
     Makes the list have unique items only and maintains the order
 
@@ -27,13 +28,16 @@ def unique(_list):
     return ret
 
 
-def preprocess_query(query):
+def preprocess_query(query: str) -> str:
     """
     Perform initial query cleanup
 
     :type query str
     :rtype str
     """
+    # 0. remove newlines
+    query = query.replace('\n', ' ')
+
     # 1. remove aliases
     # FROM `dimension_wikis` `dw`
     # INNER JOIN `fact_wam_scores` `fwN`
@@ -48,7 +52,7 @@ def preprocess_query(query):
     return query
 
 
-def get_query_tokens(query):
+def get_query_tokens(query: str) -> List[sqlparse.sql.Token]:
     """
     :type query str
     :rtype: list[sqlparse.sql.Token]
@@ -66,7 +70,7 @@ def get_query_tokens(query):
     return [token for token in tokens if token.ttype is not Whitespace]
 
 
-def get_query_columns(query):
+def get_query_columns(query: str) -> List[str]:
     """
     :type query str
     :rtype: list[str]
@@ -128,7 +132,7 @@ def get_query_columns(query):
     return unique(columns)
 
 
-def get_query_tables(query):
+def get_query_tables(query: str) -> List[str]:
     """
     :type query str
     :rtype: list[str]
@@ -193,7 +197,7 @@ def get_query_tables(query):
     return unique(tables)
 
 
-def get_query_limit_and_offset(query):
+def get_query_limit_and_offset(query: str) -> Optional[Tuple[int, int]]:
     """
     :type query str
     :rtype: (int, int)
@@ -233,7 +237,7 @@ def get_query_limit_and_offset(query):
 
 
 # SQL queries normalization (#16)
-def normalize_likes(sql):
+def normalize_likes(sql: str) -> str:
     """
     Normalize and wrap LIKE statements
 
@@ -256,7 +260,7 @@ def normalize_likes(sql):
     return sql
 
 
-def remove_comments_from_sql(sql):
+def remove_comments_from_sql(sql: str) -> str:
     """
     Removes comments from SQL query
 
@@ -266,7 +270,7 @@ def remove_comments_from_sql(sql):
     return re.sub(r'\s?/\*.+\*/', '', sql)
 
 
-def generalize_sql(sql):
+def generalize_sql(sql: Optional[str]) -> Optional[str]:
     """
     Removes most variables from an SQL query and replaces them with X or N for numbers.
 
