@@ -92,7 +92,7 @@ def get_query_columns(query):
             # print('keyword', last_keyword)
         elif token.ttype is Name:
             # analyze the name tokens, column names and where condition values
-            if last_keyword in ['SELECT', 'WHERE', 'BY', 'ON'] \
+            if last_keyword in ['SELECT', 'WHERE', 'ORDER BY', 'ON'] \
                     and last_token.value.upper() not in ['AS']:
                 # print(last_keyword, last_token, token.value)
 
