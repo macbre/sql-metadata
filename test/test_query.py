@@ -289,7 +289,9 @@ WITH foo AS (
 DELETE FROM z JOIN foo ON z.a = foo.a  
     """.strip()) == ['tab', 'z', 'foo']
 
-    assert get_query_tables("""
+
+def test_sql_server_cte_sales_by_year():
+    sales_query = """
 WITH cte_sales AS (
     SELECT 
         staff_id, 
@@ -305,4 +307,9 @@ SELECT
     AVG(order_count) average_orders_by_staff
 FROM 
     cte_sales;  
-    """.strip()) == ['sales.orders', 'cte_sales']
+    """.strip()
+
+    assert get_query_tables(sales_query) == ['sales.orders', 'cte_sales']
+
+    # TODO
+    # assert get_query_columns(sales_query) == ['staff_id', 'order_count', 'order_date']
