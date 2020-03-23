@@ -143,7 +143,9 @@ def get_query_tables(query: str) -> List[str]:
 
     table_syntax_keywords = [
         # SELECT queries
-        'FROM', 'WHERE', 'JOIN', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'ON',
+        'FROM', 'WHERE', 'JOIN', 'INNER JOIN', 'FULL JOIN', 'FULL OUTER JOIN',
+        'LEFT OUTER JOIN', 'RIGHT OUTER JOIN',
+        'LEFT JOIN', 'RIGHT JOIN', 'ON',
         # INSERT queries
         'INTO', 'VALUES',
         # UPDATE queries
@@ -172,7 +174,9 @@ def get_query_tables(query: str) -> List[str]:
         elif token.ttype is Name or token.is_keyword:
             # print([last_keyword, last_token, token.value])
             # analyze the name tokens, column names and where condition values
-            if last_keyword in ['FROM', 'JOIN', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN',
+            if last_keyword in ['FROM', 'JOIN', 'INNER JOIN', 'FULL JOIN', 'FULL OUTER JOIN',
+                                'LEFT JOIN', 'RIGHT JOIN',
+                                'LEFT OUTER JOIN', 'RIGHT OUTER JOIN',
                                 'INTO', 'UPDATE', 'TABLE'] \
                     and last_token not in ['AS'] \
                     and token.value not in ['AS', 'SELECT']:
