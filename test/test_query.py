@@ -36,7 +36,6 @@ def test_preprocess_query():
         "SELECT foo, id FROM db.test"
 
 
-
 def test_get_query_tables():
     assert ['test_table'] == get_query_tables('SELECT * FROM `test_table`')
 
@@ -243,3 +242,8 @@ task_type_id = 80
 
     assert get_query_tables(query) == ['some_task_detail', 'some_task']
     #   assert get_query_columns(query) == ['task_id', 'STATUS', 'a', 'task_type_id', 'b', 'a.task_id', 'b.task_id']
+
+
+def test_redshift():
+    assert get_query_tables('ALTER TABLE target_table APPEND FROM source_table') == ['target_table', 'source_table']
+    assert get_query_tables("ALTER TABLE x APPEND FROM y") == ['x', 'y']
