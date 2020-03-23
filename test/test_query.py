@@ -138,6 +138,22 @@ def test_joins():
         get_query_columns("SELECT  page_title  FROM `redirect` INNER JOIN `page` "
                           "ON (rd_title = 'foo' AND rd_namespace = '100' AND (page_id = rd_from))")
 
+    # see #34
+    assert ['foos', 'bars'] == \
+        get_query_tables("SELECT foo FROM `foos` JOIN `bars` ON (foos.id = bars.id)")
+
+    assert ['foos', 'bars'] == \
+        get_query_tables("SELECT foo FROM `foos` FULL JOIN `bars` ON (foos.id = bars.id)")
+
+    assert ['foos', 'bars'] == \
+        get_query_tables("SELECT foo FROM `foos` FULL OUTER JOIN `bars` ON (foos.id = bars.id)")
+
+    assert ['foos', 'bars'] == \
+        get_query_tables("SELECT foo FROM `foos` RIGHT OUTER JOIN `bars` ON (foos.id = bars.id)")
+
+    assert ['foos', 'bars'] == \
+        get_query_tables("SELECT foo FROM `foos` LEFT OUTER JOIN `bars` ON (foos.id = bars.id)")
+
 
 def test_handle_force_index():
     query = "SELECT  page_title,page_namespace  FROM `page` FORCE INDEX (page_random) " \
