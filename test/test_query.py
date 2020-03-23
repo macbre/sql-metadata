@@ -247,3 +247,62 @@ task_type_id = 80
 def test_redshift():
     assert get_query_tables('ALTER TABLE target_table APPEND FROM source_table') == ['target_table', 'source_table']
     assert get_query_tables("ALTER TABLE x APPEND FROM y") == ['x', 'y']
+
+
+def test_sql_server_cte():
+    """
+    Tests support for SQL Server's common table expression (CTE).
+
+    @see https://www.sqlservertutorial.net/sql-server-basics/sql-server-cte/
+    """
+    assert get_query_tables("""
+WITH x AS (
+    SELECT * FROM n
+)
+SELECT
+    *
+FROM x
+JOIN y ON x.a = y.a
+    """.strip()) == ['n', 'x', 'y']
+
+    assert get_query_tables("""
+WITH x AS (
+    SELECT * FROM n
+)
+select
+    *
+FROM x
+JOIN y ON x.a = y.a
+    """.strip()) == ['n', 'x', 'y']
+
+    assert get_query_tables("""
+WITH foo AS (
+    SELECT * FROM n
+)
+update z from foo set z.q = fpp.y 
+    """.strip()) == ['n', 'z', 'foo']
+
+    assert get_query_tables("""
+WITH foo AS ( 
+     SELECT * FROM tab
+) 
+DELETE FROM z JOIN foo ON z.a = foo.a  
+    """.strip()) == ['tab', 'z', 'foo']
+
+    assert get_query_tables("""
+WITH cte_sales AS (
+    SELECT 
+        staff_id, 
+        COUNT(*) order_count  
+    FROM
+        sales.orders
+    WHERE 
+        YEAR(order_date) = 2018
+    GROUP BY
+        staff_id
+)
+SELECT
+    AVG(order_count) average_orders_by_staff
+FROM 
+    cte_sales;  
+    """.strip()) == ['sales.orders', 'cte_sales']
