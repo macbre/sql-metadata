@@ -123,6 +123,36 @@ def test_get_query_tables():
     assert ['product_a.users', 'product_b.users'] == \
         get_query_tables("SELECT a.* FROM product_a.users AS a JOIN product_b.users AS b ON a.ip_address = b.ip_address")
 
+    # database.schema.table formats
+    assert ['MYDB1.MYSCHEMA1.MYTABLE1'] == get_query_tables('SELECT * FROM MYDB1.MYSCHEMA1.MYTABLE1')
+
+    assert ['MYDB1.MYSCHEMA1.MYTABLE1', 'MYDB2.MYSCHEMA2.MYTABLE2'] == get_query_tables('SELECT * FROM MYDB1.MYSCHEMA1.MYTABLE1 JOIN MYDB2.MYSCHEMA2.MYTABLE2')
+
+    assert ['MYDB1.MYSCHEMA1.MYTABLE1', 'MYDB2.MYSCHEMA2.MYTABLE2'] == get_query_tables('SELECT * FROM MYDB1.MYSCHEMA1.MYTABLE1 INNER JOIN MYDB2.MYSCHEMA2.MYTABLE2')
+
+    assert ['MYDB1.MYSCHEMA1.MYTABLE1', 'MYDB2.MYSCHEMA2.MYTABLE2'] == get_query_tables('SELECT * FROM MYDB1.MYSCHEMA1.MYTABLE1 A LEFT JOIN MYDB2.MYSCHEMA2.MYTABLE2 B ON A.COL = B.COL')
+
+    assert ['MYDB1.MYSCHEMA1.MYTABLE1', 'MYDB2.MYSCHEMA2.MYTABLE2'] == get_query_tables('SELECT * FROM MYDB1.MYSCHEMA1.MYTABLE1 INNER JOIN MYDB2.MYSCHEMA2.MYTABLE2')
+
+    # handle quoted names
+    assert ['MYDB.MYTABLE'] == get_query_tables('SELECT COUNT(*) FROM "MYDB".MYTABLE')
+
+    assert ['MYDB.MYTABLE'] == get_query_tables('SELECT COUNT(*) FROM MYDB."MYTABLE"')
+
+    assert ['MYDB.MYTABLE'] == get_query_tables('SELECT COUNT(*) FROM "MYDB"."MYTABLE"')
+
+    assert ['MYDB.MYSCHEMA.MYTABLE'] == get_query_tables('SELECT COUNT(*) FROM "MYDB".MYSCHEMA.MYTABLE')
+
+    assert ['MYDB.MYSCHEMA.MYTABLE'] == get_query_tables('SELECT COUNT(*) FROM MYDB."MYSCHEMA".MYTABLE')
+
+    assert ['MYDB.MYSCHEMA.MYTABLE'] == get_query_tables('SELECT COUNT(*) FROM MYDB.MYSCHEMA."MYTABLE"')
+
+    assert ['MYDB.MYSCHEMA.MYTABLE'] == get_query_tables('SELECT COUNT(*) FROM "MYDB"."MYSCHEMA"."MYTABLE"')
+
+    # include multiple FROM tables when they prefixed
+    # @see https://github.com/macbre/sql-metadata/issues/38
+    assert ['MYDB1.TABLE1', 'MYDB2.TABLE2'] == get_query_tables('SELECT A.FIELD1, B.FIELD1, (A.FIELD1 * B.FIELD1) AS QTY FROM MYDB1.TABLE1 AS A, MYDB2.TABLE2 AS B')
+
 
 def test_joins():
     assert ['redirect', 'page'] == \
