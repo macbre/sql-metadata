@@ -190,10 +190,14 @@ def get_query_tables(query: str) -> List[str]:
                         tables[-1] = table_name
                     else:
                         tables.append(table_name)
-                if len(query_tokens) > 4 and query_tokens[i-4].ttype is Name and query_tokens[i-3].value == '.' \
-                        and query_tokens[i-2].ttype is Name and last_token == '.' and token.ttype is Name:
+                if len(query_tokens) > 4 and query_tokens[i-4].ttype is Name \
+                        and query_tokens[i-3].value == '.' \
+                        and query_tokens[i-2].ttype is Name \
+                        and last_token == '.' \
+                        and token.ttype is Name:
                     # we have database.schema.table notation example
-                    table_name = '{}.{}.{}'.format(query_tokens[i-4], query_tokens[i-2], query_tokens[i])
+                    table_name = '{}.{}.{}'.format(
+                        query_tokens[i-4], query_tokens[i-2], query_tokens[i])
                     if len(tables) > 0:
                         tables[-1] = table_name
                     else:
