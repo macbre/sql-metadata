@@ -140,6 +140,7 @@ def get_query_tables(query: str) -> List[str]:
     tables = []
     last_keyword = None
     last_token = None
+    next_token = None
 
     table_syntax_keywords = [
         # SELECT queries
@@ -155,8 +156,10 @@ def get_query_tables(query: str) -> List[str]:
     ]
 
     # print(query, get_query_tokens(query))
+    query = query.replace('"', '')
+    query_tokens = get_query_tokens(query)
 
-    for token in get_query_tokens(query):
+    for i, token in enumerate(query_tokens):
         # print([token, token.ttype, last_token, last_keyword])
         if token.is_keyword and token.value.upper() in table_syntax_keywords:
             # keep the name of the last keyword, the next one can be a table name
@@ -180,15 +183,22 @@ def get_query_tables(query: str) -> List[str]:
                                 'INTO', 'UPDATE', 'TABLE'] \
                     and last_token not in ['AS'] \
                     and token.value not in ['AS', 'SELECT']:
-
-                if last_token == '.':
+                if last_token == '.' and next_token != '.':
                     # we have database.table notation example
-                    # append table name to the last entry of tables
-                    # as it is a database name in fact
-                    database_name = tables[-1]
-                    tables[-1] = '{}.{}'.format(database_name, token)
-                    last_keyword = None
-                elif last_token not in [',', last_keyword]:
+                    table_name = '{}.{}'.format(query_tokens[i-2], query_tokens[i])
+                    if len(tables) > 0:
+                        tables[-1] = table_name
+                    else:
+                        tables.append(table_name)
+                if len(query_tokens) > 4 and query_tokens[i-4].ttype is Name and query_tokens[i-3].value == '.' \
+                        and query_tokens[i-2].ttype is Name and last_token == '.' and token.ttype is Name:
+                    # we have database.schema.table notation example
+                    table_name = '{}.{}.{}'.format(query_tokens[i-4], query_tokens[i-2], query_tokens[i])
+                    if len(tables) > 0:
+                        tables[-1] = table_name
+                    else:
+                        tables.append(table_name)
+                elif query_tokens[i-1].value.upper() not in [',', last_keyword]:
                     # it's not a list of tables, e.g. SELECT * FROM foo, bar
                     # hence, it can be the case of alias without AS, e.g. SELECT * FROM foo bar
                     pass
@@ -197,6 +207,7 @@ def get_query_tables(query: str) -> List[str]:
                     tables.append(table_name)
 
         last_token = token.value.upper()
+        next_token = query_tokens[i+1].value.upper() if i+1 < len(query_tokens) else None
 
     return unique(tables)
 
