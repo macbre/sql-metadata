@@ -132,6 +132,63 @@ def get_query_columns(query: str) -> List[str]:
     return unique(columns)
 
 
+def _update_table_names(tables: List[str],
+                        tokens: List[sqlparse.sql.Token],
+                        index: int,
+                        last_keyword: str) -> List[str]:
+    """
+    Return new table names matching database.table or database.schema.table notation
+
+    :type tables list[str]
+    :type tokens list[sqlparse.sql.Token]
+    :type index int
+    :type last_keyword str
+    :rtype: list[str]
+    """
+
+    token = tokens[index]
+    last_token = tokens[index - 1].value.upper() if index > 0 else None
+    next_token = tokens[index + 1].value.upper() if index + 1 < len(tokens) else None
+
+    if last_keyword in ['FROM', 'JOIN', 'INNER JOIN', 'FULL JOIN', 'FULL OUTER JOIN',
+                        'LEFT JOIN', 'RIGHT JOIN',
+                        'LEFT OUTER JOIN', 'RIGHT OUTER JOIN',
+                        'INTO', 'UPDATE', 'TABLE'] \
+            and last_token not in ['AS'] \
+            and token.value not in ['AS', 'SELECT']:
+        if last_token == '.' and next_token != '.':
+            # we have database.table notation example
+            table_name = '{}.{}'.format(tokens[index - 2], tokens[index])
+            if len(tables) > 0:
+                tables[-1] = table_name
+            else:
+                tables.append(table_name)
+
+        schema_notation_match = (Name, '.', Name, '.', Name)
+        schema_notation_tokens = (tokens[index - 4].ttype,
+                                  tokens[index - 3].value,
+                                  tokens[index - 2].ttype,
+                                  tokens[index - 1].value,
+                                  tokens[index].ttype) if len(tokens) > 4 else None
+        if schema_notation_tokens == schema_notation_match:
+            # we have database.schema.table notation example
+            table_name = '{}.{}.{}'.format(
+                tokens[index - 4], tokens[index - 2], tokens[index])
+            if len(tables) > 0:
+                tables[-1] = table_name
+            else:
+                tables.append(table_name)
+        elif tokens[index - 1].value.upper() not in [',', last_keyword]:
+            # it's not a list of tables, e.g. SELECT * FROM foo, bar
+            # hence, it can be the case of alias without AS, e.g. SELECT * FROM foo bar
+            pass
+        else:
+            table_name = str(token.value.strip('`'))
+            tables.append(table_name)
+
+    return tables
+
+
 def get_query_tables(query: str) -> List[str]:
     """
     :type query str
@@ -139,8 +196,6 @@ def get_query_tables(query: str) -> List[str]:
     """
     tables = []
     last_keyword = None
-    last_token = None
-    next_token = None
 
     table_syntax_keywords = [
         # SELECT queries
@@ -157,9 +212,9 @@ def get_query_tables(query: str) -> List[str]:
 
     # print(query, get_query_tokens(query))
     query = query.replace('"', '')
-    query_tokens = get_query_tokens(query)
+    tokens = get_query_tokens(query)
 
-    for i, token in enumerate(query_tokens):
+    for index, token in enumerate(tokens):
         # print([token, token.ttype, last_token, last_keyword])
         if token.is_keyword and token.value.upper() in table_syntax_keywords:
             # keep the name of the last keyword, the next one can be a table name
@@ -175,43 +230,7 @@ def get_query_tables(query: str) -> List[str]:
             # reset the last_keyword for "INSERT INTO SELECT" and "INSERT TABLE SELECT" queries
             last_keyword = None
         elif token.ttype is Name or token.is_keyword:
-            # print([last_keyword, last_token, token.value])
-            # analyze the name tokens, column names and where condition values
-            if last_keyword in ['FROM', 'JOIN', 'INNER JOIN', 'FULL JOIN', 'FULL OUTER JOIN',
-                                'LEFT JOIN', 'RIGHT JOIN',
-                                'LEFT OUTER JOIN', 'RIGHT OUTER JOIN',
-                                'INTO', 'UPDATE', 'TABLE'] \
-                    and last_token not in ['AS'] \
-                    and token.value not in ['AS', 'SELECT']:
-                if last_token == '.' and next_token != '.':
-                    # we have database.table notation example
-                    table_name = '{}.{}'.format(query_tokens[i-2], query_tokens[i])
-                    if len(tables) > 0:
-                        tables[-1] = table_name
-                    else:
-                        tables.append(table_name)
-                if len(query_tokens) > 4 and query_tokens[i-4].ttype is Name \
-                        and query_tokens[i-3].value == '.' \
-                        and query_tokens[i-2].ttype is Name \
-                        and last_token == '.' \
-                        and token.ttype is Name:
-                    # we have database.schema.table notation example
-                    table_name = '{}.{}.{}'.format(
-                        query_tokens[i-4], query_tokens[i-2], query_tokens[i])
-                    if len(tables) > 0:
-                        tables[-1] = table_name
-                    else:
-                        tables.append(table_name)
-                elif query_tokens[i-1].value.upper() not in [',', last_keyword]:
-                    # it's not a list of tables, e.g. SELECT * FROM foo, bar
-                    # hence, it can be the case of alias without AS, e.g. SELECT * FROM foo bar
-                    pass
-                else:
-                    table_name = str(token.value.strip('`'))
-                    tables.append(table_name)
-
-        last_token = token.value.upper()
-        next_token = query_tokens[i+1].value.upper() if i+1 < len(query_tokens) else None
+            tables = _update_table_names(tables, tokens, index, last_keyword)
 
     return unique(tables)
 
