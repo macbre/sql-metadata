@@ -39,7 +39,7 @@ setup(
     py_modules=["sql_metadata"],
     extras_require={
         'dev': [
-            'coverage==5.0.4',
+            'coverage==5.1',
             'pylint==2.4.4',
             'pytest==5.4.1',
         ]
