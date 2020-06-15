@@ -1,0 +1,11 @@
+# Basic set up
+# https://help.github.com/en/github/administering-a-repository/configuration-options-for-dependency-updates#package-ecosystem
+
+version: 2
+updates:
+
+  # Maintain PyPI dependencies
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "daily"
