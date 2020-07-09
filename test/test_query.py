@@ -345,8 +345,14 @@ FROM
     # assert get_query_columns(sales_query) == ['staff_id', 'order_count', 'order_date']
 
 
-def test_query_with_having():
+def test_table_name_with_alias():
+    expected_tables = ['SH.sales']
+
+    assert get_query_tables("SELECT s.cust_id,count(s.cust_id) FROM SH.sales s") == expected_tables
+
+    assert get_query_tables("SELECT s.cust_id,count(s.cust_id) FROM SH.sales s GROUP BY s.cust_id") == expected_tables
+
     assert get_query_tables("""
 SELECT s.cust_id,count(s.cust_id) FROM SH.sales s
 GROUP BY s.cust_id HAVING s.cust_id != '1660' AND s.cust_id != '2'
-    """.strip()) == ['SH.sales']
+    """.strip()) == expected_tables
