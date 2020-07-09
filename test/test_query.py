@@ -343,3 +343,10 @@ FROM
 
     # TODO
     # assert get_query_columns(sales_query) == ['staff_id', 'order_count', 'order_date']
+
+
+def test_query_with_having():
+    assert get_query_tables("""
+SELECT s.cust_id,count(s.cust_id) FROM SH.sales s
+GROUP BY s.cust_id HAVING s.cust_id != '1660' AND s.cust_id != '2'
+    """.strip()) == ['SH.sales']
