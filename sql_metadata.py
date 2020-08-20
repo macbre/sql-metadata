@@ -302,7 +302,7 @@ def get_query_table_aliases(query: str) -> Dict[str, str]:
     for token in get_query_tokens(query):
         # print(token.ttype, token, last_table_name)
 
-        # TODO: handle "FROM foo alias" syntax (i.e, "AS" keyword is missing)
+        # handle "FROM foo alias" syntax (i.e, "AS" keyword is missing)
         # if last_table_name and token.ttype is Name:
         #     aliases[token.value] = last_table_name
         #     last_table_name = False
