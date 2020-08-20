@@ -48,7 +48,3 @@ def test_get_query_columns_complex():
 
     # REPLACE queries
     assert get_query_columns("REPLACE INTO `page_props` (pp_page,pp_propname,pp_value) VALUES ('47','infoboxes','')") == ['pp_page', 'pp_propname', 'pp_value']
-
-    # JOINs
-    assert ['product_a.*', 'product_a.ip_address', 'product_b.ip_address'] == \
-        get_query_columns("SELECT a.* FROM product_a.users AS a JOIN product_b.users AS b ON a.ip_address = b.ip_address")
