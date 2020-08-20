@@ -7,11 +7,12 @@ def test_get_query_table_aliases():
     assert get_query_table_aliases('SELECT bar FROM foo AS f') == {'f': 'foo'}
     assert get_query_table_aliases('SELECT bar AS value FROM foo AS f') == {'f': 'foo'}
     assert get_query_table_aliases('SELECT bar AS value FROM foo AS f INNER JOIN dimensions AS d ON f.id = d.id') == {'f': 'foo', 'd': 'dimensions'}
+    assert get_query_table_aliases('SELECT e.foo FROM (SELECT * FROM bar) AS e'), 'Sub-query aliases are ignored'
 
 
 def test_select_aliases():
     assert get_query_columns('SELECT e.foo FROM bar AS e') == ['bar.foo']
-    # assert get_query_columns('SELECT e.foo FROM bar e') == ['bar.foo']
+    assert get_query_columns('SELECT e.foo FROM bar e') == ['e.foo']
 
 
 def test_tables_aliases_are_resolved():
