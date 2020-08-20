@@ -89,6 +89,16 @@ def get_query_columns(query: str) -> List[str]:
     # and not "reset" previously found SELECT keyword
     functions_ignored = ['COUNT', 'MIN', 'MAX', 'FROM_UNIXTIME', 'DATE_FORMAT', 'CAST', 'CONVERT']
 
+    tables_aliases = get_query_table_aliases(query)
+
+    def resolve_table_alias(_table_name: str) -> str:
+        """
+        Resolve aliases, e.g. SELECT bar.column FROM foo AS bar
+        """
+        if _table_name in tables_aliases:
+            return tables_aliases[_table_name]
+        return _table_name
+
     for token in get_query_tokens(query):
         if token.is_keyword and token.value.upper() not in keywords_ignored:
             # keep the name of the last keyword, e.g. SELECT, FROM, WHERE, (ORDER) BY
@@ -107,7 +117,8 @@ def get_query_columns(query: str) -> List[str]:
                         # we have table.column notation example
                         # append column name to the last entry of columns
                         # as it is a table name in fact
-                        table_name = columns[-1]
+                        table_name = resolve_table_alias(columns[-1])
+
                         columns[-1] = '{}.{}'.format(table_name, token)
                     else:
                         columns.append(str(token.value))
@@ -122,7 +133,7 @@ def get_query_columns(query: str) -> List[str]:
 
                 if str(last_token) == '.':
                     # handle SELECT foo.*
-                    table_name = columns[-1]
+                    table_name = resolve_table_alias(columns[-1])
                     columns[-1] = '{}.{}'.format(table_name, str(token))
                 else:
                     columns.append(str(token.value))
@@ -290,10 +301,10 @@ def get_query_table_aliases(query: str) -> Dict[str, str]:
 
     for token in get_query_tokens(query):
         if last_keyword_token:
-            if last_keyword_token.value.upper() in ['FROM', 'JOIN']:
+            if last_keyword_token.value.upper() in ['FROM', 'JOIN', 'INNER JOIN']:
                 last_table_name = token.value
 
-            elif last_keyword_token.value.upper() in ['AS']:
+            elif last_table_name and last_keyword_token.value.upper() in ['AS']:
                 aliases[token.value] = last_table_name
                 last_table_name = False
 
