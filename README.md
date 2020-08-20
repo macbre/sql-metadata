@@ -3,7 +3,7 @@
 [![PyPI](https://img.shields.io/pypi/v/sql_metadata.svg)](https://pypi.python.org/pypi/sql_metadata)
 
 Uses tokenized query returned by [`python-sqlparse`](https://github.com/andialbrecht/sqlparse) and generates query metadata.
-Extracts column names and tables used by the query. Provides a helper for normalization of SQL queries.
+**Extracts column names and tables** used by the query. Provides a helper for **normalization of SQL queries** and **tables aliases resolving**.
 
 Supported queries syntax:
 
@@ -43,6 +43,9 @@ pip install sql_metadata
 
 >>> sql_metadata.get_query_limit_and_offset('SELECT foo_limit FROM bar_offset limit 2000,50')
 (50, 2000)
+
+>>> sql_metadata.get_query_table_aliases("SELECT test FROM foo AS f")
+{'f': 'foo'}
 ```
 
 > See `test/test_query.py` file for more examples of a bit more complex queries.

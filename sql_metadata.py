@@ -2,7 +2,7 @@
 This module provides SQL query parsing functions
 """
 import re
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict
 
 import sqlparse
 
@@ -275,6 +275,31 @@ def get_query_limit_and_offset(query: str) -> Optional[Tuple[int, int]]:
         return None
 
     return limit, offset or 0
+
+
+def get_query_table_aliases(query: str) -> Dict[str, str]:
+    """
+    Returns tables aliases mapping from a given query
+
+    E.g. SELECT a.* FROM users1 AS a JOIN users2 AS b ON a.ip_address = b.ip_address
+    will give you {'a': 'users1', 'b': 'users2'}
+    """
+    aliases = dict()
+    last_keyword_token = None
+    last_table_name = None
+
+    for token in get_query_tokens(query):
+        if last_keyword_token:
+            if last_keyword_token.value.upper() in ['FROM', 'JOIN']:
+                last_table_name = token.value
+
+            elif last_keyword_token.value.upper() in ['AS']:
+                aliases[token.value] = last_table_name
+                last_table_name = False
+
+        last_keyword_token = token if token.is_keyword else False
+
+    return aliases
 
 
 # SQL queries normalization (#16)
