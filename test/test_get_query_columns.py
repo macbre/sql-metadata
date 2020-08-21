@@ -29,7 +29,7 @@ def test_get_query_columns_complex():
     assert get_query_columns("SELECT r.wiki_id AS id, pageviews_7day AS pageviews FROM report_wiki_recent_pageviews AS r "
         "INNER JOIN dimension_wikis AS d ON r.wiki_id = d.wiki_id WHERE d.is_public = '1' "
         "AND r.lang IN ( 'en', 'ru' ) AND r.hub_name = 'gaming' ORDER BY pageviews DESC LIMIT 300") \
-        == ['r.wiki_id', 'pageviews_7day', 'd.wiki_id', 'd.is_public', 'r.lang', 'r.hub_name', 'pageviews']
+        == ['report_wiki_recent_pageviews.wiki_id', 'pageviews_7day', 'dimension_wikis.wiki_id', 'dimension_wikis.is_public', 'report_wiki_recent_pageviews.lang', 'report_wiki_recent_pageviews.hub_name', 'pageviews']
 
     # self joins
     assert get_query_columns("SELECT  count(fw1.wiki_id) as wam_results_total  FROM `fact_wam_scores` `fw1` "
@@ -48,14 +48,3 @@ def test_get_query_columns_complex():
 
     # REPLACE queries
     assert get_query_columns("REPLACE INTO `page_props` (pp_page,pp_propname,pp_value) VALUES ('47','infoboxes','')") == ['pp_page', 'pp_propname', 'pp_value']
-
-    # JOINs
-    assert ['a.*', 'a.ip_address', 'b.ip_address'] == \
-        get_query_columns("SELECT a.* FROM product_a.users AS a JOIN product_b.users AS b ON a.ip_address = b.ip_address")
-
-
-def test_select_aliases():
-    assert get_query_columns('SELECT e.foo FROM bar AS e') == ['e.foo']
-    assert get_query_columns('SELECT e.foo FROM bar e') == ['e.foo']
-    assert get_query_columns('SELECT e.foo FROM (SELECT * FROM bar) AS e') == ['e.foo', '*']
-    assert get_query_columns('SELECT e.foo FROM (SELECT * FROM bar) e') == ['e.foo', '*']

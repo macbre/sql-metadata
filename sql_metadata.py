@@ -2,7 +2,7 @@
 This module provides SQL query parsing functions
 """
 import re
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict
 
 import sqlparse
 
@@ -89,6 +89,16 @@ def get_query_columns(query: str) -> List[str]:
     # and not "reset" previously found SELECT keyword
     functions_ignored = ['COUNT', 'MIN', 'MAX', 'FROM_UNIXTIME', 'DATE_FORMAT', 'CAST', 'CONVERT']
 
+    tables_aliases = get_query_table_aliases(query)
+
+    def resolve_table_alias(_table_name: str) -> str:
+        """
+        Resolve aliases, e.g. SELECT bar.column FROM foo AS bar
+        """
+        if _table_name in tables_aliases:
+            return tables_aliases[_table_name]
+        return _table_name
+
     for token in get_query_tokens(query):
         if token.is_keyword and token.value.upper() not in keywords_ignored:
             # keep the name of the last keyword, e.g. SELECT, FROM, WHERE, (ORDER) BY
@@ -107,7 +117,8 @@ def get_query_columns(query: str) -> List[str]:
                         # we have table.column notation example
                         # append column name to the last entry of columns
                         # as it is a table name in fact
-                        table_name = columns[-1]
+                        table_name = resolve_table_alias(columns[-1])
+
                         columns[-1] = '{}.{}'.format(table_name, token)
                     else:
                         columns.append(str(token.value))
@@ -122,7 +133,7 @@ def get_query_columns(query: str) -> List[str]:
 
                 if str(last_token) == '.':
                     # handle SELECT foo.*
-                    table_name = columns[-1]
+                    table_name = resolve_table_alias(columns[-1])
                     columns[-1] = '{}.{}'.format(table_name, str(token))
                 else:
                     columns.append(str(token.value))
@@ -275,6 +286,38 @@ def get_query_limit_and_offset(query: str) -> Optional[Tuple[int, int]]:
         return None
 
     return limit, offset or 0
+
+
+def get_query_table_aliases(query: str) -> Dict[str, str]:
+    """
+    Returns tables aliases mapping from a given query
+
+    E.g. SELECT a.* FROM users1 AS a JOIN users2 AS b ON a.ip_address = b.ip_address
+    will give you {'a': 'users1', 'b': 'users2'}
+    """
+    aliases = dict()
+    last_keyword_token = None
+    last_table_name = None
+
+    for token in get_query_tokens(query):
+        # print(token.ttype, token, last_table_name)
+
+        # handle "FROM foo alias" syntax (i.e, "AS" keyword is missing)
+        # if last_table_name and token.ttype is Name:
+        #     aliases[token.value] = last_table_name
+        #     last_table_name = False
+
+        if last_keyword_token:
+            if last_keyword_token.value.upper() in ['FROM', 'JOIN', 'INNER JOIN']:
+                last_table_name = token.value
+
+            elif last_table_name and last_keyword_token.value.upper() in ['AS']:
+                aliases[token.value] = last_table_name
+                last_table_name = False
+
+        last_keyword_token = token if token.is_keyword else False
+
+    return aliases
 
 
 # SQL queries normalization (#16)
