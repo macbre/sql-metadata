@@ -356,3 +356,18 @@ def test_table_name_with_group_by():
 SELECT s.cust_id,count(s.cust_id) FROM SH.sales s
 GROUP BY s.cust_id HAVING s.cust_id != '1660' AND s.cust_id != '2'
     """.strip()) == expected_tables
+
+
+def test_datasets():
+    # see https://github.com/macbre/sql-metadata/issues/38
+    assert get_query_tables(
+        "SELECT A.FIELD1, B.FIELD1, (A.FIELD1 * B.FIELD1) AS QTY FROM TABLE1 AS A, TABLE2 AS B"
+    ) == ['TABLE1', 'TABLE2']
+
+    assert get_query_tables(
+        "SELECT A.FIELD1, B.FIELD1, (A.FIELD1 * B.FIELD1) AS QTY FROM DATASET1.TABLE1, DATASET2.TABLE2"
+    ) == ['DATASET1.TABLE1', 'DATASET2.TABLE2']
+
+    assert get_query_tables(
+        "SELECT A.FIELD1, B.FIELD1, (A.FIELD1 * B.FIELD1) AS QTY FROM DATASET1.TABLE1 AS A, DATASET2.TABLE2 AS B"
+    ) == ['DATASET1.TABLE1', 'DATASET2.TABLE2']
