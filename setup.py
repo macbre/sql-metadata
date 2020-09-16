@@ -37,6 +37,7 @@ setup(
         'Programming Language :: Python :: 3',
     ],
     py_modules=["sql_metadata"],
+    python_requires='>=3.6',
     extras_require={
         'dev': [
             'coverage==5.2.1',
