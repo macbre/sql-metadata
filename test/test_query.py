@@ -371,3 +371,7 @@ def test_datasets():
     assert get_query_tables(
         "SELECT A.FIELD1, B.FIELD1, (A.FIELD1 * B.FIELD1) AS QTY FROM DATASET1.TABLE1 AS A, DATASET2.TABLE2 AS B"
     ) == ['DATASET1.TABLE1', 'DATASET2.TABLE2']
+
+
+def test_table_names_with_dashes():
+    assert get_query_tables('SELECT * FROM `schema-with-dash.tablename`') == ['schema-with-dash.tablename']
