@@ -40,6 +40,7 @@ setup(
     python_requires='>=3.6',
     extras_require={
         'dev': [
+            'black==20.8b1',
             'coverage==5.3',
             'pylint==2.6.0',
             'pytest==6.0.2',
