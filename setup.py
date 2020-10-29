@@ -42,7 +42,7 @@ setup(
         'dev': [
             'coverage==5.3',
             'pylint==2.6.0',
-            'pytest==6.1.1',
+            'pytest==6.1.2',
         ]
     },
     install_requires=[
