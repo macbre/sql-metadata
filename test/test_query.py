@@ -207,7 +207,7 @@ def test_get_query_tables():
     )
 
 
-def test_get_query_tables_case_insensitive():
+def test_case_insensitive():
     # case-insensitive handling
     # https://github.com/macbre/sql-metadata/issues/71
     assert ['abc.foo', 'foo', 'bar'] == get_query_tables(
@@ -215,6 +215,14 @@ def test_get_query_tables_case_insensitive():
     )
 
     assert ['abc.foo', 'foo', 'bar'] == get_query_tables(
+        "create table abc.foo as select pqr.foo1 , ab.foo2 FROM foo pqr, bar ab"
+    )
+
+    assert ['pqr.foo1', 'ab.foo2'] == get_query_columns(
+        "create table abc.foo as SELECT pqr.foo1 , ab.foo2 FROM foo pqr, bar ab"
+    )
+
+    assert ['pqr.foo1', 'ab.foo2'] == get_query_columns(
         "create table abc.foo as select pqr.foo1 , ab.foo2 FROM foo pqr, bar ab"
     )
 
