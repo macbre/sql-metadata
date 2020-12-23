@@ -546,3 +546,17 @@ def test_queries_with_null_conditions():
     assert get_query_columns(
         "SELECT id FROM cm WHERE cm.status = 1 AND cm.OPERATIONDATE IS NOT NULL AND cm.OID IN(123123);"
     ) == ["id", "cm.status", "cm.OPERATIONDATE", "cm.OID"]
+
+
+def test_queries_with_distinct():
+    assert get_query_columns(
+        "SELECT DISTINCT DATA.ASSAY_ID FROM foo"
+    ) == ["DATA.ASSAY_ID"]
+
+    assert get_query_columns(
+        "SELECT UNIQUE DATA.ASSAY_ID FROM foo"
+    ) == ["DATA.ASSAY_ID"]
+
+    assert get_query_tables(
+        "SELECT DISTINCT DATA.ASSAY_ID FROM foo"
+    ) == ["foo"]
