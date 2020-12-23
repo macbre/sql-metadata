@@ -36,15 +36,17 @@ def preprocess_query(query: str) -> str:
     :rtype str
     """
     # 0. remove newlines
-    query = query.replace('\n', ' ')
+    query = query.replace("\n", " ")
 
     # 1. remove aliases
     # FROM `dimension_wikis` `dw`
     # INNER JOIN `fact_wam_scores` `fwN`
-    query = re.sub(r'(\s(FROM|JOIN)\s`[^`]+`)\s`[^`]+`', r'\1', query, flags=re.IGNORECASE)
+    query = re.sub(
+        r"(\s(FROM|JOIN)\s`[^`]+`)\s`[^`]+`", r"\1", query, flags=re.IGNORECASE
+    )
 
     # 2. `database`.`table` notation -> database.table
-    query = re.sub(r'`([^`]+)`\.`([^`]+)`', r'\1.\2', query)
+    query = re.sub(r"`([^`]+)`\.`([^`]+)`", r"\1.\2", query)
 
     # 2. database.table notation -> table
     # query = re.sub(r'([a-z_0-9]+)\.([a-z_0-9]+)', r'\2', query, flags=re.IGNORECASE)
@@ -84,12 +86,33 @@ def get_query_columns(query: str) -> List[str]:
     # these keywords should not change the state of a parser
     # and not "reset" previously found SELECT keyword
     keywords_ignored = [
-        'AS', 'AND', 'OR', 'IN', 'IS', 'NULL', 'NOT', 'NOT NULL', 'LIKE', 'CASE', 'WHEN'
+        "AS",
+        "AND",
+        "OR",
+        "IN",
+        "IS",
+        "NULL",
+        "NOT",
+        "NOT NULL",
+        "LIKE",
+        "CASE",
+        "WHEN",
     ]
+
+    # these keywords are followed by columns reference
+    keywords_before_columns = ["SELECT", "WHERE", "ORDER BY", "ON"]
 
     # these function should be ignored
     # and not "reset" previously found SELECT keyword
-    functions_ignored = ['COUNT', 'MIN', 'MAX', 'FROM_UNIXTIME', 'DATE_FORMAT', 'CAST', 'CONVERT']
+    functions_ignored = [
+        "COUNT",
+        "MIN",
+        "MAX",
+        "FROM_UNIXTIME",
+        "DATE_FORMAT",
+        "CAST",
+        "CONVERT",
+    ]
 
     tables_aliases = get_query_table_aliases(query)
 
@@ -108,12 +131,12 @@ def get_query_columns(query: str) -> List[str]:
             # print('keyword', last_keyword)
         elif token.ttype is Name:
             # analyze the name tokens, column names and where condition values
-            if last_keyword in ['SELECT', 'WHERE', 'ORDER BY', 'ON'] \
-                    and last_token.value.upper() not in ['AS']:
-                # print(last_keyword, last_token, token.value)
-
+            if (
+                last_keyword in keywords_before_columns
+                and last_token.value.upper() not in ["AS"]
+            ):
                 if token.value.upper() not in functions_ignored:
-                    if str(last_token) == '.':
+                    if str(last_token) == ".":
                         # print('DOT', last_token, columns[-1])
 
                         # we have table.column notation example
@@ -121,22 +144,22 @@ def get_query_columns(query: str) -> List[str]:
                         # as it is a table name in fact
                         table_name = resolve_table_alias(columns[-1])
 
-                        columns[-1] = '{}.{}'.format(table_name, token)
+                        columns[-1] = "{}.{}".format(table_name, token)
                     else:
                         columns.append(str(token.value))
-            elif last_keyword in ['INTO'] and last_token.ttype is Punctuation:
+            elif last_keyword in ["INTO"] and last_token.ttype is Punctuation:
                 # INSERT INTO `foo` (col1, `col2`) VALUES (..)
                 #  print(last_keyword, token, last_token)
-                columns.append(str(token.value).strip('`'))
+                columns.append(str(token.value).strip("`"))
         elif token.ttype is Wildcard:
             # handle * wildcard in SELECT part, but ignore count(*)
             # print(last_keyword, last_token, token.value)
-            if last_keyword == 'SELECT' and last_token.value != '(':
+            if last_keyword == "SELECT" and last_token.value != "(":
 
-                if str(last_token) == '.':
+                if str(last_token) == ".":
                     # handle SELECT foo.*
                     table_name = resolve_table_alias(columns[-1])
-                    columns[-1] = '{}.{}'.format(table_name, str(token))
+                    columns[-1] = "{}.{}".format(table_name, str(token))
                 else:
                     columns.append(str(token.value))
 
@@ -145,10 +168,9 @@ def get_query_columns(query: str) -> List[str]:
     return unique(columns)
 
 
-def _update_table_names(tables: List[str],
-                        tokens: List[sqlparse.sql.Token],
-                        index: int,
-                        last_keyword: str) -> List[str]:
+def _update_table_names(
+    tables: List[str], tokens: List[sqlparse.sql.Token], index: int, last_keyword: str
+) -> List[str]:
     """
     Return new table names matching database.table or database.schema.table notation
 
@@ -163,40 +185,60 @@ def _update_table_names(tables: List[str],
     last_token = tokens[index - 1].value.upper() if index > 0 else None
     next_token = tokens[index + 1].value.upper() if index + 1 < len(tokens) else None
 
-    if last_keyword in ['FROM', 'JOIN', 'INNER JOIN', 'FULL JOIN', 'FULL OUTER JOIN',
-                        'LEFT JOIN', 'RIGHT JOIN',
-                        'LEFT OUTER JOIN', 'RIGHT OUTER JOIN',
-                        'INTO', 'UPDATE', 'TABLE'] \
-            and last_token not in ['AS'] \
-            and token.value not in ['AS', 'SELECT']:
-        if last_token == '.' and next_token != '.':
+    if (
+        last_keyword
+        in [
+            "FROM",
+            "JOIN",
+            "INNER JOIN",
+            "FULL JOIN",
+            "FULL OUTER JOIN",
+            "LEFT JOIN",
+            "RIGHT JOIN",
+            "LEFT OUTER JOIN",
+            "RIGHT OUTER JOIN",
+            "INTO",
+            "UPDATE",
+            "TABLE",
+        ]
+        and last_token not in ["AS"]
+        and token.value not in ["AS", "SELECT"]
+    ):
+        if last_token == "." and next_token != ".":
             # we have database.table notation example
-            table_name = '{}.{}'.format(tokens[index - 2], tokens[index])
+            table_name = "{}.{}".format(tokens[index - 2], tokens[index])
             if len(tables) > 0:
                 tables[-1] = table_name
             else:
                 tables.append(table_name)
 
-        schema_notation_match = (Name, '.', Name, '.', Name)
-        schema_notation_tokens = (tokens[index - 4].ttype,
-                                  tokens[index - 3].value,
-                                  tokens[index - 2].ttype,
-                                  tokens[index - 1].value,
-                                  tokens[index].ttype) if len(tokens) > 4 else None
+        schema_notation_match = (Name, ".", Name, ".", Name)
+        schema_notation_tokens = (
+            (
+                tokens[index - 4].ttype,
+                tokens[index - 3].value,
+                tokens[index - 2].ttype,
+                tokens[index - 1].value,
+                tokens[index].ttype,
+            )
+            if len(tokens) > 4
+            else None
+        )
         if schema_notation_tokens == schema_notation_match:
             # we have database.schema.table notation example
-            table_name = '{}.{}.{}'.format(
-                tokens[index - 4], tokens[index - 2], tokens[index])
+            table_name = "{}.{}.{}".format(
+                tokens[index - 4], tokens[index - 2], tokens[index]
+            )
             if len(tables) > 0:
                 tables[-1] = table_name
             else:
                 tables.append(table_name)
-        elif tokens[index - 1].value.upper() not in [',', last_keyword]:
+        elif tokens[index - 1].value.upper() not in [",", last_keyword]:
             # it's not a list of tables, e.g. SELECT * FROM foo, bar
             # hence, it can be the case of alias without AS, e.g. SELECT * FROM foo bar
             pass
         else:
-            table_name = str(token.value.strip('`'))
+            table_name = str(token.value.strip("`"))
             tables.append(table_name)
 
     return tables
@@ -212,19 +254,29 @@ def get_query_tables(query: str) -> List[str]:
 
     table_syntax_keywords = [
         # SELECT queries
-        'FROM', 'WHERE', 'JOIN', 'INNER JOIN', 'FULL JOIN', 'FULL OUTER JOIN',
-        'LEFT OUTER JOIN', 'RIGHT OUTER JOIN',
-        'LEFT JOIN', 'RIGHT JOIN', 'ON',
+        "FROM",
+        "WHERE",
+        "JOIN",
+        "INNER JOIN",
+        "FULL JOIN",
+        "FULL OUTER JOIN",
+        "LEFT OUTER JOIN",
+        "RIGHT OUTER JOIN",
+        "LEFT JOIN",
+        "RIGHT JOIN",
+        "ON",
         # INSERT queries
-        'INTO', 'VALUES',
+        "INTO",
+        "VALUES",
         # UPDATE queries
-        'UPDATE', 'SET',
+        "UPDATE",
+        "SET",
         # Hive queries
-        'TABLE',  # INSERT TABLE
+        "TABLE",  # INSERT TABLE
     ]
 
     # print(query, get_query_tokens(query))
-    query = query.replace('"', '')
+    query = query.replace('"', "")
     tokens = get_query_tokens(query)
 
     for index, token in enumerate(tokens):
@@ -233,16 +285,20 @@ def get_query_tables(query: str) -> List[str]:
             # keep the name of the last keyword, the next one can be a table name
             last_keyword = token.value.upper()
             # print('keyword', last_keyword)
-        elif str(token) == '(':
+        elif str(token) == "(":
             # reset the last_keyword for INSERT `foo` VALUES(id, bar) ...
             last_keyword = None
-        elif token.is_keyword and str(token) in ['FORCE', 'ORDER', 'GROUP BY']:
+        elif token.is_keyword and str(token) in ["FORCE", "ORDER", "GROUP BY"]:
             # reset the last_keyword for queries like:
             # "SELECT x FORCE INDEX"
             # "SELECT x ORDER BY"
             # "SELECT x FROM y GROUP BY x"
             last_keyword = None
-        elif token.is_keyword and str(token) == 'SELECT' and last_keyword in ['INTO', 'TABLE']:
+        elif (
+            token.is_keyword
+            and str(token) == "SELECT"
+            and last_keyword in ["INTO", "TABLE"]
+        ):
             # reset the last_keyword for "INSERT INTO SELECT" and "INSERT TABLE SELECT" queries
             last_keyword = None
         elif token.ttype is Name or token.is_keyword:
@@ -265,15 +321,15 @@ def get_query_limit_and_offset(query: str) -> Optional[Tuple[int, int]]:
     for token in get_query_tokens(query):
         # print([token, token.ttype, last_keyword])
 
-        if token.is_keyword and token.value.upper() in ['LIMIT', 'OFFSET']:
+        if token.is_keyword and token.value.upper() in ["LIMIT", "OFFSET"]:
             last_keyword = token.value.upper()
         elif token.ttype is Number.Integer:
             # print([token, last_keyword, last_token_was_integer])
-            if last_keyword == 'LIMIT':
+            if last_keyword == "LIMIT":
                 # LIMIT <limit>
                 limit = int(token.value)
                 last_keyword = None
-            elif last_keyword == 'OFFSET':
+            elif last_keyword == "OFFSET":
                 # OFFSET <offset>
                 offset = int(token.value)
                 last_keyword = None
@@ -310,10 +366,10 @@ def get_query_table_aliases(query: str) -> Dict[str, str]:
         #     last_table_name = False
 
         if last_keyword_token:
-            if last_keyword_token.value.upper() in ['FROM', 'JOIN', 'INNER JOIN']:
+            if last_keyword_token.value.upper() in ["FROM", "JOIN", "INNER JOIN"]:
                 last_table_name = token.value
 
-            elif last_table_name and last_keyword_token.value.upper() in ['AS']:
+            elif last_table_name and last_keyword_token.value.upper() in ["AS"]:
                 aliases[token.value] = last_table_name
                 last_table_name = False
 
@@ -330,18 +386,18 @@ def normalize_likes(sql: str) -> str:
     :type sql str
     :rtype: str
     """
-    sql = sql.replace('%', '')
+    sql = sql.replace("%", "")
 
     # LIKE '%bot'
-    sql = re.sub(r"LIKE '[^\']+'", 'LIKE X', sql)
+    sql = re.sub(r"LIKE '[^\']+'", "LIKE X", sql)
 
     # or all_groups LIKE X or all_groups LIKE X
-    matches = re.finditer(r'(or|and) [^\s]+ LIKE X', sql, flags=re.IGNORECASE)
+    matches = re.finditer(r"(or|and) [^\s]+ LIKE X", sql, flags=re.IGNORECASE)
     matches = [match.group(0) for match in matches] if matches else None
 
     if matches:
         for match in set(matches):
-            sql = re.sub(r'(\s?' + re.escape(match) + ')+', ' ' + match + ' ...', sql)
+            sql = re.sub(r"(\s?" + re.escape(match) + ")+", " " + match + " ...", sql)
 
     return sql
 
@@ -353,7 +409,7 @@ def remove_comments_from_sql(sql: str) -> str:
     :type sql str|None
     :rtype: str
     """
-    return re.sub(r'\s?/\*.+\*/', '', sql)
+    return re.sub(r"\s?/\*.+\*/", "", sql)
 
 
 def generalize_sql(sql: Optional[str]) -> Optional[str]:
@@ -369,7 +425,7 @@ def generalize_sql(sql: Optional[str]) -> Optional[str]:
         return None
 
     # multiple spaces
-    sql = re.sub(r'\s{2,}', ' ', sql)
+    sql = re.sub(r"\s{2,}", " ", sql)
 
     # MW comments
     # e.g. /* CategoryDataService::getMostVisited N.N.N.N */
@@ -378,19 +434,21 @@ def generalize_sql(sql: Optional[str]) -> Optional[str]:
     # handle LIKE statements
     sql = normalize_likes(sql)
 
-    sql = re.sub(r"\\\\", '', sql)
-    sql = re.sub(r"\\'", '', sql)
-    sql = re.sub(r'\\"', '', sql)
-    sql = re.sub(r"'[^\']*'", 'X', sql)
-    sql = re.sub(r'"[^\"]*"', 'X', sql)
+    sql = re.sub(r"\\\\", "", sql)
+    sql = re.sub(r"\\'", "", sql)
+    sql = re.sub(r'\\"', "", sql)
+    sql = re.sub(r"'[^\']*'", "X", sql)
+    sql = re.sub(r'"[^\"]*"', "X", sql)
 
     # All newlines, tabs, etc replaced by single space
-    sql = re.sub(r'\s+', ' ', sql)
+    sql = re.sub(r"\s+", " ", sql)
 
     # All numbers => N
-    sql = re.sub(r'-?[0-9]+', 'N', sql)
+    sql = re.sub(r"-?[0-9]+", "N", sql)
 
     # WHERE foo IN ('880987','882618','708228','522330')
-    sql = re.sub(r' (IN|VALUES)\s*\([^,]+,[^)]+\)', ' \\1 (XYZ)', sql, flags=re.IGNORECASE)
+    sql = re.sub(
+        r" (IN|VALUES)\s*\([^,]+,[^)]+\)", " \\1 (XYZ)", sql, flags=re.IGNORECASE
+    )
 
     return sql.strip()
