@@ -97,6 +97,8 @@ def get_query_columns(query: str) -> List[str]:
         "LIKE",
         "CASE",
         "WHEN",
+        "DISTINCT",
+        "UNIQUE",
     ]
 
     # these keywords are followed by columns reference
