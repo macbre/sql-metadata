@@ -288,7 +288,7 @@ def get_query_tables(query: str) -> List[str]:
         elif str(token) == "(":
             # reset the last_keyword for INSERT `foo` VALUES(id, bar) ...
             last_keyword = None
-        elif token.is_keyword and str(token) in ["FORCE", "ORDER", "GROUP BY"]:
+        elif token.is_keyword and str(token).upper() in ["FORCE", "ORDER", "GROUP BY"]:
             # reset the last_keyword for queries like:
             # "SELECT x FORCE INDEX"
             # "SELECT x ORDER BY"
@@ -296,7 +296,7 @@ def get_query_tables(query: str) -> List[str]:
             last_keyword = None
         elif (
             token.is_keyword
-            and str(token) == "SELECT"
+            and str(token).upper() == "SELECT"
             and last_keyword in ["INTO", "TABLE"]
         ):
             # reset the last_keyword for "INSERT INTO SELECT" and "INSERT TABLE SELECT" queries

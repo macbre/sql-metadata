@@ -207,6 +207,26 @@ def test_get_query_tables():
     )
 
 
+def test_case_insensitive():
+    # case-insensitive handling
+    # https://github.com/macbre/sql-metadata/issues/71
+    assert ["abc.foo", "foo", "bar"] == get_query_tables(
+        "create table abc.foo as SELECT pqr.foo1 , ab.foo2 FROM foo pqr, bar ab"
+    )
+
+    assert ["abc.foo", "foo", "bar"] == get_query_tables(
+        "create table abc.foo as select pqr.foo1 , ab.foo2 FROM foo pqr, bar ab"
+    )
+
+    assert ["pqr.foo1", "ab.foo2"] == get_query_columns(
+        "create table abc.foo as SELECT pqr.foo1 , ab.foo2 FROM foo pqr, bar ab"
+    )
+
+    assert ["pqr.foo1", "ab.foo2"] == get_query_columns(
+        "create table abc.foo as select pqr.foo1 , ab.foo2 FROM foo pqr, bar ab"
+    )
+
+
 def test_joins():
     assert ["redirect", "page"] == get_query_tables(
         "SELECT  page_title  FROM `redirect` INNER JOIN `page` "
