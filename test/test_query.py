@@ -549,14 +549,12 @@ def test_queries_with_null_conditions():
 
 
 def test_queries_with_distinct():
-    assert get_query_columns(
-        "SELECT DISTINCT DATA.ASSAY_ID FROM foo"
-    ) == ["DATA.ASSAY_ID"]
+    assert get_query_columns("SELECT DISTINCT DATA.ASSAY_ID FROM foo") == [
+        "DATA.ASSAY_ID"
+    ]
 
-    assert get_query_columns(
-        "SELECT UNIQUE DATA.ASSAY_ID FROM foo"
-    ) == ["DATA.ASSAY_ID"]
+    assert get_query_columns("SELECT UNIQUE DATA.ASSAY_ID FROM foo") == [
+        "DATA.ASSAY_ID"
+    ]
 
-    assert get_query_tables(
-        "SELECT DISTINCT DATA.ASSAY_ID FROM foo"
-    ) == ["foo"]
+    assert get_query_tables("SELECT DISTINCT DATA.ASSAY_ID FROM foo") == ["foo"]
