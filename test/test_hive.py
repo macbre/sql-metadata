@@ -5,11 +5,15 @@ from sql_metadata import get_query_columns, get_query_tables
 
 
 def test_insert_overwrite_table():
-    assert ['foo_report'] == get_query_tables('INSERT TABLE foo_report')
-    assert ['foo_report'] == get_query_tables('INSERT OVERWRITE TABLE foo_report')
-    assert ['foo_report', 'bar'] == get_query_tables('INSERT OVERWRITE TABLE foo_report SELECT foo FROM bar')
+    assert ["foo_report"] == get_query_tables("INSERT TABLE foo_report")
+    assert ["foo_report"] == get_query_tables("INSERT OVERWRITE TABLE foo_report")
+    assert ["foo_report", "bar"] == get_query_tables(
+        "INSERT OVERWRITE TABLE foo_report SELECT foo FROM bar"
+    )
 
-    assert ['foo'] == get_query_columns('INSERT OVERWRITE TABLE foo_report SELECT foo FROM bar')
+    assert ["foo"] == get_query_columns(
+        "INSERT OVERWRITE TABLE foo_report SELECT foo FROM bar"
+    )
 
 
 def test_complex_hive_query():
@@ -34,4 +38,8 @@ FROM
 JOIN statsdb.dimension_wikis d ON r.wiki_id = d.wiki_id;
     """
 
-    assert ['foo_report', 'rollup_wiki_beacon_pageviews', 'statsdb.dimension_wikis'] == get_query_tables(dag)
+    assert [
+        "foo_report",
+        "rollup_wiki_beacon_pageviews",
+        "statsdb.dimension_wikis",
+    ] == get_query_tables(dag)
