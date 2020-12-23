@@ -83,7 +83,9 @@ def get_query_columns(query: str) -> List[str]:
 
     # these keywords should not change the state of a parser
     # and not "reset" previously found SELECT keyword
-    keywords_ignored = ['AS', 'AND', 'OR', 'IN', 'IS', 'NOT', 'NOT NULL', 'LIKE', 'CASE', 'WHEN']
+    keywords_ignored = [
+        'AS', 'AND', 'OR', 'IN', 'IS', 'NULL', 'NOT', 'NOT NULL', 'LIKE', 'CASE', 'WHEN'
+    ]
 
     # these function should be ignored
     # and not "reset" previously found SELECT keyword

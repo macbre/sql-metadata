@@ -1,6 +1,6 @@
 from setuptools import setup
 
-VERSION = '1.8.0'
+VERSION = '1.9.1'
 
 # @see https://packaging.python.org/tutorials/packaging-projects/#creating-setup-py
 with open("README.md", "r") as fh:
@@ -41,12 +41,12 @@ setup(
     extras_require={
         'dev': [
             'black==20.8b1',
-            'coverage==5.3',
+            'coverage==5.3.1',
             'pylint==2.6.0',
-            'pytest==6.0.2',
+            'pytest==6.2.1',
         ]
     },
     install_requires=[
-        'sqlparse==0.3.1',
+        'sqlparse==0.4.1',
     ]
 )

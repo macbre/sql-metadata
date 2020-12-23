@@ -375,3 +375,13 @@ def test_datasets():
 
 def test_table_names_with_dashes():
     assert get_query_tables('SELECT * FROM `schema-with-dash.tablename`') == ['schema-with-dash.tablename']
+
+
+def test_queries_with_null_conditions():
+    assert get_query_columns(
+        'SELECT id FROM cm WHERE cm.status = 1 AND cm.OPERATIONDATE IS NULL AND cm.OID IN(123123);'
+    ) == ['id', 'cm.status', 'cm.OPERATIONDATE', 'cm.OID']
+
+    assert get_query_columns(
+        'SELECT id FROM cm WHERE cm.status = 1 AND cm.OPERATIONDATE IS NOT NULL AND cm.OID IN(123123);'
+    ) == ['id', 'cm.status', 'cm.OPERATIONDATE', 'cm.OID']
