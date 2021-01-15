@@ -12,7 +12,7 @@ Supported queries syntax:
 * PostgreSQL
 * [Apache Hive](https://cwiki.apache.org/confluence/display/Hive/LanguageManual+DML)
 
-### Usage
+## Usage
 
 ```
 pip install sql_metadata
@@ -51,7 +51,7 @@ pip install sql_metadata
 
 > See `test/test_query.py` file for more examples of a bit more complex queries.
 
-#### Queries normalization
+### Queries normalization
 
 ```python
 >>> from sql_metadata import generalize_sql
@@ -60,3 +60,7 @@ pip install sql_metadata
 ```
 
 > See `test/test_normalization.py` file for more examples of a bit more complex queries.
+
+## Stargazers over time
+
+[![Stargazers over time](https://starchart.cc/macbre/sql-metadata.svg)](https://starchart.cc/macbre/sql-metadata)
