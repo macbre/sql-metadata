@@ -206,6 +206,20 @@ def test_get_query_tables():
         "SELECT A.FIELD1, B.FIELD1, (A.FIELD1 * B.FIELD1) AS QTY FROM MYDB1.TABLE1 AS A, MYDB2.TABLE2 AS B"
     )
 
+    # test query with union
+    # @see https://github.com/macbre/sql-metadata/issues/79
+    assert ["tab1", "tab2"] == get_query_tables(
+        "select col1, col2, col3 from tab1 union all select col4, col5, col6 from tab2"
+    )
+
+    # test whitespaces in keywords
+    # @see https://github.com/macbre/sql-metadata/issues/80
+    assert ["tab","tab2"] == get_query_tables(
+        """select a,b,c from tab full  outer \r\n\t  join tab2  on (col1 = col2) group   
+               \r\n   \t   by  a, b, c """
+    )
+
+
 
 def test_case_insensitive():
     # case-insensitive handling

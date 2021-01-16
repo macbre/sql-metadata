@@ -170,6 +170,9 @@ def get_query_columns(query: str) -> List[str]:
     return unique(columns)
 
 
+def _get_token_normalized_value(token):
+    return token.value.translate(str.maketrans('', '', ' \n\t\r')).upper()
+
 def _update_table_names(
     tables: List[str], tokens: List[sqlparse.sql.Token], index: int, last_keyword: str
 ) -> List[str]:
@@ -192,13 +195,13 @@ def _update_table_names(
         in [
             "FROM",
             "JOIN",
-            "INNER JOIN",
-            "FULL JOIN",
-            "FULL OUTER JOIN",
-            "LEFT JOIN",
-            "RIGHT JOIN",
-            "LEFT OUTER JOIN",
-            "RIGHT OUTER JOIN",
+            "INNERJOIN",
+            "FULLJOIN",
+            "FULLOUTERJOIN",
+            "LEFTJOIN",
+            "RIGHTJOIN",
+            "LEFTOUTERJOIN",
+            "RIGHTOUTERJOIN",
             "INTO",
             "UPDATE",
             "TABLE",
@@ -235,7 +238,7 @@ def _update_table_names(
                 tables[-1] = table_name
             else:
                 tables.append(table_name)
-        elif tokens[index - 1].value.upper() not in [",", last_keyword]:
+        elif _get_token_normalized_value(tokens[index - 1]) not in [",", last_keyword]:
             # it's not a list of tables, e.g. SELECT * FROM foo, bar
             # hence, it can be the case of alias without AS, e.g. SELECT * FROM foo bar
             pass
@@ -259,14 +262,16 @@ def get_query_tables(query: str) -> List[str]:
         "FROM",
         "WHERE",
         "JOIN",
-        "INNER JOIN",
-        "FULL JOIN",
-        "FULL OUTER JOIN",
-        "LEFT OUTER JOIN",
-        "RIGHT OUTER JOIN",
-        "LEFT JOIN",
-        "RIGHT JOIN",
+        "INNERJOIN",
+        "FULLJOIN",
+        "FULLOUTERJOIN",
+        "LEFTOUTERJOIN",
+        "RIGHTOUTERJOIN",
+        "LEFTJOIN",
+        "RIGHTJOIN",
         "ON",
+        "UNION",
+        "UNIONALL",
         # INSERT queries
         "INTO",
         "VALUES",
@@ -283,14 +288,17 @@ def get_query_tables(query: str) -> List[str]:
 
     for index, token in enumerate(tokens):
         # print([token, token.ttype, last_token, last_keyword])
-        if token.is_keyword and token.value.upper() in table_syntax_keywords:
+
+        #remove whitespaces from token value and uppercase
+        token_val_norm=_get_token_normalized_value(token)
+        if token.is_keyword and token_val_norm in table_syntax_keywords:
             # keep the name of the last keyword, the next one can be a table name
-            last_keyword = token.value.upper()
+            last_keyword = token_val_norm
             # print('keyword', last_keyword)
         elif str(token) == "(":
             # reset the last_keyword for INSERT `foo` VALUES(id, bar) ...
             last_keyword = None
-        elif token.is_keyword and str(token).upper() in ["FORCE", "ORDER", "GROUP BY"]:
+        elif token.is_keyword and token_val_norm in ["FORCE", "ORDER", "GROUPBY"]:
             # reset the last_keyword for queries like:
             # "SELECT x FORCE INDEX"
             # "SELECT x ORDER BY"
@@ -298,7 +306,7 @@ def get_query_tables(query: str) -> List[str]:
             last_keyword = None
         elif (
             token.is_keyword
-            and str(token).upper() == "SELECT"
+            and token_val_norm == "SELECT"
             and last_keyword in ["INTO", "TABLE"]
         ):
             # reset the last_keyword for "INSERT INTO SELECT" and "INSERT TABLE SELECT" queries
