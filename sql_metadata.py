@@ -170,7 +170,7 @@ def get_query_columns(query: str) -> List[str]:
     return unique(columns)
 
 
-def _get_token_normalized_value(token):
+def _get_token_normalized_value(token: str) -> str:
     return token.value.translate(str.maketrans("", "", " \n\t\r")).upper()
 
 
