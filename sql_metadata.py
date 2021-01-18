@@ -171,7 +171,8 @@ def get_query_columns(query: str) -> List[str]:
 
 
 def _get_token_normalized_value(token):
-    return token.value.translate(str.maketrans('', '', ' \n\t\r')).upper()
+    return token.value.translate(str.maketrans("", "", " \n\t\r")).upper()
+
 
 def _update_table_names(
     tables: List[str], tokens: List[sqlparse.sql.Token], index: int, last_keyword: str
@@ -289,8 +290,8 @@ def get_query_tables(query: str) -> List[str]:
     for index, token in enumerate(tokens):
         # print([token, token.ttype, last_token, last_keyword])
 
-        #remove whitespaces from token value and uppercase
-        token_val_norm=_get_token_normalized_value(token)
+        # remove whitespaces from token value and uppercase
+        token_val_norm = _get_token_normalized_value(token)
         if token.is_keyword and token_val_norm in table_syntax_keywords:
             # keep the name of the last keyword, the next one can be a table name
             last_keyword = token_val_norm

@@ -214,11 +214,10 @@ def test_get_query_tables():
 
     # test whitespaces in keywords
     # @see https://github.com/macbre/sql-metadata/issues/80
-    assert ["tab","tab2"] == get_query_tables(
+    assert ["tab", "tab2"] == get_query_tables(
         """select a,b,c from tab full  outer \r\n\t  join tab2  on (col1 = col2) group   
                \r\n   \t   by  a, b, c """
     )
-
 
 
 def test_case_insensitive():
