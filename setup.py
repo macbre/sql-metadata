@@ -40,7 +40,7 @@ setup(
             "black==20.8b1",
             "coverage==5.3.1",
             "pylint==2.6.0",
-            "pytest==6.2.1",
+            "pytest==6.2.2",
         ]
     },
     install_requires=[
