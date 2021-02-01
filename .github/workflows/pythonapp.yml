@@ -43,6 +43,8 @@ jobs:
     - name: Install poetry
       run: |
         curl -sSL https://raw.githubusercontent.com/sdispater/poetry/master/get-poetry.py | python
+        source $HOME/.poetry/env
+
         poetry --version
 
     - name: Install dependencies
