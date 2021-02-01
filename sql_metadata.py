@@ -1,6 +1,7 @@
 """
 This module provides SQL query parsing functions
 """
+# pylint:disable=unsubscriptable-object
 import re
 from typing import List, Tuple, Optional, Dict
 

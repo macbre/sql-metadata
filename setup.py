@@ -38,9 +38,9 @@ setup(
     extras_require={
         "dev": [
             "black==20.8b1",
-            "coverage==5.3.1",
+            "coverage==5.4",
             "pylint==2.6.0",
-            "pytest==6.2.1",
+            "pytest==6.2.2",
         ]
     },
     install_requires=[
