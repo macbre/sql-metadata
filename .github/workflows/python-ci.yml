@@ -15,7 +15,6 @@ jobs:
     strategy:
       matrix:
         python-version:
-        - "3.7"
         - "3.8"
         - "3.9"
 
@@ -38,16 +37,10 @@ jobs:
         poetry --version
         poetry config --list
 
-    - name: Load cached Poetry venv
-      uses: actions/cache@v2
-      with:
-        path: .venv
-        key: venv-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
-        restore-keys: venv-${{ matrix.python-version }}-
-
     - name: Install dependencies with poetry
       run: |
         poetry install
+        poetry run python --version
         poetry run pip list
 
     - name: Lint with pylint
