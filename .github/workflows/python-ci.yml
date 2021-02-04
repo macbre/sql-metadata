@@ -7,7 +7,6 @@ on:
   push:
     branches: [ master ]
   pull_request:
-    branches: [ master ]
 
 jobs:
   test:
@@ -51,12 +50,10 @@ jobs:
         poetry run pip list
 
     - name: Lint with pylint
-      run: |
-        poetry run pylint sql_metadata.py
+      run: poetry run pylint sql_metadata.py
 
     - name: Test with pytest
-      run: |
-        poetry run pytest -vv
+      run: poetry run pytest -vv
 
     - name: Build a distribution package
       run: poetry build -vvv
