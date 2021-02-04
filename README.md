@@ -17,7 +17,7 @@ Supported queries syntax:
 ## Usage
 
 ```
-pip install sql_metadata
+pip install sql-metadata
 ```
 
 ```python
