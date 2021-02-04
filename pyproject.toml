@@ -8,6 +8,10 @@ readme = "README.md"
 homepage = "https://github.com/macbre/sql-metadata"
 repository = "https://github.com/macbre/sql-metadata"
 
+packages = [
+    { include="sql_metadata.py" }
+]
+
 [tool.poetry.dependencies]
 python = "^3.8"
 sqlparse = "^0.4.1"
