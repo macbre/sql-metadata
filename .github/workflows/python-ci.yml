@@ -48,6 +48,7 @@ jobs:
     - name: Install dependencies with poetry
       run: |
         poetry install
+        poetry run python --version
         poetry run pip list
 
     - name: Lint with pylint
