@@ -40,23 +40,36 @@ jobs:
           ${{ runner.os }}-pip-
 
     # https://python-poetry.org/docs/#installation
-    - name: Install poetry
+    - name: Install and set up poetry
+      env:
+        POETRY_VERSION: 1.1.4
+        POETRY_NO_INTERACTION: 1
       run: |
         curl -sSL https://raw.githubusercontent.com/sdispater/poetry/master/get-poetry.py | python
         source $HOME/.poetry/env
 
+        poetry config virtualenvs.create true
+        poetry config virtualenvs.in-project true
+        
         poetry --version
+        poetry config --list
 
-    - name: Install dependencies
+    - name: Load cached venv
+      uses: actions/cache@v2
+      with:
+        path: .venv
+        key: venv-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
+        restore-keys: venv-${{ matrix.python-version }}-
+
+    - name: Install dependencies with poetry
       run: |
-        python -m pip install --upgrade pip
-        pip install -e .[dev]
-        pip list
+        poetry install
+        poetry run pip list
+
     - name: Lint with pylint
       run: |
-        pip install pylint
         pylint sql_metadata.py
+
     - name: Test with pytest
       run: |
-        pip install pytest
         pytest -vv
