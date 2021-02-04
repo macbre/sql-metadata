@@ -3,7 +3,10 @@ name = "sql_metadata"
 version = "1.10.0"
 license="MIT"
 description = "Uses tokenized query returned by python-sqlparse and generates query metadata"
-authors = ["macbre <maciej.brencz@bethink.pl>"]
+authors = ["Maciej Brencz <maciej.brencz@gmail.com>"]
+readme = "README.md"
+homepage = "https://github.com/macbre/sql-metadata"
+repository = "https://github.com/macbre/sql-metadata"
 
 [tool.poetry.dependencies]
 python = "^3.8"
