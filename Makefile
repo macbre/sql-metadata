@@ -1,10 +1,10 @@
 coverage_options = --include='sql_metadata.py' --omit='test/*'
 
 install:
-	pip install -e .[dev]
+	poetry install
 
 test:
-	pytest -vv
+	poetry run pytest -vv
 
 coverage:
 	rm -f .coverage*
@@ -16,11 +16,11 @@ coverage:
 	coverage report $(coverage_options)
 
 lint:
-	pylint sql_metadata.py
+	poetry run pylint sql_metadata.py
 
 publish:
 	# run git tag -a v0.0.0 before running make publish
-	python setup.py sdist
-	twine upload dist/*
+	poetry build
+	poetry publish
 
 .PHONY: test
