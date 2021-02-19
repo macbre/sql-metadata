@@ -572,3 +572,8 @@ def test_unions():
     assert ["tab1", "tab2"] == get_query_tables(
         "select col1, col2, col3 from tab1 union all select col4, col5, col6 from tab2"
     )
+
+    # @see https://github.com/macbre/sql-metadata/issues/94
+    assert ["d", "g"] == get_query_tables(
+        "SELECT a,b,c FROM d UNION ALL SELECT e,f FROM g"
+    )
