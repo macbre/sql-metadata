@@ -398,6 +398,7 @@ def get_query_table_aliases(query: str) -> Dict[str, str]:
                 last_table_name = token.value
 
         last_keyword_token = token if token.is_keyword else False
+        prev_token = token
                 
     return aliases
 
