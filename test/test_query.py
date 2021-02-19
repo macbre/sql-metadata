@@ -206,12 +206,6 @@ def test_get_query_tables():
         "SELECT A.FIELD1, B.FIELD1, (A.FIELD1 * B.FIELD1) AS QTY FROM MYDB1.TABLE1 AS A, MYDB2.TABLE2 AS B"
     )
 
-    # test query with union
-    # @see https://github.com/macbre/sql-metadata/issues/79
-    assert ["tab1", "tab2"] == get_query_tables(
-        "select col1, col2, col3 from tab1 union all select col4, col5, col6 from tab2"
-    )
-
     # test whitespaces in keywords
     # @see https://github.com/macbre/sql-metadata/issues/80
     assert ["tab", "tab2"] == get_query_tables(
@@ -571,3 +565,15 @@ def test_queries_with_distinct():
     ]
 
     assert get_query_tables("SELECT DISTINCT DATA.ASSAY_ID FROM foo") == ["foo"]
+
+
+def test_unions():
+    # @see https://github.com/macbre/sql-metadata/issues/79
+    assert ["tab1", "tab2"] == get_query_tables(
+        "select col1, col2, col3 from tab1 union all select col4, col5, col6 from tab2"
+    )
+
+    # @see https://github.com/macbre/sql-metadata/issues/94
+    assert ["d", "g"] == get_query_tables(
+        "SELECT a,b,c FROM d UNION ALL SELECT e,f FROM g"
+    )
