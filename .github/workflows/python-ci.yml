@@ -52,11 +52,11 @@ jobs:
         poetry run python --version
         poetry show
 
-    - name: Lint with pylint
-      run: poetry run pylint sql_metadata.py
-
     - name: Test with pytest
       run: poetry run pytest -vv --cov=sql_metadata --cov-report=term
+
+    - name: Lint with pylint
+      run: poetry run pylint sql_metadata.py
 
     - name: Build a distribution package
       run: poetry build -vvv
