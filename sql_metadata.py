@@ -378,7 +378,6 @@ def get_query_table_aliases(query: str) -> Dict[str, str]:
         #     last_table_name = False
 
         if last_table_name:
-<<<<<<< HEAD
             if token.value == ".":
                 last_table_name = last_table_name + token.value  # add the dot
             if (
@@ -407,29 +406,6 @@ def get_query_table_aliases(query: str) -> Dict[str, str]:
                 and token.value != "("
             ):
                 last_table_name = token.value
-
-        last_keyword_token = token if token.is_keyword else False
-        prev_token = token
-=======
-            if token.value=='.': 
-                last_table_name = last_table_name + token.value #add the dot '.'
-            if token.value==',' or token.is_keyword and token.value.upper()!='AS': #there is no alias
-                aliases[''] = last_table_name
-                last_table_name = False
-            if prev_token.value.upper()=='AS': #if previous keyword was AS then we found the alias
-                aliases[token.value] = last_table_name
-                last_table_name = False
-            if token.ttype is Name: 
-                if prev_token.value=='.': 
-                    last_table_name = last_table_name + token.value #add Name to last_table_name
-                else: #found alias
-                    aliases[token.value] = last_table_name
-                    last_table_name = False
-
-        if last_keyword_token:
-           if last_keyword_token.value.upper() in ["FROM", "JOIN", "INNER JOIN","LEFT JOIN"] and token.value!='(':
-                last_table_name = token.value
->>>>>>> 4c2efb8147e2bb2b4fec82742a18682b0d2fb336
 
         last_keyword_token = token if token.is_keyword else False
         prev_token = token
