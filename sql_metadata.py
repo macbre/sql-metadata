@@ -366,50 +366,47 @@ def get_query_table_aliases(query: str) -> Dict[str, str]:
     will give you {'a': 'users1', 'b': 'users2'}
     """
     aliases = dict()
-    last_keyword_token = None
     last_table_name = None
+    token_list = get_query_tokens(query)
+    for prev_token, token, nxt_token in zip(
+        ["start"] + token_list, token_list, token_list[1:] + ["end"]
+    ):
 
-    for token in get_query_tokens(query):
-        # print(token.ttype, token, last_table_name)
-
-        # handle "FROM foo alias" syntax (i.e, "AS" keyword is missing)
-        # if last_table_name and token.ttype is Name:
-        #     aliases[token.value] = last_table_name
-        #     last_table_name = False
-
-        if last_table_name:
-            if token.value == ".":
-                last_table_name = last_table_name + token.value  # add the dot
+        if prev_token != "start":
             if (
-                token.value == "," or token.is_keyword and token.value.upper() != "AS"
-            ):  # there is no alias
-                aliases[""] = last_table_name
-                last_table_name = False
-            if (
-                prev_token.value.upper() == "AS"
-            ):  # previous keyword was AS then we found the alias
-                aliases[token.value] = last_table_name
-                last_table_name = False
-            if token.ttype is Name:
-                if prev_token.value == ".":
-                    last_table_name = (
-                        last_table_name + token.value
-                    )  # add Name to last_table_name
-                else:  # found alias
-                    aliases[token.value] = last_table_name
-                    last_table_name = False
-
-        if last_keyword_token:
-            if (
-                last_keyword_token.value.upper()
-                in ["FROM", "JOIN", "INNER JOIN", "LEFT JOIN"]
+                prev_token.value.upper() in ["FROM", "JOIN", "INNER JOIN", "LEFT JOIN"]
                 and token.value != "("
             ):
                 last_table_name = token.value
+            elif last_table_name:
+                if token.value == ".":
+                    last_table_name = last_table_name + token.value  # add the dot '.'
+                if (
+                    token.value == ","
+                    or token.is_keyword
+                    and token.value.upper() != "AS"
+                ):  # there is no alias
+                    aliases[""] = last_table_name
+                    last_table_name = False
+                if (
+                    prev_token.value.upper() == "AS"
+                ):  # if previous keyword was AS then we found the alias
+                    aliases[token.value] = last_table_name
+                    last_table_name = False
+                elif token.ttype is Name:
+                    if prev_token.value == ".":
+                        last_table_name = (
+                            last_table_name + token.value
+                        )  # add Name to last_table_name
+                    else:  # found alias
+                        aliases[token.value] = last_table_name
+                        last_table_name = False
 
-        last_keyword_token = token if token.is_keyword else False
-        prev_token = token
-                
+        if (
+            nxt_token == "end" and last_table_name
+        ):  # if the last token is a tablename then there is no alias
+            aliases[""] = last_table_name
+
     return aliases
 
 
