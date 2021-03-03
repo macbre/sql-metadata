@@ -46,8 +46,6 @@ jobs:
         key: poetry-venv-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
     - name: Install dependencies with poetry
-      # install dependencies if cache does not exist 
-      if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
       run: |
         # Do not install the root package (the current project)
         poetry install --no-interaction --no-root
