@@ -26,11 +26,10 @@ jobs:
       uses: actions/setup-python@v1
       with:
         python-version: ${{ matrix.python-version }}
-    
+
     - name: Install Poetry
       uses: snok/install-poetry@v1.1.1
       with:
-        version: 1.1.4
         virtualenvs-create: true
         virtualenvs-in-project: true
 
@@ -40,16 +39,18 @@ jobs:
         poetry config --list
 
     - name: Load cached Poetry venv
+      id: cached-poetry-dependencies
       uses: actions/cache@v2
       with:
         path: .venv
-        key: v2-venv-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
-        restore-keys: v2-venv-${{ matrix.python-version }}-
+        key: poetry-venv-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
     - name: Install dependencies with poetry
+      # install dependencies if cache does not exist 
+      if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
       run: |
-        poetry install
-        poetry run python --version
+        # Do not install the root package (the current project)
+        poetry install --no-interaction --no-root
         poetry show
 
     - name: Test with pytest
