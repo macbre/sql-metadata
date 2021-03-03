@@ -45,11 +45,19 @@ jobs:
         path: .venv
         key: poetry-venv-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
+    - name: Debug - .venv
+      run: |
+        ls -lha *
+
     - name: Install dependencies with poetry
       run: |
         # Do not install the root package (the current project)
         poetry install --no-interaction --no-root
         poetry show
+
+    - name: Debug - .venv
+      run: |
+        ls -lha *
 
     - name: Test with pytest
       run: poetry run pytest -vv --cov=sql_metadata --cov-report=term
