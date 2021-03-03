@@ -47,6 +47,7 @@ jobs:
 
     - name: Debug - .venv
       run: |
+        pwd
         ls -lha *
 
     - name: Install dependencies with poetry
