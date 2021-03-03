@@ -48,7 +48,7 @@ jobs:
     - name: Debug - .venv
       run: |
         pwd
-        ls -lha *
+        ls -lha .venv
 
     - name: Install dependencies with poetry
       run: |
@@ -58,7 +58,7 @@ jobs:
 
     - name: Debug - .venv
       run: |
-        ls -lha *
+        ls -lha .venv
 
     - name: Test with pytest
       run: poetry run pytest -vv --cov=sql_metadata --cov-report=term
