@@ -28,7 +28,14 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
-    
+
+    - name: Load cached Poetry venv
+      uses: actions/cache@v2
+      with:
+        path: .venv
+        key: venv-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
+        restore-keys: venv-${{ matrix.python-version }}-
+
       # https://python-poetry.org/docs/#installation
     - name: Install Poetry
       env:
@@ -38,22 +45,13 @@ jobs:
         POETRY_VIRTUALENVS_CREATE: 1
         POETRY_VIRTUALENVS_IN_PROJECT: 1
       run: |
-        pip install --user poetry
-        sudo ln -s ~/.local/bin/poetry /usr/local/bin/poetry
-
+        pip install poetry
         poetry config --list
 
     - name: Poetry details
       run: |
         poetry --version
         poetry config --list
-
-    - name: Load cached Poetry venv
-      uses: actions/cache@v2
-      with:
-        path: .venv
-        key: v2-venv-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
-        restore-keys: v2-venv-${{ matrix.python-version }}-
 
     - name: Install dependencies with poetry
       run: |
