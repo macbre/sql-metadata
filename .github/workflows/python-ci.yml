@@ -45,7 +45,7 @@ jobs:
         POETRY_VIRTUALENVS_CREATE: 1
         POETRY_VIRTUALENVS_IN_PROJECT: 1
       run: |
-        pip install poetry
+        pip install wheel poetry
         poetry config --list
 
     - name: Poetry details
