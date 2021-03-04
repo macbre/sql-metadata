@@ -39,7 +39,7 @@ jobs:
         POETRY_VIRTUALENVS_IN_PROJECT: 1
       run: |
         pip install --user poetry
-        ln -s ~/.local/bin/poetry /usr/local/bin/poetry
+        sudo ln -s ~/.local/bin/poetry /usr/local/bin/poetry
 
         poetry config --list
 
