@@ -34,11 +34,8 @@ jobs:
       with:
         path: ~/.cache
         key: cache-${{ matrix.python-version }}
-        
-    - run: |
-        pip install wheel
-        # try to install all required dependencies (Py 3.10 fix)
-        pip install poetry
+
+    - run: pip install wheel
 
     - name: Install Poetry
       uses: snok/install-poetry@v1.1.1
