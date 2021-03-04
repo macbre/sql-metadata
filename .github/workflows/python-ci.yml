@@ -26,8 +26,18 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
-    - run: pip install wheel
-    
+
+    - name: Load ~/.cache directory and Poetry .venv
+      uses: actions/cache@v2
+      with:
+        path: |
+          ~/.cache
+          .venv
+        key: cache-${{ matrix.python-version }}
+
+    - name: Install Python wheel support to speed up things
+      run: pip install wheel
+
     - name: Install Poetry
       uses: snok/install-poetry@v1.1.1
       with:
@@ -39,13 +49,6 @@ jobs:
       run: |
         poetry --version
         poetry config --list
-
-    - name: Load cached Poetry venv
-      uses: actions/cache@v2
-      with:
-        path: .venv
-        key: v2-venv-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
-        restore-keys: v2-venv-${{ matrix.python-version }}-
 
     - name: Install dependencies with poetry
       run: |
