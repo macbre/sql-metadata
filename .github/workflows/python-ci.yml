@@ -39,8 +39,9 @@ jobs:
         POETRY_VIRTUALENVS_IN_PROJECT: 1
       run: |
         curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python -
-        source $HOME/.poetry/env
-        env | sort
+
+        # make poetry discoverable within $PATH
+        sudo ln -s $HOME/.poetry/bin/poetry /usr/local/bin/poetry
 
         poetry config --list
 
