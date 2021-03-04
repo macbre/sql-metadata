@@ -51,7 +51,7 @@ jobs:
 
     - name: Install dependencies with poetry
       run: |
-        poetry install --no-root --no-interactive
+        poetry install --no-root
         poetry run python --version
         poetry show
 
