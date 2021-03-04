@@ -29,12 +29,17 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     
+      # https://python-poetry.org/docs/#installation
     - name: Install Poetry
-      uses: snok/install-poetry@v1.1.1
-      with:
-        version: 1.1.4
-        virtualenvs-create: true
-        virtualenvs-in-project: true
+      env:
+        # https://python-poetry.org/docs/configuration/#using-environment-variables
+        POETRY_VERSION: 1.1.4
+        POETRY_NO_INTERACTION: 1
+        POETRY_VIRTUALENVS_CREATE: 1
+        POETRY_VIRTUALENVS_IN_PROJECT: 1
+      run: |
+        curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python -
+        poetry config --list
 
     - name: Poetry details
       run: |
