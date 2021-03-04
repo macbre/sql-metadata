@@ -38,6 +38,7 @@ jobs:
         POETRY_VIRTUALENVS_CREATE: 1
         POETRY_VIRTUALENVS_IN_PROJECT: 1
       run: |
+        pip install cleo
         curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python -
 
         # make poetry discoverable within $PATH
