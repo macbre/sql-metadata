@@ -35,7 +35,7 @@ jobs:
         path: |
           ~/.cache
           .venv
-        key: cache-${{ matrix.python-version }}
+        key: cache-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
     - name: Install Python wheel support to speed up things
       run: pip install wheel
