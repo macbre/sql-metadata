@@ -28,6 +28,13 @@ jobs:
       uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
+
+    - name: Load ~/.cache directory
+      uses: actions/cache@v2
+      with:
+        path: ~/.cache
+        key: cache-${{ matrix.python-version }}
+        
     - run: |
         pip install wheel
         # try to install all required dependencies (Py 3.10 fix)
@@ -50,12 +57,6 @@ jobs:
       with:
         path: .venv
         key: v2-venv-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
-
-    - name: Load .cache directory
-      uses: actions/cache@v2
-      with:
-        path: ~/.cache
-        key: cache-${{ matrix.python-version }}
 
     - name: Install dependencies with poetry
       run: |
