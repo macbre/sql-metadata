@@ -35,10 +35,14 @@ jobs:
         path: |
           ~/.cache
           .venv
-        key: cache-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
+        key: cache-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}-v1
 
     - name: Install Python wheel support to speed up things
       run: pip install wheel
+
+    # this prevents issues with Python 3.10 when poetry tries to install black's dependency "dataclasses"
+    - name: Pre-install black
+      run: pip install black
 
     - name: Install and set up Poetry
       run: |
