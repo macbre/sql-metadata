@@ -577,3 +577,29 @@ def test_unions():
     assert ["d", "g"] == get_query_tables(
         "SELECT a,b,c FROM d UNION ALL SELECT e,f FROM g"
     )
+
+
+def test_with_brackets():
+    assert ['database1.table1', 'database2.table2'] == get_query_tables(
+        """
+        SELECT
+          "xxxxx"
+        FROM
+          (database1.table1 alias
+        LEFT JOIN database2.table2 ON ("tt"."ttt"."fff" = "xx"."xxx"))
+        """
+    )
+
+
+def test_with_with():
+    assert ['table3', 'database2.table2'] == get_query_tables(
+        """
+        WITH
+            database1.tableFromWith AS SELECT * FROM table3
+        SELECT
+          "xxxxx"
+        FROM
+          database1.tableFromWith alias
+        LEFT JOIN database2.table2 ON ("tt"."ttt"."fff" = "xx"."xxx")
+        """
+    )
