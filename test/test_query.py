@@ -580,7 +580,7 @@ def test_unions():
 
 
 def test_with_brackets():
-    assert ['database1.table1', 'database2.table2'] == get_query_tables(
+    assert ["database1.table1", "database2.table2"] == get_query_tables(
         """
         SELECT
           "xxxxx"
@@ -592,7 +592,7 @@ def test_with_brackets():
 
 
 def test_with_with():
-    assert ['table3', 'database2.table2'] == get_query_tables(
+    assert ["table3", "database2.table2"] == get_query_tables(
         """
         WITH
             database1.tableFromWith AS SELECT * FROM table3
