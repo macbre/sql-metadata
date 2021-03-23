@@ -171,7 +171,7 @@ def get_query_columns(query: str) -> List[str]:
     return unique(columns)
 
 
-def _get_token_normalized_value(token: str) -> str:
+def _get_token_normalized_value(token: sqlparse.sql.Token) -> str:
     return token.value.translate(str.maketrans("", "", " \n\t\r")).upper()
 
 
@@ -208,7 +208,7 @@ def _update_table_names(
             "UPDATE",
             "TABLE",
         ]
-        and last_token not in ["AS"]
+        and last_token not in ["AS", "WITH"]
         and token.value not in ["AS", "SELECT"]
     ):
         if last_token == "." and next_token != ".":
@@ -289,7 +289,7 @@ def get_query_tables(query: str) -> List[str]:
     tokens = get_query_tokens(query)
 
     for index, token in enumerate(tokens):
-        # print([token, token.ttype, last_token, last_keyword])
+        # print([token, token.ttype, last_keyword])
 
         # remove whitespaces from token value and uppercase
         token_val_norm = _get_token_normalized_value(token)
