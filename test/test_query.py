@@ -1,3 +1,5 @@
+import pytest
+
 from sql_metadata import (
     preprocess_query,
     get_query_tokens,
@@ -592,6 +594,8 @@ def test_with_brackets():
 
 
 def test_with_with():
+    pytest.skip("Improve WITH syntax handling with a new parser (#98)")
+
     assert ["table3", "database2.table2"] == get_query_tables(
         """
         WITH
