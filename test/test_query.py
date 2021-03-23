@@ -592,6 +592,16 @@ def test_with_brackets():
         """
     )
 
+    assert ["inner_table"] == get_query_tables(
+        """
+        SELECT
+            t.foo
+        FROM
+            (SELECT foo FROM inner_table
+            WHERE bar = '1') t
+        """
+    )
+
 
 def test_with_with():
     pytest.skip("Improve WITH syntax handling with a new parser (#98)")
