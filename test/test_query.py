@@ -1,3 +1,5 @@
+import pytest
+
 from sql_metadata import (
     preprocess_query,
     get_query_tokens,
@@ -576,4 +578,42 @@ def test_unions():
     # @see https://github.com/macbre/sql-metadata/issues/94
     assert ["d", "g"] == get_query_tables(
         "SELECT a,b,c FROM d UNION ALL SELECT e,f FROM g"
+    )
+
+
+def test_with_brackets():
+    assert ["database1.table1", "database2.table2"] == get_query_tables(
+        """
+        SELECT
+          "xxxxx"
+        FROM
+          (database1.table1 alias
+        LEFT JOIN database2.table2 ON ("tt"."ttt"."fff" = "xx"."xxx"))
+        """
+    )
+
+    assert ["inner_table"] == get_query_tables(
+        """
+        SELECT
+            t.foo
+        FROM
+            (SELECT foo FROM inner_table
+            WHERE bar = '1') t
+        """
+    )
+
+
+def test_with_with():
+    pytest.skip("Improve WITH syntax handling with a new parser (#98)")
+
+    assert ["table3", "database2.table2"] == get_query_tables(
+        """
+        WITH
+            database1.tableFromWith AS SELECT * FROM table3
+        SELECT
+          "xxxxx"
+        FROM
+          database1.tableFromWith alias
+        LEFT JOIN database2.table2 ON ("tt"."ttt"."fff" = "xx"."xxx")
+        """
     )

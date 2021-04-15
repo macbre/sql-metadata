@@ -40,15 +40,15 @@ jobs:
     - name: Install Python wheel support to speed up things
       run: pip install wheel
 
-    # this prevents issues with Python 3.10 when poetry tries to install black's dependency "dataclasses"
     - name: Pre-install black
       run: pip install black
 
-    - name: Install and set up Poetry
-      run: |
-        pip install poetry==1.1.6
-        poetry config virtualenvs.create true
-        poetry config virtualenvs.in-project true
+    # https://github.com/marketplace/actions/install-poetry-action
+    - name: Install Poetry
+      uses: snok/install-poetry@v1.1.2
+      with:
+        virtualenvs-create: true
+        virtualenvs-in-project: true
 
     - name: Poetry details
       run: |
