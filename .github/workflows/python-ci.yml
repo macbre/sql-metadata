@@ -46,7 +46,7 @@ jobs:
 
     - name: Install and set up Poetry
       run: |
-        pip install poetry==1.1.5
+        pip install poetry==1.1.6
         poetry config virtualenvs.create true
         poetry config virtualenvs.in-project true
 
