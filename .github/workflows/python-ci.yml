@@ -45,7 +45,7 @@ jobs:
 
     # https://github.com/marketplace/actions/install-poetry-action
     - name: Install Poetry
-      uses: snok/install-poetry@v1.1.2
+      uses: snok/install-poetry@v1.1.3
       with:
         virtualenvs-create: true
         virtualenvs-in-project: true
