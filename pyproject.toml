@@ -15,6 +15,7 @@ packages = [
 [tool.poetry.dependencies]
 python = "^3.6"
 sqlparse = "^0.4.1"
+black = "^20.8b1"
 
 [tool.poetry.dev-dependencies]
 black = "^20.8b1"
