@@ -10,6 +10,7 @@ class SQLToken:  # pylint: disable=R0902
     """
     Class representing single token and connected into linked list
     """
+
     value: Optional[str]
     is_keyword: bool
     is_name: bool
@@ -72,7 +73,7 @@ class SQLToken:  # pylint: disable=R0902
             if token.get_nth_previous(2) and token.get_nth_previous(2).is_name:
                 value = f"{token.get_nth_previous(2)}." + value
             token = token.get_nth_previous(2)
-        return value
+        return value.strip("`")
 
     @property
     def is_in_parenthesis(self) -> bool:

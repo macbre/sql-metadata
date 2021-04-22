@@ -23,6 +23,7 @@ class Parser:
     """
     Main class to parse sql query
     """
+
     def __init__(self, sql: Optional[str] = None) -> None:
         self._raw_query = sql
         self.query = self._preprocess_query()
@@ -154,9 +155,9 @@ class Parser:
         tables = []
         with_names = self.with_names
 
-        for index, token in enumerate(self.tokens):
+        for token in self.tokens:
             if token.is_name or token.is_keyword:
-                tables = update_table_names(tables, token, index)
+                tables = update_table_names(tables, token)
 
         return [x for x in unique(tables) if x not in with_names]
 
