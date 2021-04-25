@@ -1,7 +1,6 @@
 """
 Set of unit tests for handling of Apache Hive queries
 """
-import pytest
 
 from sql_metadata.parser import Parser
 

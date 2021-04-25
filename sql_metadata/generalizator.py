@@ -2,7 +2,7 @@
 Module used to produce generalized sql out of given query
 """
 import re
-from typing import Optional
+from typing import List, Optional
 
 
 class Generalizator:
@@ -40,14 +40,25 @@ class Generalizator:
         return sql
 
     @property
+    def comments(self) -> List[str]:
+        """
+        Removes comments from SQL query
+
+        :rtype: str
+        """
+        comments = re.findall(r"\s?/\*.+?\*/", self._raw_query)
+        return [x.strip() for x in comments]
+
+    @property
     def remove_comments(self) -> str:
         """
         Removes comments from SQL query
 
-        :type sql str|None
         :rtype: str
         """
-        return re.sub(r"\s?/\*.+\*/", "", self._raw_query)
+        sql = re.sub(r"\s?/\*.+?\*/", "", self._raw_query)
+        sql = re.sub(r"\s{2,}", " ", sql)
+        return sql
 
     @property
     def generalize(self) -> Optional[str]:

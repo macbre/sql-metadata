@@ -123,11 +123,11 @@ def test_joins():
 
 def test_quoted_names():
     # handle quoted names
-    # assert ["MYDB.MYTABLE"] == Parser('SELECT COUNT(*) FROM "MYDB".MYTABLE').tables
-    #
-    # assert ["MYDB.MYTABLE"] == Parser('SELECT COUNT(*) FROM MYDB."MYTABLE"').tables
-    #
-    # assert ["MYDB.MYTABLE"] == Parser('SELECT COUNT(*) FROM "MYDB"."MYTABLE"').tables
+    assert ["MYDB.MYTABLE"] == Parser('SELECT COUNT(*) FROM "MYDB".MYTABLE').tables
+
+    assert ["MYDB.MYTABLE"] == Parser('SELECT COUNT(*) FROM MYDB."MYTABLE"').tables
+
+    assert ["MYDB.MYTABLE"] == Parser('SELECT COUNT(*) FROM "MYDB"."MYTABLE"').tables
 
     assert ["MYDB.MYSCHEMA.MYTABLE"] == Parser(
         'SELECT COUNT(*) FROM "MYDB".MYSCHEMA.MYTABLE'
@@ -239,7 +239,16 @@ task_type_id = 80
     """.strip()
 
     assert Parser(query).tables == ["some_task_detail", "some_task"]
-    #   assert Parser(query) == ['task_id', 'STATUS', 'a', 'task_type_id', 'b', 'a.task_id', 'b.task_id']
+    # TODO: I think a and b shouldn't be treated as columns?
+    assert Parser(query).columns == [
+        "task_id",
+        "STATUS",
+        "a",
+        "task_type_id",
+        "b",
+        "a.task_id",
+        "b.task_id",
+    ]
 
 
 def test_table_name_with_group_by():

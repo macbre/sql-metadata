@@ -3,40 +3,31 @@ from sql_metadata import Parser
 
 def test_postgress_quoted_names():
     # https://github.com/macbre/sql-metadata/issues/85
-    assert ["test"] == Parser(
+    parser = Parser(
         'INSERT INTO "test" ("name") VALUES (\'foo\') RETURNING "test"."id"'
-    ).tables
-    assert ["name"] == Parser(
-        'INSERT INTO "test" ("name") VALUES (\'foo\') RETURNING "test"."id"'
-    ).columns
-    assert (
-        "INSERT INTO test (name) VALUES (X) RETURNING test.id"
-        == Parser(
-            'INSERT INTO "test" ("name") VALUES (\'foo\') RETURNING "test"."id"'
-        ).generalize
     )
+    assert ["test"] == parser.tables
+    assert ["name"] == parser.columns
+    assert {"insert": ["name"]} == parser.columns_dict
+    assert "INSERT INTO test (name) VALUES (X) RETURNING test.id" == parser.generalize
+    assert parser.values == ["foo"]
 
-    assert ["test"] == Parser(
+    parser = Parser(
         'SELECT "test"."id", "test"."name" FROM "test" WHERE "test"."name" = \'foo\' LIMIT 21 FOR UPDATE'
-    ).tables
-    assert ["test.id", "test.name"] == Parser(
-        'SELECT "test"."id", "test"."name" FROM "test" WHERE "test"."name" = \'foo\' LIMIT 21 FOR UPDATE'
-    ).columns
+    )
+    assert ["test"] == parser.tables
+    assert ["test.id", "test.name"] == parser.columns
+    assert {
+        "select": ["test.id", "test.name"],
+        "where": ["test.name"],
+    } == parser.columns_dict
     assert (
         "SELECT test.id, test.name FROM test WHERE test.name = X LIMIT N FOR UPDATE"
-        == Parser(
-            'SELECT "test"."id", "test"."name" FROM "test" WHERE "test"."name" = \'foo\' LIMIT 21 FOR UPDATE'
-        ).generalize
+        == parser.generalize
     )
 
-    assert ["test"] == Parser(
-        'UPDATE "test" SET "name" = \'bar\' WHERE "test"."id" = 1'
-    ).tables
-    # TODO: check if this should return name also?
-    assert ["test.id"] == Parser(
-        'UPDATE "test" SET "name" = \'bar\' WHERE "test"."id" = 1'
-    ).columns
-    assert (
-        "UPDATE test SET name = X WHERE test.id = N"
-        == Parser('UPDATE "test" SET "name" = \'bar\' WHERE "test"."id" = 1').generalize
-    )
+    parser = Parser('UPDATE "test" SET "name" = \'bar\' WHERE "test"."id" = 1')
+    assert ["test"] == parser.tables
+    assert ["name", "test.id"] == parser.columns
+    assert {"update": ["name"], "where": ["test.id"]} == parser.columns_dict
+    assert "UPDATE test SET name = X WHERE test.id = N" == parser.generalize

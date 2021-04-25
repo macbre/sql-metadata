@@ -4,7 +4,7 @@ from sql_metadata.parser import Parser
 def test_get_query_table_aliases():
     assert Parser("SELECT bar FROM foo").tables_aliases == {}
     assert Parser("SELECT bar FROM foo AS f").tables_aliases == {"f": "foo"}
-    # assert Parser('SELECT bar FROM foo f') == {'f': 'foo'}
+    assert Parser("SELECT bar FROM foo f").tables_aliases == {"f": "foo"}
     assert Parser("SELECT bar AS value FROM foo AS f").tables_aliases == {"f": "foo"}
     assert Parser(
         "SELECT bar AS value FROM foo AS f INNER JOIN dimensions AS d ON f.id = d.id"
@@ -19,7 +19,7 @@ def test_get_query_table_aliases():
 
 def test_select_aliases():
     assert Parser("SELECT e.foo FROM bar AS e").columns == ["bar.foo"]
-    # assert get_query_columns('SELECT e.foo FROM bar e') == ['bar.foo']
+    assert Parser("SELECT e.foo FROM bar e").columns == ["bar.foo"]
 
 
 def test_tables_aliases_are_resolved():
@@ -35,4 +35,4 @@ def test_tables_aliases_are_resolved():
         "users1.*",
         "users1.ip_address",
         "users2.ip_address",
-    ], "Should resolve table aliases"
+    ]

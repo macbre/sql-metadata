@@ -60,7 +60,7 @@ jobs:
       run: poetry run pytest -vv --cov=sql_metadata --cov-report=term
 
     - name: Lint with pylint
-      run: poetry run pylint sql_metadata.py
+      run: poetry run pylint sql_metadata
 
     - name: Build a distribution package
       run: poetry build -vvv

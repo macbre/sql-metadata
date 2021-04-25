@@ -30,35 +30,14 @@ FUNCTIONS_IGNORED = [
     "DATE_FORMAT",
     "CAST",
     "CONVERT",
+    "YEAR",
+    "MONTH",
+    "DAY",
+    "AVG",
+    "SUM",
 ]
 # these keywords are followed by columns reference
-KEYWORDS_BEFORE_COLUMNS = ["SELECT", "WHERE", "ORDER BY", "ON"]
-
-# these keywords precede table names
-TABLE_SYNTAX_KEYWORDS = [
-    # SELECT queries
-    "FROM",
-    "WHERE",
-    "JOIN",
-    "INNERJOIN",
-    "FULLJOIN",
-    "FULLOUTERJOIN",
-    "LEFTOUTERJOIN",
-    "RIGHTOUTERJOIN",
-    "LEFTJOIN",
-    "RIGHTJOIN",
-    "ON",
-    "UNION",
-    "UNIONALL",
-    # INSERT queries
-    "INTO",
-    "VALUES",
-    # UPDATE queries
-    "UPDATE",
-    "SET",
-    # Hive queries
-    "TABLE",  # INSERT TABLE
-]
+KEYWORDS_BEFORE_COLUMNS = ["SELECT", "WHERE", "ORDERBY", "ON", "SET"]
 
 # normalized list of table preceding keywords
 TABLE_ADJUSTMENT_KEYWORDS = [
@@ -75,3 +54,6 @@ TABLE_ADJUSTMENT_KEYWORDS = [
     "UPDATE",
     "TABLE",
 ]
+
+# next statement beginning after with statement
+WITH_ENDING_KEYWORDS = ["UPDATE", "SELECT", "DELETE", "REPLACE"]

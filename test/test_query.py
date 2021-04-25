@@ -7,27 +7,13 @@ def test_get_query_tokens():
     tokens = Parser("SELECT * FROM foo").tokens
 
     assert len(tokens) == 4
-
     assert str(tokens[0]) == "SELECT"
+    assert tokens[1].is_wildcard
     assert tokens[2].is_keyword
     assert str(tokens[2]) == "FROM"
 
 
 def test_preprocessing():
-    # assert (
-    #     Parser(
-    #         "SELECT DISTINCT dw.lang FROM `dimension_wikis` `dw` INNER JOIN `fact_wam_scores` `fwN` ON ((dw.wiki_id = fwN.wiki_id)) WHERE fwN.time_id = FROM_UNIXTIME(N) ORDER BY dw.lang ASC"
-    #     ).query
-    #     == "SELECT DISTINCT dw.lang FROM `dimension_wikis`  INNER JOIN `fact_wam_scores` ON ((dw.wiki_id = fwN.wiki_id)) WHERE fwN.time_id = FROM_UNIXTIME(N) ORDER BY dw.lang ASC"
-    # )
-    #
-    # assert (
-    #     Parser(
-    #         "SELECT count(fwN.wiki_id) as wam_results_total FROM `fact_wam_scores` `fwN` left join `fact_wam_scores` `fwN` ON ((fwN.wiki_id = fwN.wiki_id) AND (fwN.time_id = FROM_UNIXTIME(N))) left join `dimension_wikis` `dw` ON ((fwN.wiki_id = dw.wiki_id)) WHERE (fwN.time_id = FROM_UNIXTIME(N)) AND (dw.url like X OR dw.title like X) AND fwN.vertical_id IN (XYZ) AND dw.lang = X AND (fwN.wiki_id NOT IN (XYZ)) AND ((dw.url IS NOT NULL AND dw.title IS NOT NULL))"
-    #     ).query
-    #     == "SELECT count(fwN.wiki_id) as wam_results_total FROM `fact_wam_scores` left join `fact_wam_scores` ON ((fwN.wiki_id = fwN.wiki_id) AND (fwN.time_id = FROM_UNIXTIME(N))) left join `dimension_wikis` ON ((fwN.wiki_id = dw.wiki_id)) WHERE (fwN.time_id = FROM_UNIXTIME(N)) AND (dw.url like X OR dw.title like X) AND fwN.vertical_id IN (XYZ) AND dw.lang = X AND (fwN.wiki_id NOT IN (XYZ)) AND ((dw.url IS NOT NULL AND dw.title IS NOT NULL))"
-    # )
-
     # normalize database selector
     assert Parser("SELECT foo FROM `db`.`test`").query == "SELECT foo FROM db.test"
 
@@ -72,9 +58,9 @@ def test_handle_force_index():
         "AND (page_random >= 0.197372293871) AND cl_to = 'Muppet_Characters'  "
         "ORDER BY page_random LIMIT 1"
     )
-
-    assert Parser(query).tables == ["page", "categorylinks"]
-    assert Parser(query).columns == [
+    parser = Parser(query)
+    assert parser.tables == ["page", "categorylinks"]
+    assert parser.columns == [
         "page_title",
         "page_namespace",
         "page_id",
@@ -83,6 +69,12 @@ def test_handle_force_index():
         "page_random",
         "cl_to",
     ]
+    assert parser.columns_dict == {
+        "select": ["page_title", "page_namespace"],
+        "join": ["page_id", "cl_from"],
+        "where": ["page_is_redirect", "page_random", "cl_to"],
+        "order_by": ["page_random"],
+    }
 
 
 def test_insert_into_select():
@@ -98,6 +90,7 @@ def test_insert_into_select():
     query = "INSERT INTO foo SELECT id, price FROM bar WHERE qty > 200"
     assert Parser(query).tables == ["foo", "bar"]
     assert Parser(query).columns == ["id", "price", "qty"]
+    assert Parser(query).columns_dict == {"select": ["id", "price"], "where": ["qty"]}
 
 
 def test_case_syntax():

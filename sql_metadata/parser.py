@@ -14,44 +14,72 @@ from sql_metadata.keywords_lists import (
     KEYWORDS_BEFORE_COLUMNS,
     KEYWORDS_IGNORED,
     TABLE_ADJUSTMENT_KEYWORDS,
+    WITH_ENDING_KEYWORDS,
 )
 from sql_metadata.token import EmptyToken, SQLToken
-from sql_metadata.utils import unique, update_table_names
+from sql_metadata.utils import UniqueList
 
 
-class Parser:
+class Parser:  # pylint: disable=R0902
     """
     Main class to parse sql query
     """
 
     def __init__(self, sql: Optional[str] = None) -> None:
         self._raw_query = sql
-        self.query = self._preprocess_query()
+        self._query = self._preprocess_query()
 
-    def _preprocess_query(self) -> Optional[str]:
+        self._tokens = None
+
+        self._columns = None
+        self._columns_dict = None
+
+        self._tables = None
+        self._table_aliases = None
+        self._with_names = None
+
+        self._limit_and_offset = None
+
+        self._values = None
+        self._values_dict = None
+
+    @property
+    def query(self) -> str:
         """
-        Perform initial query cleanup
-
-        :type query str
-        :rtype str
+        Returns preprocessed query
         """
-        # 0. remove newlines
-        if self._raw_query is None:
-            return None
-        query = self._raw_query.replace("\n", " ")
-        # 1. remove quotes "
-        query = query.replace('"', "")
+        return self._query
 
-        # 2. `database`.`table` notation -> database.table
-        query = re.sub(r"`([^`]+)`\.`([^`]+)`", r"\1.\2", query)
+    @query.setter
+    def query(self, value):
+        """
+        Resets cached attributes before setting new query
+        """
+        self._tokens = None
 
-        return query
+        self._columns = None
+        self._columns_dict = None
+
+        self._tables = None
+        self._table_aliases = None
+        self._with_names = None
+
+        self._limit_and_offset = None
+
+        self._values = None
+        self._values_dict = None
+
+        self._raw_query = value
+        self._query = self._preprocess_query()
 
     @property
     def tokens(self) -> List[SQLToken]:
         """
         :rtype: list[SQLToken]
         """
+        if self._tokens is not None:
+            return self._tokens
+
         parsed = sqlparse.parse(self.query)
         tokens = []
         # handle empty queries (#12)
@@ -72,6 +100,7 @@ class Parser:
                 is_dot=str(tok) == ".",
                 is_wildcard=tok.ttype is Wildcard,
                 is_integer=tok.ttype is Number.Integer,
+                is_float=tok.ttype is Number.Float,
                 is_left_parenthesis=str(tok) == "(",
                 is_right_parenthesis=str(tok) == ")",
                 last_keyword=last_keyword,
@@ -86,6 +115,7 @@ class Parser:
                 last_keyword = tok.normalized
             tokens.append(token)
 
+        self._tokens = tokens
         return tokens
 
     @property
@@ -93,92 +123,128 @@ class Parser:
         """
         :rtype: list[str]
         """
-        columns = []
+        if self._columns is not None:
+            return self._columns
+        columns = UniqueList()
         tables_aliases = self.tables_aliases
 
-        def resolve_table_alias(_table_name: str) -> str:
-            """
-            Resolve aliases, e.g. SELECT bar.column FROM foo AS bar
-            """
-            if _table_name in tables_aliases:
-                return tables_aliases[_table_name]
-            return _table_name
-
         for token in self.tokens:
-            if token.is_name:
+            if token.is_name and not token.next_token.is_dot:
                 # analyze the name tokens, column names and where condition values
                 if (
-                    token.last_keyword in KEYWORDS_BEFORE_COLUMNS
-                    and token.previous_token.upper not in ["AS"]
+                    token.last_keyword_normalized in KEYWORDS_BEFORE_COLUMNS
+                    and token.previous_token.normalized != "AS"
                 ):
-                    if token.upper not in FUNCTIONS_IGNORED:
-                        if token.previous_token.is_dot:
-                            # print('DOT', last_token, columns[-1])
-
-                            # we have table.column notation example
-                            # append column name to the last entry of columns
-                            # as it is a table name in fact
-                            table_name = resolve_table_alias(columns[-1])
-
-                            columns[-1] = "{}.{}".format(table_name, token.value)
-                        else:
-                            columns.append(str(token.value))
+                    if token.normalized not in FUNCTIONS_IGNORED and not (
+                        token.previous_token.normalized == "="
+                        and token.last_keyword_normalized in ["SET"]
+                    ):
+                        # add columns that are not functions or names after
+                        # = in joins (like select * from a join b on a.id=b.id
+                        # but skip set x = 1
+                        column = token.table_prefixed_column(tables_aliases)
+                        self._add_to_columns_subsection(
+                            keyword=token.last_keyword_normalized, column=column
+                        )
+                        columns.append(column)
                 elif (
-                    token.last_keyword in ["INTO"]
+                    token.last_keyword_normalized == "INTO"
                     and token.previous_token.is_punctuation
                 ):
                     # INSERT INTO `foo` (col1, `col2`) VALUES (..)
-                    #  print(last_keyword, token, last_token)
-                    columns.append(str(token.value).strip("`"))
-            elif token.is_wildcard:
+                    column = str(token.value).strip("`")
+                    self._add_to_columns_subsection(
+                        keyword=token.last_keyword_normalized, column=column
+                    )
+                    columns.append(column)
+            elif (
+                token.is_wildcard
+                and token.last_keyword_normalized == "SELECT"
+                and not token.previous_token.is_left_parenthesis
+            ):
                 # handle * wildcard in SELECT part, but ignore count(*)
-                # print(last_keyword, last_token, token.value)
-                if (
-                    token.last_keyword == "SELECT"
-                    and not token.previous_token.is_left_parenthesis
-                ):
+                column = token.table_prefixed_column(tables_aliases)
+                self._add_to_columns_subsection(
+                    keyword=token.last_keyword_normalized, column=column
+                )
+                columns.append(column)
 
-                    if token.previous_token.is_dot:
-                        # handle SELECT foo.*
-                        table_name = resolve_table_alias(columns[-1])
-                        columns[-1] = "{}.{}".format(table_name, str(token.value))
-                    else:
-                        columns.append(str(token.value))
+        self._columns = columns
+        return self._columns
 
-        return unique(columns)
+    @property
+    def columns_dict(self) -> Dict[str, List[str]]:
+        """
+        Returns dictionary of column names divided into section of the query in which
+        given column is present.
+
+        Sections consist of: select, where, order_by, join, insert and update
+        """
+        if self._columns_dict:
+            return self._columns_dict
+        _ = self.columns
+        return self._columns_dict
 
     @property
     def tables(self) -> List[str]:
         """
         :rtype: list[str]
         """
-        tables = []
+        if self._tables is not None:
+            return self._tables
+        tables = UniqueList()
         with_names = self.with_names
 
         for token in self.tokens:
-            if token.is_name or token.is_keyword:
-                tables = update_table_names(tables, token)
+            if (
+                (token.is_name or token.is_keyword)
+                and token.last_keyword_normalized in TABLE_ADJUSTMENT_KEYWORDS
+                and token.previous_token.normalized not in ["AS", "WITH"]
+                and token.normalized not in ["AS", "SELECT"]
+            ):
+                if token.next_token.is_dot:
+                    pass  # part of the qualified name
+                elif token.previous_token.is_dot:
+                    tables.append(token.left_expanded)  # full qualified name
+                elif (
+                    token.previous_token.normalized != token.last_keyword_normalized
+                    and not token.previous_token.is_punctuation
+                ) or token.previous_token.is_right_parenthesis:
+                    # it's not a list of tables, e.g. SELECT * FROM foo, bar
+                    # hence, it can be the case of alias without AS,
+                    # e.g. SELECT * FROM foo bar
+                    # or an alias of subquery (SELECT * FROM foo) bar
+                    pass
+                elif (
+                    token.last_keyword_normalized == "INTO" and token.is_in_parenthesis
+                ):
+                    # we are in <columns> of INSERT INTO <TABLE> (<columns>)
+                    pass
+                else:
+                    table_name = str(token.value.strip("`"))
+                    tables.append(table_name)
 
-        return [x for x in unique(tables) if x not in with_names]
+        self._tables = tables - with_names
+        return self._tables
 
     @property
     def limit_and_offset(self) -> Optional[Tuple[int, int]]:
         """
-        :type query str
+        Returns value for limit and offset if set
+
         :rtype: (int, int)
         """
+        if self._limit_and_offset is not None:
+            return self._limit_and_offset
         limit = None
         offset = None
 
-        # print(query)
         for token in self.tokens:
-            # print([token, token.ttype, last_keyword])
             if token.is_integer:
-                # print([token, last_keyword, last_token_was_integer])
-                if token.last_keyword == "LIMIT" and not limit:
+                if token.last_keyword_normalized == "LIMIT" and not limit:
                     # LIMIT <limit>
                     limit = int(token.value)
-                elif token.last_keyword == "OFFSET":
+                elif token.last_keyword_normalized == "OFFSET":
                     # OFFSET <offset>
                     offset = int(token.value)
                 elif token.previous_token.is_punctuation:
@@ -189,7 +255,8 @@ class Parser:
         if limit is None:
             return None
 
-        return limit, offset or 0
+        self._limit_and_offset = limit, offset or 0
+        return self._limit_and_offset
 
     @property
     def tables_aliases(self) -> Dict[str, str]:
@@ -199,6 +266,8 @@ class Parser:
         E.g. SELECT a.* FROM users1 AS a JOIN users2 AS b ON a.ip_address = b.ip_address
         will give you {'a': 'users1', 'b': 'users2'}
         """
+        if self._table_aliases is not None:
+            return self._table_aliases
         aliases = dict()
         tables = self.tables
 
@@ -206,10 +275,10 @@ class Parser:
             if (
                 token.last_keyword_normalized in TABLE_ADJUSTMENT_KEYWORDS
                 and token.is_name
-                and token.next_token.upper != "AS"
+                and token.next_token.normalized != "AS"
                 and not token.next_token.is_dot
             ):
-                if token.previous_token.upper in ["AS"]:
+                if token.previous_token.normalized == "AS":
                     # potential <DB.<SCHEMA>.<TABLE> as <ALIAS>
                     potential_table_name = token.get_nth_previous(2).left_expanded
                 else:
@@ -219,7 +288,8 @@ class Parser:
                 if potential_table_name in tables:
                     aliases[token.value] = potential_table_name
 
-        return aliases
+        self._table_aliases = aliases
+        return self._table_aliases
 
     @property
     def with_names(self) -> List[str]:
@@ -231,43 +301,90 @@ class Parser:
              LEFT JOIN database2.table2 ON ("tt"."ttt"."fff" = "xx"."xxx")
         will give you ["database1.tableFromWith"]
         """
-        with_names = []
+        if self._with_names is not None:
+            return self._with_names
+        with_names = UniqueList()
         for token in self.tokens:
-            if token.previous_token.upper == "WITH":
+            if token.previous_token.normalized == "WITH":
                 in_with = True
                 while in_with and token.next_token:
                     # name is first
-                    if token.next_token.upper == "AS":
+                    if token.next_token.normalized == "AS":
                         with_names.append(token.left_expanded)
                         # move to next with if exists, this with ends with
                         #  ) + , if many withs or ) + select if one
-                        # need to move to next as AS can be in subqueries defining with
-                        while not (
+                        # need to move to next as AS can be in
+                        # sub-queries inside with definition
+                        while token.next_token and not (
                             token.is_right_parenthesis
                             and (
                                 token.next_token.is_punctuation
-                                or token.next_token.normalized
-                                in ["UPDATE", "SELECT", "DELETE"]
+                                or token.next_token.normalized in WITH_ENDING_KEYWORDS
                             )
                         ):
                             token = token.next_token
-                        if token.next_token.normalized in [
-                            "UPDATE",
-                            "SELECT",
-                            "DELETE",
-                        ]:
+                        if token.next_token.normalized in WITH_ENDING_KEYWORDS:
                             in_with = False
                     else:
                         token = token.next_token
 
-        return with_names
+        self._with_names = with_names
+        return self._with_names
+
+    @property
+    def values(self) -> List:
+        """
+        Returns list of values from insert queries
+        """
+        if self._values:
+            return self._values
+        values = []
+        for token in self.tokens:
+            if (
+                token.last_keyword_normalized == "VALUES"
+                and token.is_in_parenthesis
+                and token.next_token.is_punctuation
+            ):
+                if token.is_integer:
+                    value = int(token.value)
+                elif token.is_float:
+                    value = float(token.value)
+                else:
+                    value = token.value.strip("'\"")
+                values.append(value)
+        self._values = values
+        return self._values
+
+    @property
+    def values_dict(self) -> Dict:
+        """
+        Returns dictionary of column-value pairs.
+        If columns are not set the auto generated column_<col_number> are added.
+        """
+        values = self.values
+        if self._values_dict or not values:
+            return self._values_dict
+        columns = self.columns
+        if not columns:
+            columns = [f"column_{ind + 1}" for ind in range(len(values))]
+        values_dict = dict(zip(columns, values))
+        self._values_dict = values_dict
+        return self._values_dict
+
+    @property
+    def comments(self) -> List[str]:
+        """
+        Return comments from SQL query
+
+        :rtype: List[str]
+        """
+        return Generalizator(self._raw_query).comments
 
     @property
     def remove_comments(self) -> str:
         """
         Removes comments from SQL query
 
-        :type sql str|None
         :rtype: str
         """
         return Generalizator(self._raw_query).remove_comments
@@ -280,7 +397,37 @@ class Parser:
 
         Based on Mediawiki's DatabaseBase::generalizeSQL
 
-        :type sql str|None
-        :rtype: str
+        :rtype: Optional[str]
         """
         return Generalizator(self._raw_query).generalize
+
+    def _add_to_columns_subsection(self, keyword: str, column: str):
+        sections = {
+            "SELECT": "select",
+            "WHERE": "where",
+            "ORDERBY": "order_by",
+            "ON": "join",
+            "INTO": "insert",
+            "SET": "update",
+        }
+        section = sections[keyword]
+        self._columns_dict = self._columns_dict or dict()
+        self._columns_dict.setdefault(section, UniqueList()).append(column)
+
+    def _preprocess_query(self) -> Optional[str]:
+        """
+        Perform initial query cleanup
+
+        :rtype str
+        """
+        # 0. remove newlines
+        if self._raw_query is None:
+            return None
+        query = self._raw_query.replace("\n", " ")
+        # 1. remove quotes "
+        query = query.replace('"', "")
+
+        # 2. `database`.`table` notation -> database.table
+        query = re.sub(r"`([^`]+)`\.`([^`]+)`", r"\1.\2", query)
+
+        return query

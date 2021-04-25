@@ -10,14 +10,14 @@ def test_sql_server_cte():
     assert (
         Parser(
             """
-WITH x AS (
-    SELECT * FROM n
-)
-SELECT
-    *
-FROM x
-JOIN y ON x.a = y.a
-    """.strip()
+    WITH x AS (
+        SELECT * FROM n
+    )
+    SELECT
+        *
+    FROM x
+    JOIN y ON x.a = y.a
+        """.strip()
         ).tables
         == ["n", "y"]
     )
@@ -25,14 +25,14 @@ JOIN y ON x.a = y.a
     assert (
         Parser(
             """
-WITH x AS (
-    SELECT * FROM n
-)
-select
-    *
-FROM x
-JOIN y ON x.a = y.a
-    """.strip()
+    WITH x AS (
+        SELECT * FROM n
+    )
+    select
+        *
+    FROM x
+    JOIN y ON x.a = y.a
+        """.strip()
         ).tables
         == ["n", "y"]
     )
@@ -40,11 +40,11 @@ JOIN y ON x.a = y.a
     assert (
         Parser(
             """
-WITH foo AS (
-    SELECT * FROM n
-)
-update z from foo set z.q = foo.y 
-    """.strip()
+    WITH foo AS (
+        SELECT * FROM n
+    )
+    update z from foo set z.q = foo.y 
+        """.strip()
         ).tables
         == ["n", "z"]
     )
@@ -52,11 +52,11 @@ update z from foo set z.q = foo.y
     assert (
         Parser(
             """
-WITH foo AS ( 
-     SELECT * FROM tab
-) 
-DELETE FROM z JOIN foo ON z.a = foo.a  
-    """.strip()
+    WITH foo AS ( 
+         SELECT * FROM tab
+    ) 
+    DELETE FROM z JOIN foo ON z.a = foo.a  
+        """.strip()
         ).tables
         == ["tab", "z"]
     )
@@ -82,6 +82,11 @@ FROM
     """.strip()
 
     assert Parser(sales_query).tables == ["sales.orders"]
-
-    # TODO
-    # assert Parser(sales_query) == ['staff_id', 'order_count', 'order_date']
+    # TODO: Check if average_orders_by_staff should be included,
+    #  if no why order_count is included - what is the rule here?
+    assert Parser(sales_query).columns == [
+        "staff_id",
+        "order_count",
+        "order_date",
+        "average_orders_by_staff",
+    ]

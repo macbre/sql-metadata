@@ -2,7 +2,7 @@
 Module contains internal SQLToken that creates linked list
 """
 import dataclasses
-from typing import Optional
+from typing import Dict, Optional
 
 
 @dataclasses.dataclass
@@ -18,6 +18,7 @@ class SQLToken:  # pylint: disable=R0902
     is_punctuation: bool
     is_wildcard: bool
     is_integer: bool
+    is_float: bool
     is_left_parenthesis: bool
     is_right_parenthesis: bool
 
@@ -34,28 +35,21 @@ class SQLToken:  # pylint: disable=R0902
 
     def __repr__(self):  # pragma: no cover
         """
-        Representation
+        Representation - useful for debugging
         """
         return self.__str__()
 
     @property
-    def upper(self) -> Optional[str]:
-        """
-        Property returning uppercased value
-        """
-        return self.value.upper() if self.value else None
-
-    @property
     def normalized(self):
         """
-        Property returning uppercased value without end lines and spaces
+        Property returning uppercase value without end lines and spaces
         """
         return self.value.translate(str.maketrans("", "", " \n\t\r")).upper()
 
     @property
     def last_keyword_normalized(self) -> str:
         """
-        Property returning uppercased last keayword without end lines and spaces
+        Property returning uppercase last keyword without end lines and spaces
         """
         if self.last_keyword:
             return self.last_keyword.translate(str.maketrans("", "", " \n\t\r")).upper()
@@ -97,6 +91,19 @@ class SQLToken:  # pylint: disable=R0902
 
         return left_parenthesis and right_parenthesis
 
+    def table_prefixed_column(self, table_aliases: Dict) -> str:
+        """
+        Substitutes table alias with actual table name
+        """
+        value = self.left_expanded
+        if "." in value:
+            parts = value.split(".")
+            if len(parts) > 3:
+                raise ValueError(f"Wrong columns name: {value}")
+            parts[0] = table_aliases.get(parts[0], parts[0])
+            value = ".".join(parts)
+        return value
+
     def get_nth_previous(self, level: int):
         """
         Function iterates previous tokens getting nth previous token
@@ -117,6 +124,7 @@ EmptyToken = SQLToken(
     is_dot=False,
     is_wildcard=False,
     is_integer=False,
+    is_float=False,
     is_left_parenthesis=False,
     is_right_parenthesis=False,
     last_keyword=None,
