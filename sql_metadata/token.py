@@ -4,6 +4,8 @@ Module contains internal SQLToken that creates linked list
 import dataclasses
 from typing import Dict, Optional
 
+from sql_metadata.keywords_lists import SUBQUERY_PRECEDING_KEYWORDS
+
 
 @dataclasses.dataclass
 class SQLToken:  # pylint: disable=R0902
@@ -19,8 +21,13 @@ class SQLToken:  # pylint: disable=R0902
     is_wildcard: bool
     is_integer: bool
     is_float: bool
+
     is_left_parenthesis: bool
     is_right_parenthesis: bool
+
+    nesting_level: int
+    subquery_level: int
+    position: int
 
     # and the state
     last_keyword: Optional[str] = None
@@ -37,7 +44,8 @@ class SQLToken:  # pylint: disable=R0902
         """
         Representation - useful for debugging
         """
-        return self.__str__()
+        repr_str = ["=".join([str(k), str(v)]) for k, v in self.__dict__.items()]
+        return f"{repr_str}"
 
     @property
     def normalized(self):
@@ -91,6 +99,42 @@ class SQLToken:  # pylint: disable=R0902
 
         return left_parenthesis and right_parenthesis
 
+    @property
+    def is_nested_function_start(self) -> bool:
+        """
+        Checks if given token is a nested function start
+        """
+        return self.is_left_parenthesis and self.next_token.normalized != "SELECT"
+
+    @property
+    def is_nested_function_end(self) -> bool:
+        """
+        Checks if given token is a nested function end
+        """
+        return self.is_right_parenthesis and self.nesting_level > 0
+
+    @property
+    def is_subquery_start(self) -> bool:
+        """
+        Checks if given token is a subquery start
+        """
+        return (
+            self.is_left_parenthesis
+            and self.previous_token.normalized in SUBQUERY_PRECEDING_KEYWORDS
+            and self.next_token.normalized == "SELECT"
+        )
+
+    @property
+    def is_subquery_end(self) -> bool:
+        """
+        Checks if given token is a subquery end
+        """
+        return (
+            self.is_right_parenthesis
+            and self.subquery_level > 0
+            and not self.is_nested_function_end
+        )
+
     def table_prefixed_column(self, table_aliases: Dict) -> str:
         """
         Substitutes table alias with actual table name
@@ -98,7 +142,7 @@ class SQLToken:  # pylint: disable=R0902
         value = self.left_expanded
         if "." in value:
             parts = value.split(".")
-            if len(parts) > 3:
+            if len(parts) > 3:  # pragma: no cover
                 raise ValueError(f"Wrong columns name: {value}")
             parts[0] = table_aliases.get(parts[0], parts[0])
             value = ".".join(parts)
@@ -128,4 +172,7 @@ EmptyToken = SQLToken(
     is_left_parenthesis=False,
     is_right_parenthesis=False,
     last_keyword=None,
+    position=-1,
+    nesting_level=0,
+    subquery_level=0,
 )

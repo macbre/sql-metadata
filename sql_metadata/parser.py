@@ -13,6 +13,7 @@ from sql_metadata.keywords_lists import (
     FUNCTIONS_IGNORED,
     KEYWORDS_BEFORE_COLUMNS,
     KEYWORDS_IGNORED,
+    SUBQUERY_PRECEDING_KEYWORDS,
     TABLE_ADJUSTMENT_KEYWORDS,
     WITH_ENDING_KEYWORDS,
 )
@@ -36,7 +37,9 @@ class Parser:  # pylint: disable=R0902
 
         self._tables = None
         self._table_aliases = None
+
         self._with_names = None
+        self._subqueries_names = None
 
         self._limit_and_offset = None
 
@@ -62,7 +65,9 @@ class Parser:  # pylint: disable=R0902
 
         self._tables = None
         self._table_aliases = None
+
         self._with_names = None
+        self._subqueries_names = None
 
         self._limit_and_offset = None
 
@@ -91,6 +96,8 @@ class Parser:  # pylint: disable=R0902
             token for token in sqlparse_tokens if token.ttype is not Whitespace
         ]
         last_keyword = None
+        nesting_level = 0
+        subquery_level = 0
         for index, tok in enumerate(non_empty_tokens):
             token = SQLToken(
                 value=tok.value,
@@ -103,6 +110,9 @@ class Parser:  # pylint: disable=R0902
                 is_float=tok.ttype is Number.Float,
                 is_left_parenthesis=str(tok) == "(",
                 is_right_parenthesis=str(tok) == ")",
+                nesting_level=nesting_level,
+                subquery_level=subquery_level,
+                position=index,
                 last_keyword=last_keyword,
                 next_token=EmptyToken,
                 previous_token=EmptyToken,
@@ -110,6 +120,22 @@ class Parser:  # pylint: disable=R0902
             if index > 0:
                 token.previous_token = tokens[index - 1]
                 tokens[index - 1].next_token = token
+
+            if (
+                token.is_left_parenthesis
+                and token.previous_token.normalized not in SUBQUERY_PRECEDING_KEYWORDS
+            ):
+                nesting_level += 1
+            elif token.is_nested_function_end:
+                nesting_level -= 1
+
+            if (
+                token.is_left_parenthesis
+                and token.previous_token.normalized in SUBQUERY_PRECEDING_KEYWORDS
+            ):
+                subquery_level += 1
+            elif token.is_subquery_end:
+                subquery_level -= 1
 
             if tok.is_keyword and tok.normalized not in KEYWORDS_IGNORED:
                 last_keyword = tok.normalized
@@ -127,6 +153,7 @@ class Parser:  # pylint: disable=R0902
             return self._columns
         columns = UniqueList()
         tables_aliases = self.tables_aliases
+        subqueries_names = self.subqueries_names
 
         for token in self.tokens:
             if token.is_name and not token.next_token.is_dot:
@@ -136,8 +163,9 @@ class Parser:  # pylint: disable=R0902
                     and token.previous_token.normalized != "AS"
                 ):
                     if token.normalized not in FUNCTIONS_IGNORED and not (
-                        token.previous_token.normalized == "="
-                        and token.last_keyword_normalized in ["SET"]
+                        # aliases of sub-queries i.e.: select from (...) <alias>
+                        token.previous_token.is_right_parenthesis
+                        and token.value in subqueries_names
                     ):
                         # add columns that are not functions or names after
                         # = in joins (like select * from a join b on a.id=b.id
@@ -171,6 +199,15 @@ class Parser:  # pylint: disable=R0902
 
         self._columns = columns
         return self._columns
+
+    @property
+    def columns_without_subqueries(self) -> List:
+        """
+        Returns columns without ones explicitly coming from sub-queries
+        """
+        columns = self.columns
+        subqueries = self.subqueries_names
+        return [column for column in columns if column.split(".")[0] not in subqueries]
 
     @property
     def columns_dict(self) -> Dict[str, List[str]]:
@@ -299,7 +336,7 @@ class Parser:  # pylint: disable=R0902
         E.g. WITH database1.tableFromWith AS (SELECT * FROM table3)
              SELECT "xxxxx" FROM database1.tableFromWith alias
              LEFT JOIN database2.table2 ON ("tt"."ttt"."fff" = "xx"."xxx")
-        will give you ["database1.tableFromWith"]
+        will return ["database1.tableFromWith"]
         """
         if self._with_names is not None:
             return self._with_names
@@ -330,6 +367,30 @@ class Parser:  # pylint: disable=R0902
 
         self._with_names = with_names
         return self._with_names
+
+    @property
+    def subqueries_names(self) -> List[str]:
+        """
+        Returns sub-queries aliases list from a given query
+
+        e.g. SELECT COUNT(1) FROM
+            (SELECT std.task_id FROM some_task_detail std WHERE std.STATUS = 1) a
+             JOIN (SELECT st.task_id FROM some_task st WHERE task_type_id = 80) b
+             ON a.task_id = b.task_id;
+        will return ["a", "b"]
+        """
+        if self._subqueries_names is not None:
+            return self._subqueries_names
+        subqueries_names = UniqueList()
+        for token in self.tokens:
+            if (token.previous_token.is_subquery_end and token.normalized != "AS") or (
+                token.previous_token.normalized == "AS"
+                and token.get_nth_previous(2).is_subquery_end
+            ):
+                subqueries_names.append(str(token))
+
+        self._subqueries_names = subqueries_names
+        return self._subqueries_names
 
     @property
     def values(self) -> List:

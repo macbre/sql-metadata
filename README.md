@@ -146,6 +146,36 @@ parser.tables
 # ["table3", "table4", "database2.table2"]
 ```
 
+### Extracting sub-queries names
+
+```python
+from sql_metadata import Parser
+
+parser = Parser(
+"""
+SELECT COUNT(1) FROM
+(SELECT std.task_id FROM some_task_detail std WHERE std.STATUS = 1) a
+JOIN (SELECT st.task_id FROM some_task st WHERE task_type_id = 80) b
+ON a.task_id = b.task_id;
+"""
+)
+
+# get names/ aliases of sub-queries / derived tables
+parser.subqueries_names
+# ["a", "b"]
+
+# note that you can also exclude columns coming from sub-queries
+# all columns
+parser.columns
+#["some_task_detail.task_id", "some_task_detail.STATUS", "some_task.task_id", 
+# "task_type_id", "a.task_id", "b.task_id"]
+
+# without subqueries
+parser.columns_without_subqueries
+#["some_task_detail.task_id", "some_task_detail.STATUS", "some_task.task_id", 
+# "task_type_id"]
+```
+
 See `tests` file for more examples of a bit more complex queries.
 
 ### Queries normalization and comments extraction

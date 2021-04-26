@@ -216,41 +216,6 @@ def test_select_aliases():
     assert Parser("SELECT e.foo FROM (SELECT * FROM bar) e").tables == ["bar"]
 
 
-def test_multiline_queries():
-    query = """
-SELECT
-COUNT(1)
-FROM
-(SELECT
-task_id
-FROM
-some_task_detail
-WHERE
-STATUS = 1
-) a
-JOIN (
-SELECT
-task_id
-FROM
-some_task
-WHERE
-task_type_id = 80
-) b ON a.task_id = b.task_id;
-    """.strip()
-
-    assert Parser(query).tables == ["some_task_detail", "some_task"]
-    # TODO: I think a and b shouldn't be treated as columns?
-    assert Parser(query).columns == [
-        "task_id",
-        "STATUS",
-        "a",
-        "task_type_id",
-        "b",
-        "a.task_id",
-        "b.task_id",
-    ]
-
-
 def test_table_name_with_group_by():
     expected_tables = ["SH.sales"]
 

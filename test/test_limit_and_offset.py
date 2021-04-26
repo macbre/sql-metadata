@@ -29,9 +29,10 @@ def test_comma_separated():
     assert Parser(
         "SELECT foo_limit FROM bar_offset LIMIT 1000, 50"
     ).limit_and_offset == (50, 1000)
-    assert Parser(
-        "SELECT foo_limit FROM bar_offset LIMIT 1000,50"
-    ).limit_and_offset == (50, 1000)
+    parser = Parser("SELECT foo_limit FROM bar_offset LIMIT 1000,50")
+    assert parser.limit_and_offset == (50, 1000)
+    assert parser.limit_and_offset != (0, 1000)
+
     assert Parser(
         "SELECT foo_limit FROM bar_offset limit 1000,50"
     ).limit_and_offset == (50, 1000)

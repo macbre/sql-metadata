@@ -90,7 +90,16 @@ def test_columns_with_order_by():
 
 def test_update_and_replace():
     # UPDATE queries
-    parser = Parser("UPDATE `page` SET page_touched = 'aa' WHERE page_id = 'test'")
+    parser = Parser(
+        "UPDATE `page` SET page_touched = other_column WHERE page_id = 'test'"
+    )
+    assert parser.columns == ["page_touched", "other_column", "page_id"]
+    assert parser.columns_dict == {
+        "update": ["page_touched", "other_column"],
+        "where": ["page_id"],
+    }
+
+    parser = Parser("UPDATE `page` SET page_touched = 'value' WHERE page_id = 'test'")
     assert parser.columns == ["page_touched", "page_id"]
     assert parser.columns_dict == {"update": ["page_touched"], "where": ["page_id"]}
 

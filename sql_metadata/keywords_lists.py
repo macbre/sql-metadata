@@ -35,6 +35,12 @@ FUNCTIONS_IGNORED = [
     "DAY",
     "AVG",
     "SUM",
+    "IFNULL",
+    "DATEDIFF",
+    "DIV",
+    "MID",
+    "WEEKDAY",
+    "NOW",
 ]
 # these keywords are followed by columns reference
 KEYWORDS_BEFORE_COLUMNS = ["SELECT", "WHERE", "ORDERBY", "ON", "SET"]
@@ -57,3 +63,16 @@ TABLE_ADJUSTMENT_KEYWORDS = [
 
 # next statement beginning after with statement
 WITH_ENDING_KEYWORDS = ["UPDATE", "SELECT", "DELETE", "REPLACE"]
+
+# subquery preceding keywords
+SUBQUERY_PRECEDING_KEYWORDS = [
+    "FROM",
+    "JOIN",
+    "INNERJOIN",
+    "FULLJOIN",
+    "FULLOUTERJOIN",
+    "LEFTJOIN",
+    "RIGHTJOIN",
+    "LEFTOUTERJOIN",
+    "RIGHTOUTERJOIN",
+]
