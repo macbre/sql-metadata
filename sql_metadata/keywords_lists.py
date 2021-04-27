@@ -32,6 +32,7 @@ FUNCTIONS_IGNORED = [
     "CONVERT",
     "YEAR",
     "MONTH",
+    "YEARWEEK",
     "DAY",
     "AVG",
     "SUM",
@@ -41,6 +42,8 @@ FUNCTIONS_IGNORED = [
     "MID",
     "WEEKDAY",
     "NOW",
+    "LAST_DAY",
+    "DATE_ADD",
 ]
 # these keywords are followed by columns reference
 KEYWORDS_BEFORE_COLUMNS = ["SELECT", "WHERE", "ORDERBY", "ON", "SET"]

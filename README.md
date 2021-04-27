@@ -146,7 +146,7 @@ parser.tables
 # ["table3", "table4", "database2.table2"]
 ```
 
-### Extracting sub-queries names
+### Extracting sub-queries
 
 ```python
 from sql_metadata import Parser
@@ -159,6 +159,12 @@ JOIN (SELECT st.task_id FROM some_task st WHERE task_type_id = 80) b
 ON a.task_id = b.task_id;
 """
 )
+
+# get sub-queries dictionary
+parser.subqueries
+# {"a": "SELECT std.task_id FROM some_task_detail std WHERE std.STATUS = 1",
+#  "b": "SELECT st.task_id FROM some_task st WHERE task_type_id = 80"}
+
 
 # get names/ aliases of sub-queries / derived tables
 parser.subqueries_names

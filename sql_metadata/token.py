@@ -4,7 +4,7 @@ Module contains internal SQLToken that creates linked list
 import dataclasses
 from typing import Dict, Optional
 
-from sql_metadata.keywords_lists import SUBQUERY_PRECEDING_KEYWORDS
+from sql_metadata.keywords_lists import FUNCTIONS_IGNORED
 
 
 @dataclasses.dataclass
@@ -24,12 +24,14 @@ class SQLToken:  # pylint: disable=R0902
 
     is_left_parenthesis: bool
     is_right_parenthesis: bool
-
-    nesting_level: int
     subquery_level: int
     position: int
 
-    # and the state
+    is_subquery_start: bool = False
+    is_subquery_end: bool = False
+    is_nested_function_start: bool = False
+    is_nested_function_end: bool = False
+
     last_keyword: Optional[str] = None
     previous_token: Optional["SQLToken"] = None
     next_token: Optional["SQLToken"] = None
@@ -40,19 +42,38 @@ class SQLToken:  # pylint: disable=R0902
         """
         return self.value.strip('"')
 
-    def __repr__(self):  # pragma: no cover
+    def __repr__(self) -> str:  # pragma: no cover
         """
         Representation - useful for debugging
         """
         repr_str = ["=".join([str(k), str(v)]) for k, v in self.__dict__.items()]
-        return f"{repr_str}"
+        return f"SQLToken({','.join(repr_str)})"
 
     @property
-    def normalized(self):
+    def normalized(self) -> str:
         """
         Property returning uppercase value without end lines and spaces
         """
         return self.value.translate(str.maketrans("", "", " \n\t\r")).upper()
+
+    @property
+    def stringified_token(self) -> str:
+        """
+        Returns string representation with whitespace or not - used to rebuild query
+        from list of tokens
+        """
+        if self.previous_token:
+            if (
+                self.normalized in [")", ".", ","]
+                or self.previous_token.normalized in ["(", "."]
+                or (
+                    self.is_left_parenthesis
+                    and self.previous_token.normalized in FUNCTIONS_IGNORED
+                )
+            ):
+                return str(self)
+            return f" {self}"
+        return str(self)  # pragma: no cover
 
     @property
     def last_keyword_normalized(self) -> str:
@@ -99,42 +120,6 @@ class SQLToken:  # pylint: disable=R0902
 
         return left_parenthesis and right_parenthesis
 
-    @property
-    def is_nested_function_start(self) -> bool:
-        """
-        Checks if given token is a nested function start
-        """
-        return self.is_left_parenthesis and self.next_token.normalized != "SELECT"
-
-    @property
-    def is_nested_function_end(self) -> bool:
-        """
-        Checks if given token is a nested function end
-        """
-        return self.is_right_parenthesis and self.nesting_level > 0
-
-    @property
-    def is_subquery_start(self) -> bool:
-        """
-        Checks if given token is a subquery start
-        """
-        return (
-            self.is_left_parenthesis
-            and self.previous_token.normalized in SUBQUERY_PRECEDING_KEYWORDS
-            and self.next_token.normalized == "SELECT"
-        )
-
-    @property
-    def is_subquery_end(self) -> bool:
-        """
-        Checks if given token is a subquery end
-        """
-        return (
-            self.is_right_parenthesis
-            and self.subquery_level > 0
-            and not self.is_nested_function_end
-        )
-
     def table_prefixed_column(self, table_aliases: Dict) -> str:
         """
         Substitutes table alias with actual table name
@@ -172,7 +157,6 @@ EmptyToken = SQLToken(
     is_left_parenthesis=False,
     is_right_parenthesis=False,
     last_keyword=None,
-    position=-1,
-    nesting_level=0,
     subquery_level=0,
+    position=-1,
 )

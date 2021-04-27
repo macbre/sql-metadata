@@ -39,6 +39,7 @@ class Parser:  # pylint: disable=R0902
         self._table_aliases = None
 
         self._with_names = None
+        self._subqueries = None
         self._subqueries_names = None
 
         self._limit_and_offset = None
@@ -67,6 +68,7 @@ class Parser:  # pylint: disable=R0902
         self._table_aliases = None
 
         self._with_names = None
+        self._subqueries = None
         self._subqueries_names = None
 
         self._limit_and_offset = None
@@ -96,8 +98,8 @@ class Parser:  # pylint: disable=R0902
             token for token in sqlparse_tokens if token.ttype is not Whitespace
         ]
         last_keyword = None
-        nesting_level = 0
         subquery_level = 0
+        open_parenthesises = []
         for index, tok in enumerate(non_empty_tokens):
             token = SQLToken(
                 value=tok.value,
@@ -110,12 +112,11 @@ class Parser:  # pylint: disable=R0902
                 is_float=tok.ttype is Number.Float,
                 is_left_parenthesis=str(tok) == "(",
                 is_right_parenthesis=str(tok) == ")",
-                nesting_level=nesting_level,
-                subquery_level=subquery_level,
                 position=index,
                 last_keyword=last_keyword,
                 next_token=EmptyToken,
                 previous_token=EmptyToken,
+                subquery_level=subquery_level,
             )
             if index > 0:
                 token.previous_token = tokens[index - 1]
@@ -125,17 +126,23 @@ class Parser:  # pylint: disable=R0902
                 token.is_left_parenthesis
                 and token.previous_token.normalized not in SUBQUERY_PRECEDING_KEYWORDS
             ):
-                nesting_level += 1
-            elif token.is_nested_function_end:
-                nesting_level -= 1
-
-            if (
+                token.is_nested_function_start = True
+                open_parenthesises.append(token)
+            elif (
                 token.is_left_parenthesis
                 and token.previous_token.normalized in SUBQUERY_PRECEDING_KEYWORDS
             ):
+                token.is_subquery_start = True
                 subquery_level += 1
-            elif token.is_subquery_end:
-                subquery_level -= 1
+                token.subquery_level = subquery_level
+                open_parenthesises.append(token)
+            elif token.is_right_parenthesis:
+                last_open_parenthesis = open_parenthesises.pop(-1)
+                if last_open_parenthesis.is_subquery_start:
+                    token.is_subquery_end = True
+                    subquery_level -= 1
+                else:
+                    token.is_nested_function_end = True
 
             if tok.is_keyword and tok.normalized not in KEYWORDS_IGNORED:
                 last_keyword = tok.normalized
@@ -367,6 +374,38 @@ class Parser:  # pylint: disable=R0902
 
         self._with_names = with_names
         return self._with_names
+
+    @property
+    def subqueries(self) -> Dict:
+        """
+        Returns a dictionary with all sub-queries existing in query
+        """
+        if self._subqueries is not None:
+            return self._subqueries
+        subqueries = dict()
+        token = self.tokens[0]
+        while token.next_token:
+            if token.previous_token.is_subquery_start:
+                current_subquery = []
+                current_level = token.subquery_level
+                inner_token = token
+                while (
+                    inner_token.next_token
+                    and not inner_token.next_token.subquery_level < current_level
+                ):
+                    current_subquery.append(inner_token)
+                    inner_token = inner_token.next_token
+                if inner_token.next_token.value in self.subqueries_names:
+                    query_name = inner_token.next_token.value
+                else:
+                    query_name = inner_token.next_token.next_token.value
+                subquery_text = "".join([x.stringified_token for x in current_subquery])
+                subqueries[query_name] = subquery_text
+
+            token = token.next_token
+
+        self._subqueries = subqueries
+        return self._subqueries
 
     @property
     def subqueries_names(self) -> List[str]:
