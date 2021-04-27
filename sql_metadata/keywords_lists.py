@@ -44,6 +44,7 @@ FUNCTIONS_IGNORED = [
     "NOW",
     "LAST_DAY",
     "DATE_ADD",
+    "COALESCE"
 ]
 # these keywords are followed by columns reference
 KEYWORDS_BEFORE_COLUMNS = ["SELECT", "WHERE", "ORDERBY", "ON", "SET"]

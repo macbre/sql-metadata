@@ -69,7 +69,7 @@ def test_complex_query_tables():
         ["tab", "tab2"]
         == Parser(
             """select a,b,c from tab full  outer \r\n\t  join tab2  on (col1 = col2) group   
-           \r\n   \t   by  a, b, c """
+       \r\n   \t   by  a, b, c """
         ).tables
     )
 
@@ -234,9 +234,9 @@ def test_table_name_with_group_by():
     assert (
         Parser(
             """
-        SELECT s.cust_id,count(s.cust_id) FROM SH.sales s
-        GROUP BY s.cust_id HAVING s.cust_id != '1660' AND s.cust_id != '2'
-            """.strip()
+            SELECT s.cust_id,count(s.cust_id) FROM SH.sales s
+            GROUP BY s.cust_id HAVING s.cust_id != '1660' AND s.cust_id != '2'
+                """.strip()
         ).tables
         == expected_tables
     )
@@ -284,12 +284,12 @@ def test_with_brackets():
         ["database1.table1", "database2.table2"]
         == Parser(
             """
-    SELECT
-      "xxxxx"
-    FROM
-      (database1.table1 alias
-    LEFT JOIN database2.table2 ON ("tt"."ttt"."fff" = "xx"."xxx"))
-    """
+SELECT
+  "xxxxx"
+FROM
+  (database1.table1 alias
+LEFT JOIN database2.table2 ON ("tt"."ttt"."fff" = "xx"."xxx"))
+"""
         ).tables
     )
 
@@ -297,11 +297,108 @@ def test_with_brackets():
         ["inner_table"]
         == Parser(
             """
-    SELECT
-        t.foo
-    FROM
-        (SELECT foo FROM inner_table
-        WHERE bar = '1') t
-    """
+SELECT
+    t.foo
+FROM
+    (SELECT foo FROM inner_table
+    WHERE bar = '1') t
+"""
         ).tables
     )
+
+
+def test_db2_query():
+    query = """
+    select ca.IDENTIFICATION_CODE identificationCode, 
+eo.KBO_NUMBER kboNumber, 
+eo.PARTY_NAME,
+ca.total_guaranteed totale_borgtocht, 
+coalesce(sum(ae1.remainder),0) Saldo, 
+coalesce(sum(ae3.remainder),0) uitstel_van_betaling, 
+coalesce(sum(ae4.remainder),0) reservering_aangifte, 
+coalesce(sum(ae5.remainder),0) reservering_vergunning,
+coalesce(sum(ae6.remainder),0) zekerheid_douanevervoer, 
+coalesce(sum(ae7.remainder),0) zekerheid_accijnsbeweging,
+coalesce(sum(ae8.remainder),0) FRCT 
+from CUSTOMER_ACCOUNT ca 
+inner join economic_operator eo on eo.id = ca.economic_operator_id 
+join contact_details cd on cd.id = ca.contact_details_id 
+left join ( ca1_remainder_total_guaranteed crtg 
+inner join accounting_entity ae1 on ae1.id = crtg.accounting_entity_id)
+on crtg.id = ca.ca1_id 
+left join (ca3_credit_account cca inner join accounting_entity ae3 on ae3.id = 
+cca.accounting_entity_id) on cca.id = ca.ca3_id 
+left join (ca4_reservations_declaration crd inner join accounting_entity ae4 on 
+ae4.id = crd.accounting_entity_id) on crd.id = ca.ca4_id 
+left join (ca5_reservations_permits crp inner join accounting_entity ae5 on ae5.id 
+= crp.accounting_entity_id) on crp.id = ca.ca5_id 
+left join (CA6_GUARANTEE_CUSTOMS_TRANSPORT gct inner join accounting_entity ae6 on 
+ae6.id = gct.accounting_entity_id) on gct.id = ca.ca6_id 
+left join (CA7_GUARANTEE_EXCISE_PRODUCTS gep inner join accounting_entity ae7 on 
+ae7.id = gep.accounting_entity_id) on gep.id = ca.ca7_id 
+left join (ca8_frct cf inner join ca8_frct_per_discharge cfpd on cfpd.CA8_ID = 
+cf.id inner join accounting_entity ae8 on ae8.id = cfpd.accounting_entity_id) on 
+cf.id = ca.ca8_id 
+group by eo.PARTY_NAME,eo.KBO_NUMBER, ca.IDENTIFICATION_CODE, ca.total_guaranteed 
+order by eo.KBO_NUMBER, ca.IDENTIFICATION_CODE 
+with ur
+    """
+    parser = Parser(query)
+    assert parser.tables == [
+        "CUSTOMER_ACCOUNT",
+        "economic_operator",
+        "contact_details",
+        "ca1_remainder_total_guaranteed",
+        "accounting_entity",
+        "ca3_credit_account",
+        "ca4_reservations_declaration",
+        "ca5_reservations_permits",
+        "CA6_GUARANTEE_CUSTOMS_TRANSPORT",
+        "CA7_GUARANTEE_EXCISE_PRODUCTS",
+        "ca8_frct",
+        "ca8_frct_per_discharge",
+    ]
+    assert parser.columns == [
+        "CUSTOMER_ACCOUNT.IDENTIFICATION_CODE",
+        "identificationCode",
+        "economic_operator.KBO_NUMBER",
+        "kboNumber",
+        "economic_operator.PARTY_NAME",
+        "CUSTOMER_ACCOUNT.total_guaranteed",
+        "totale_borgtocht",
+        "accounting_entity.remainder",
+        "Saldo",
+        "uitstel_van_betaling",
+        "reservering_aangifte",
+        "reservering_vergunning",
+        "zekerheid_douanevervoer",
+        "zekerheid_accijnsbeweging",
+        "FRCT",
+        "economic_operator.id",
+        "CUSTOMER_ACCOUNT.economic_operator_id",
+        "contact_details.id",
+        "CUSTOMER_ACCOUNT.contact_details_id",
+        "accounting_entity.id",
+        "ca1_remainder_t    otal_guaranteed.accounting_entity_id",
+        "ca1_remainder_total_guaranteed.id",
+        "CUSTOMER_ACCOUNT.ca1_id",
+        "ca3_credit_account.accounting_entity_id",
+        "ca3_credit_account.id",
+        "CUSTOMER_ACCOUNT.ca3_id",
+        "ca4_reservations_declaration.accounting_entity_id",
+        "ca4_reservations_declaration.id",
+        "CUSTOMER_ACCOUNT.ca4_id",
+        "ca5_reservations_permits.accounting_entity_id",
+        "ca5_reservations_permits.id",
+        "CUSTOMER_ACCOUNT.ca5_id",
+        "CA6_GUARANTEE_CUSTOMS_TRANSPORT.accounting_entity_id",
+        "CA6_GUARANTEE_CUSTOMS_TRANSPORT.id",
+        "CUSTOMER_ACCOUNT.ca6_id",
+        "CA7_GUARANTEE_EXCISE_PRODUCTS.accounting_entity_id",
+        "CA7_GUARANTEE_EXCISE_PRODUCTS.id",
+        "CUSTOMER_ACCOUNT.ca7_id",
+        "ca8_frct_per_discharge.CA8_ID",
+        "ca8_frct.id",
+        "ca8_frct_per_discharge.accounting_entity_id",
+        "CUSTOMER_ACCOUNT.ca8_id",
+    ]
