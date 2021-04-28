@@ -20,5 +20,5 @@ jobs:
 
     - name: Check code formatting
       run: |
-        pip install black==20.8b1
+        pip install black==21.4b1
         black --check .
