@@ -52,7 +52,7 @@ class Generalizator:
         return [x.strip() for x in comments]
 
     @property
-    def remove_comments(self) -> str:
+    def without_comments(self) -> str:
         """
         Removes comments from SQL query
 
