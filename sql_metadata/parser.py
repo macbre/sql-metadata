@@ -502,4 +502,7 @@ class Parser:  # pylint: disable=R0902
         # 2. `database`.`table` notation -> database.table
         query = re.sub(r"`([^`]+)`\.`([^`]+)`", r"\1.\2", query)
 
+        # 3. remove comments from query
+        query = Generalizator(query).remove_comments
+
         return query

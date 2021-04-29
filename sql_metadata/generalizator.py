@@ -4,6 +4,8 @@ Module used to produce generalized sql out of given query
 import re
 from typing import List, Optional
 
+import sqlparse
+
 
 class Generalizator:
     """
@@ -56,7 +58,7 @@ class Generalizator:
 
         :rtype: str
         """
-        sql = re.sub(r"\s?/\*.+?\*/", "", self._raw_query)
+        sql = sqlparse.format(self._raw_query, strip_comments=True)
         sql = re.sub(r"\s{2,}", " ", sql)
         return sql
 
