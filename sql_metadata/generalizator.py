@@ -42,7 +42,7 @@ class Generalizator:
     @property
     def comments(self) -> List[str]:
         """
-        Removes comments from SQL query
+        Gets comments from SQL query
 
         :rtype: str
         """
