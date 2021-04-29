@@ -21,7 +21,7 @@ def test_getting_comments():
         "/* We should add more conditions */",
         "/* Verify with accounting */",
     ]
-    assert parser.remove_comments == (
+    assert parser.without_comments == (
         "SELECT page_namespace,page_title,page_len,page_is_redirect,cl_sortkey_prefix "
         "FROM `page` "
         "INNER JOIN `categorylinks` FORCE INDEX (cl_sortkey) ON ((cl_from = page_id)) "

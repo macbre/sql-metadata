@@ -453,13 +453,13 @@ class Parser:  # pylint: disable=R0902
         return Generalizator(self._raw_query).comments
 
     @property
-    def remove_comments(self) -> str:
+    def without_comments(self) -> str:
         """
         Removes comments from SQL query
 
         :rtype: str
         """
-        return Generalizator(self._raw_query).remove_comments
+        return Generalizator(self._raw_query).without_comments
 
     @property
     def generalize(self) -> Optional[str]:
@@ -503,6 +503,6 @@ class Parser:  # pylint: disable=R0902
         query = re.sub(r"`([^`]+)`\.`([^`]+)`", r"\1.\2", query)
 
         # 3. remove comments from query
-        query = Generalizator(query).remove_comments
+        query = Generalizator(query).without_comments
 
         return query

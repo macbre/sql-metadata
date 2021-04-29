@@ -195,7 +195,7 @@ parser.generalize
 # 'SELECT foo FROM bar WHERE id in (XYZ)'
 
 # remove comments
-parser.remove_comments
+parser.without_comments
 # 'SELECT foo FROM bar WHERE id in (1, 2, 56)'
 
 # extract comments

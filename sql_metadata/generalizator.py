@@ -77,7 +77,7 @@ class Generalizator:
 
         # MW comments
         # e.g. /* CategoryDataService::getMostVisited N.N.N.N */
-        sql = self.remove_comments
+        sql = self.without_comments
         sql = sql.replace('"', "")
 
         # multiple spaces

@@ -8,7 +8,7 @@ def test_generalization_of_sql():
     assert Parser(None).generalize is None
 
     assert (
-        Parser("SELECT /* Test */ foo FROM BAR").remove_comments
+        Parser("SELECT /* Test */ foo FROM BAR").without_comments
         == "SELECT foo FROM BAR"
     )
 
