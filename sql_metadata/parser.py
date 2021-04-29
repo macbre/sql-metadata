@@ -54,31 +54,6 @@ class Parser:  # pylint: disable=R0902
         """
         return self._query
 
-    @query.setter
-    def query(self, value):
-        """
-        Resets cached attributes before setting new query
-        """
-        self._tokens = None
-
-        self._columns = None
-        self._columns_dict = None
-
-        self._tables = None
-        self._table_aliases = None
-
-        self._with_names = None
-        self._subqueries = None
-        self._subqueries_names = None
-
-        self._limit_and_offset = None
-
-        self._values = None
-        self._values_dict = None
-
-        self._raw_query = value
-        self._query = self._preprocess_query()
-
     @property
     def tokens(self) -> List[SQLToken]:
         """
@@ -174,9 +149,6 @@ class Parser:  # pylint: disable=R0902
                         token.previous_token.is_right_parenthesis
                         and token.value in subqueries_names
                     ):
-                        # add columns that are not functions or names after
-                        # = in joins (like select * from a join b on a.id=b.id
-                        # but skip set x = 1
                         column = token.table_prefixed_column(tables_aliases)
                         self._add_to_columns_subsection(
                             keyword=token.last_keyword_normalized, column=column

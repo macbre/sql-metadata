@@ -1,8 +1,6 @@
-import sqlparse
+import pathlib
 
 from sql_metadata import Parser
-
-import pathlib
 
 dir_path = pathlib.Path(__file__).parent.absolute()
 
@@ -11,7 +9,6 @@ def test_complex_query_aliases():
     sql_filename = f"{dir_path}/test.sql"
     with open(sql_filename, "r", encoding="latin-1") as content_file:
         content = content_file.read()
-    content = sqlparse.format(content, strip_comments=True).strip()
     parser = Parser(content)
     assert parser.tables_aliases == {
         "C": "EBH_DM_CRM.CRM_CUSTOMER",
