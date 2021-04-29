@@ -26,7 +26,7 @@ class Parser:  # pylint: disable=R0902
     Main class to parse sql query
     """
 
-    def __init__(self, sql: Optional[str] = None) -> None:
+    def __init__(self, sql: str = "") -> None:
         self._raw_query = sql
         self._query = self._preprocess_query()
 
