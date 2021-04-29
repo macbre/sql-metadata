@@ -12,7 +12,7 @@ class Generalizator:
     Class used to produce generalized sql out of given query
     """
 
-    def __init__(self, sql: Optional[str] = None):
+    def __init__(self, sql: str = ""):
         self._raw_query = sql
 
     # SQL queries normalization (#16)
