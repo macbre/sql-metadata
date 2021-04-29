@@ -379,7 +379,7 @@ with ur
         "contact_details.id",
         "CUSTOMER_ACCOUNT.contact_details_id",
         "accounting_entity.id",
-        "ca1_remainder_t    otal_guaranteed.accounting_entity_id",
+        "ca1_remainder_total_guaranteed.accounting_entity_id",
         "ca1_remainder_total_guaranteed.id",
         "CUSTOMER_ACCOUNT.ca1_id",
         "ca3_credit_account.accounting_entity_id",
