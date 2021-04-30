@@ -486,15 +486,16 @@ class Parser:  # pylint: disable=R0902
         self._columns_dict = self._columns_dict or dict()
         self._columns_dict.setdefault(section, UniqueList()).append(column)
 
-    def _preprocess_query(self) -> Optional[str]:
+    def _preprocess_query(self) -> str:
         """
         Perform initial query cleanup
 
         :rtype str
         """
+        if self._raw_query == "":
+            return ""
+
         # 0. remove newlines
-        if self._raw_query is None:
-            return None
         query = self._raw_query.replace("\n", " ")
         # 1. remove quotes "
         query = query.replace('"', "")
