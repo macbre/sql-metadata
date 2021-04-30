@@ -210,3 +210,18 @@ def test_complex_queries_columns():
         "where": ["cl_type", "cl_to"],
         "order_by": ["cl_sortkey"],
     }
+
+
+def test_columns_and_sql_functions():
+    """
+    See https://github.com/macbre/sql-metadata/issues/125
+    """
+    assert Parser("select max(col3)+avg(col)+1+sum(col2) from dual").columns == [
+        "col3",
+        "col",
+        "col2",
+    ]
+    assert Parser("select avg(col)+sum(col2) from dual").columns == ["col", "col2"]
+    assert Parser(
+        "select count(col)+max(col2)+ min(col3)+ count(distinct  col4) + custom_func(col5) from dual"
+    ).columns == ["col", "col2", "col3", "col4", "col5"]
