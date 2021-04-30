@@ -1,26 +1,23 @@
 """
 Set of unit tests for handling of Apache Hive queries
 """
-import pytest
 
-from sql_metadata import get_query_columns, get_query_tables
+from sql_metadata.parser import Parser
 
 
 def test_insert_overwrite_table():
-    assert ["foo_report"] == get_query_tables("INSERT TABLE foo_report")
-    assert ["foo_report"] == get_query_tables("INSERT OVERWRITE TABLE foo_report")
-    assert ["foo_report", "bar"] == get_query_tables(
+    assert ["foo_report"] == Parser("INSERT TABLE foo_report").tables
+    assert ["foo_report"] == Parser("INSERT OVERWRITE TABLE foo_report").tables
+    assert ["foo_report", "bar"] == Parser(
         "INSERT OVERWRITE TABLE foo_report SELECT foo FROM bar"
-    )
+    ).tables
 
-    assert ["foo"] == get_query_columns(
+    assert ["foo"] == Parser(
         "INSERT OVERWRITE TABLE foo_report SELECT foo FROM bar"
-    )
+    ).columns
 
 
 def test_complex_hive_query():
-    pytest.skip("Improve HIVE syntax handling with a new parser (#98)")
-
     # https://cwiki.apache.org/confluence/display/Hive/LanguageManual+DML#LanguageManualDML-InsertingdataintoHiveTablesfromqueries
     dag = """
 INSERT OVERWRITE TABLE foo_report
@@ -46,4 +43,4 @@ JOIN statsdb.dimension_wikis d ON r.wiki_id = d.wiki_id;
         "foo_report",
         "rollup_wiki_beacon_pageviews",
         "statsdb.dimension_wikis",
-    ] == get_query_tables(dag)
+    ] == Parser(dag).tables

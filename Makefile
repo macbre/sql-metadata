@@ -8,7 +8,7 @@ coverage:
 	poetry run pytest -vv --cov=sql_metadata --cov-report=term
 
 lint:
-	poetry run pylint sql_metadata.py
+	poetry run pylint sql_metadata
 
 publish:
 	# run git tag -a v0.0.0 before running make publish
