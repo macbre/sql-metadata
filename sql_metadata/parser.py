@@ -144,10 +144,16 @@ class Parser:  # pylint: disable=R0902
                     token.last_keyword_normalized in KEYWORDS_BEFORE_COLUMNS
                     and token.previous_token.normalized != "AS"
                 ):
-                    if token.normalized not in FUNCTIONS_IGNORED and not (
-                        # aliases of sub-queries i.e.: select from (...) <alias>
-                        token.previous_token.is_right_parenthesis
-                        and token.value in subqueries_names
+                    if (
+                        token.normalized not in FUNCTIONS_IGNORED
+                        and not (
+                            # aliases of sub-queries i.e.: select from (...) <alias>
+                            token.previous_token.is_right_parenthesis
+                            and token.value in subqueries_names
+                        )
+                        # custom functions - they are followed by the parenthesis
+                        # e.g. custom_func(...
+                        and not token.next_token.is_left_parenthesis
                     ):
                         column = token.table_prefixed_column(tables_aliases)
                         self._add_to_columns_subsection(
