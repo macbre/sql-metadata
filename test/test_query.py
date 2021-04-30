@@ -30,7 +30,7 @@ def test_preprocessing():
         == "SELECT foo, id FROM db.test"
     )
 
-    # normalize newlines
+    # comments are kept
     assert (
         Parser("SELECT /*my random comment*/ foo, id FROM `db`.`test`").query
         == "SELECT /*my random comment*/ foo, id FROM db.test"
