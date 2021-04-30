@@ -9,7 +9,7 @@ homepage = "https://github.com/macbre/sql-metadata"
 repository = "https://github.com/macbre/sql-metadata"
 
 packages = [
-    { include="sql_metadata.py" }
+    { include="sql_metadata" }
 ]
 
 [tool.poetry.dependencies]
