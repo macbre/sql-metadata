@@ -5,7 +5,7 @@ from sql_metadata.parser import Parser
 
 
 def test_generalization_of_sql():
-    assert Parser(None).generalize is None
+    assert Parser().generalize == ""
 
     assert (
         Parser("SELECT /* Test */ foo FROM BAR").without_comments
