@@ -57,7 +57,7 @@ class Parser:  # pylint: disable=R0902
     @property
     def tokens(self) -> List[SQLToken]:
         """
-        :rtype: list[SQLToken]
+        Tokenizes the query
         """
         if self._tokens is not None:
             return self._tokens
@@ -129,7 +129,7 @@ class Parser:  # pylint: disable=R0902
     @property
     def columns(self) -> List[str]:
         """
-        :rtype: list[str]
+        Returns the list columns this query refers to
         """
         if self._columns is not None:
             return self._columns
@@ -210,7 +210,7 @@ class Parser:  # pylint: disable=R0902
     @property
     def tables(self) -> List[str]:
         """
-        :rtype: list[str]
+        Return the list of tables this query refers to
         """
         if self._tables is not None:
             return self._tables
@@ -253,8 +253,6 @@ class Parser:  # pylint: disable=R0902
     def limit_and_offset(self) -> Optional[Tuple[int, int]]:
         """
         Returns value for limit and offset if set
-
-        :rtype: (int, int)
         """
         if self._limit_and_offset is not None:
             return self._limit_and_offset
@@ -453,8 +451,6 @@ class Parser:  # pylint: disable=R0902
     def comments(self) -> List[str]:
         """
         Return comments from SQL query
-
-        :rtype: List[str]
         """
         return Generalizator(self._raw_query).comments
 
@@ -462,8 +458,6 @@ class Parser:  # pylint: disable=R0902
     def without_comments(self) -> str:
         """
         Removes comments from SQL query
-
-        :rtype: str
         """
         return Generalizator(self._raw_query).without_comments
 
@@ -474,8 +468,6 @@ class Parser:  # pylint: disable=R0902
         and replaces them with X or N for numbers.
 
         Based on Mediawiki's DatabaseBase::generalizeSQL
-
-        :rtype: Optional[str]
         """
         return Generalizator(self._raw_query).generalize
 
@@ -495,8 +487,6 @@ class Parser:  # pylint: disable=R0902
     def _preprocess_query(self) -> str:
         """
         Perform initial query cleanup
-
-        :rtype str
         """
         if self._raw_query == "":
             return ""
