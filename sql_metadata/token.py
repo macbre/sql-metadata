@@ -1,10 +1,10 @@
 """
 Module contains internal SQLToken that creates linked list
 """
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Union
 
 import sqlparse.sql
-from sqlparse.tokens import Name, Number, Punctuation, Wildcard
+from sqlparse.tokens import Comment, Name, Number, Punctuation, Wildcard
 
 from sql_metadata.keywords_lists import FUNCTIONS_IGNORED
 
@@ -33,12 +33,16 @@ class SQLToken:  # pylint: disable=R0902
             self.is_wildcard = tok.ttype is Wildcard
             self.is_integer = tok.ttype is Number.Integer
             self.is_float = tok.ttype is Number.Float
+            self.is_comment = tok.ttype is Comment or tok.ttype.parent == Comment
+
             self.is_left_parenthesis = str(tok) == "("
             self.is_right_parenthesis = str(tok) == ")"
             self.last_keyword = last_keyword
             self.next_token = EmptyToken
             self.previous_token = EmptyToken
             self.subquery_level = subquery_level
+
+        self._set_default_parenthesis_status()
 
     def _set_default_values(self):
         self.value = ""
@@ -49,35 +53,25 @@ class SQLToken:  # pylint: disable=R0902
         self.is_wildcard = False
         self.is_integer = False
         self.is_float = False
+        self.is_comment = False
+
         self.is_left_parenthesis = False
         self.is_right_parenthesis = False
         self.last_keyword = None
         self.subquery_level = 0
+        self.next_token = None
+        self.previous_token = None
 
-    value: Optional[str]
-    is_keyword: bool
-    is_name: bool
-    is_dot: bool
-    is_punctuation: bool
-    is_wildcard: bool
-    is_integer: bool
-    is_float: bool
-
-    is_left_parenthesis: bool
-    is_right_parenthesis: bool
-    subquery_level: int
-    position: int
-
-    is_subquery_start: bool = False
-    is_subquery_end: bool = False
-    is_nested_function_start: bool = False
-    is_nested_function_end: bool = False
-    is_column_definition_start: bool = False
-    is_column_definition_end: bool = False
-
-    last_keyword: Optional[str] = None
-    previous_token: Optional["SQLToken"] = None
-    next_token: Optional["SQLToken"] = None
+    def _set_default_parenthesis_status(self):
+        self.is_in_nested_function = False
+        self.is_subquery_start = False
+        self.is_subquery_end = False
+        self.is_with_query_start = False
+        self.is_with_query_end = False
+        self.is_nested_function_start = False
+        self.is_nested_function_end = False
+        self.is_column_definition_start = False
+        self.is_column_definition_end = False
 
     def __str__(self):
         """
@@ -169,7 +163,7 @@ class SQLToken:  # pylint: disable=R0902
             value = ".".join(parts)
         return value
 
-    def get_nth_previous(self, level: int):
+    def get_nth_previous(self, level: int) -> "SQLToken":
         """
         Function iterates previous tokens getting nth previous token
         """
@@ -178,7 +172,7 @@ class SQLToken:  # pylint: disable=R0902
             if level > 1:
                 return self.previous_token.get_nth_previous(level=level - 1)
             return self.previous_token
-        return None  # pragma: no cover
+        return EmptyToken  # pragma: no cover
 
     def find_token(
         self,

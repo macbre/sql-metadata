@@ -2,7 +2,7 @@
 This module provides SQL query parsing functions
 """
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import sqlparse
 from sqlparse.sql import TokenList
@@ -53,7 +53,10 @@ class Parser:  # pylint: disable=R0902
         self._values_dict = None
 
         self._subquery_level = 0
+        self._nested_level = 0
         self._open_parentheses = []
+        self._aliases_to_check = None
+        self._is_in_nested_function = False
 
     @property
     def query(self) -> str:
@@ -100,6 +103,7 @@ class Parser:  # pylint: disable=R0902
 
             if tok.is_keyword and tok.normalized not in KEYWORDS_IGNORED:
                 last_keyword = tok.normalized
+            token.is_in_nested_function = self._is_in_nested_function
             tokens.append(token)
 
         self._tokens = tokens
@@ -210,7 +214,7 @@ class Parser:  # pylint: disable=R0902
         column_aliases = dict()
         if self._columns is None:
             _ = self.columns
-        aliases_of = (
+        self._aliases_to_check = (
             list(self._columns_with_tables_aliases.keys())
             + self.columns_aliases_names
             + ["*"]
@@ -226,51 +230,35 @@ class Parser:  # pylint: disable=R0902
                 else:
                     token_check = token.previous_token
                 if token_check.is_column_definition_end:
-                    # nested subquery like select (select a as b from x) column
+                    # nested subquery like select a, (select a as b from x) as column
                     start_token = token.find_token(
                         True, value_attribute="is_column_definition_start"
                     )
                     if start_token.next_token.normalized == "SELECT":
                         # we have a subquery
                         alias_token = start_token.next_token.find_token(
-                            aliases_of, direction="right"
+                            self._aliases_to_check, direction="right"
                         )
                         alias_of = self._resolve_alias_to_column(alias_token)
                     else:
                         # chain of functions or redundant parenthesis
-                        loop_token = start_token
-                        aliases = []
-                        while loop_token.next_token != token:
-                            if loop_token.next_token.left_expanded in aliases_of:
-                                alias_token = loop_token.next_token
-                                aliases.append(
-                                    self._resolve_alias_to_column(alias_token)
-                                )
-                            loop_token = loop_token.next_token
-                        alias_of = aliases
-
-                elif token_check.is_nested_function_end:
+                        alias_of = self._find_all_columns_between_tokens(
+                            start_token=start_token, end_token=token
+                        )
+                else:
                     # it can be one function or a chain of functions
+                    # like: sum(a) + sum(b) as alias
+                    # or operation on columns like: col1 + col2 as alias
                     start_token = token.find_token(
                         [",", "SELECT"], value_attribute="normalized"
                     )
-                    loop_token = start_token
-                    aliases = []
-                    while loop_token.next_token != token:
-                        if loop_token.next_token.left_expanded in aliases_of:
-                            alias_token = loop_token.next_token
-                            aliases.append(self._resolve_alias_to_column(alias_token))
-                        loop_token = loop_token.next_token
-                    alias_of = aliases
-                else:
-                    alias_token = token.find_token(
-                        aliases_of, value_attribute="left_expanded"
+                    while start_token.is_in_nested_function:
+                        start_token = start_token.find_token(
+                            [",", "SELECT"], value_attribute="normalized"
+                        )
+                    alias_of = self._find_all_columns_between_tokens(
+                        start_token=start_token, end_token=token
                     )
-                    alias_of = self._resolve_alias_to_column(alias_token)
-
-                # if token.value not in [alias_of, ""]:
-                if isinstance(alias_of, list) and len(alias_of) == 1:
-                    alias_of = alias_of[0]
                 if token.value != alias_of:
                     # skip aliases of self, like sum(column) as column
                     column_aliases[token.left_expanded] = alias_of
@@ -300,11 +288,23 @@ class Parser:  # pylint: disable=R0902
             return self._columns_aliases_names
         column_aliases_names = UniqueList()
         for token in self.tokens:
-            if token.is_name and not token.next_token.is_dot:
+            if (
+                token.is_name
+                or (token.is_keyword and token.previous_token.normalized == "AS")
+            ) and not token.next_token.is_dot:
                 # analyze the name tokens, column names and where condition values
                 if (
                     token.last_keyword_normalized in KEYWORDS_BEFORE_COLUMNS
-                    and token.previous_token.normalized in ["AS", ")"]
+                    and (
+                        token.previous_token.normalized in ["AS", ")"]
+                        or (
+                            token.next_token.normalized in [",", "FROM"]
+                            and token.previous_token.normalized
+                            not in [",", ".", "(", "SELECT"]
+                            and token.last_keyword_normalized == "SELECT"
+                            and not token.previous_token.is_comment
+                        )
+                    )
                     and token.value not in self.with_names + self.subqueries_names
                 ):
                     alias = token.left_expanded
@@ -566,7 +566,7 @@ class Parser:  # pylint: disable=R0902
         """
         Return comments from SQL query
         """
-        return Generalizator(self._raw_query).comments
+        return [x.value for x in self.tokens if x.is_comment]
 
     @property
     def without_comments(self) -> str:
@@ -622,9 +622,13 @@ class Parser:  # pylint: disable=R0902
         elif token.previous_token.normalized in KEYWORDS_BEFORE_COLUMNS + [","]:
             # we are in columns and in a column subquery definition
             token.is_column_definition_start = True
+        elif token.previous_token.normalized == "AS":
+            token.is_with_query_start = True
         else:
             # nested function
             token.is_nested_function_start = True
+            self._nested_level += 1
+            self._is_in_nested_function = True
         self._open_parentheses.append(token)
 
     def _determine_closing_parenthesis_type(self, token: SQLToken):
@@ -637,8 +641,25 @@ class Parser:  # pylint: disable=R0902
             self._subquery_level -= 1
         elif last_open_parenthesis.is_column_definition_start:
             token.is_column_definition_end = True
+        elif last_open_parenthesis.is_with_query_start:
+            token.is_with_query_end = True
         else:
             token.is_nested_function_end = True
+            self._nested_level -= 1
+            if self._nested_level == 0:
+                self._is_in_nested_function = False
+
+    def _find_all_columns_between_tokens(
+        self, start_token: SQLToken, end_token: SQLToken
+    ) -> Union[str, List[str]]:
+        loop_token = start_token
+        aliases = []
+        while loop_token.next_token != end_token:
+            if loop_token.next_token.left_expanded in self._aliases_to_check:
+                alias_token = loop_token.next_token
+                aliases.append(self._resolve_alias_to_column(alias_token))
+            loop_token = loop_token.next_token
+        return aliases[0] if len(aliases) == 1 else aliases
 
     def _preprocess_query(self) -> str:
         """

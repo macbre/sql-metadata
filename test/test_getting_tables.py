@@ -69,7 +69,7 @@ def test_complex_query_tables():
         ["tab", "tab2"]
         == Parser(
             """select a,b,c from tab full  outer \r\n\t  join tab2  on (col1 = col2) group   
-       \r\n   \t   by  a, b, c """
+\r\n   \t   by  a, b, c """
         ).tables
     )
 
@@ -234,9 +234,9 @@ def test_table_name_with_group_by():
     assert (
         Parser(
             """
-            SELECT s.cust_id,count(s.cust_id) FROM SH.sales s
-            GROUP BY s.cust_id HAVING s.cust_id != '1660' AND s.cust_id != '2'
-                """.strip()
+                    SELECT s.cust_id,count(s.cust_id) FROM SH.sales s
+                    GROUP BY s.cust_id HAVING s.cust_id != '1660' AND s.cust_id != '2'
+                        """.strip()
         ).tables
         == expected_tables
     )
@@ -285,9 +285,9 @@ def test_with_brackets():
         == Parser(
             """
 SELECT
-  "xxxxx"
+"xxxxx"
 FROM
-  (database1.table1 alias
+(database1.table1 alias
 LEFT JOIN database2.table2 ON ("tt"."ttt"."fff" = "xx"."xxx"))
 """
         ).tables
@@ -298,10 +298,10 @@ LEFT JOIN database2.table2 ON ("tt"."ttt"."fff" = "xx"."xxx"))
         == Parser(
             """
 SELECT
-    t.foo
+t.foo
 FROM
-    (SELECT foo FROM inner_table
-    WHERE bar = '1') t
+(SELECT foo FROM inner_table
+WHERE bar = '1') t
 """
         ).tables
     )
@@ -392,3 +392,29 @@ with ur
         "ca8_frct_per_discharge.accounting_entity_id",
         "CUSTOMER_ACCOUNT.ca8_id",
     ]
+
+    assert parser.columns_aliases_names == [
+        "identificationCode",
+        "kboNumber",
+        "totale_borgtocht",
+        "Saldo",
+        "uitstel_van_betaling",
+        "reservering_aangifte",
+        "reservering_vergunning",
+        "zekerheid_douanevervoer",
+        "zekerheid_accijnsbeweging",
+        "FRCT",
+    ]
+
+    assert parser.columns_aliases == {
+        "FRCT": "accounting_entity.remainder",
+        "Saldo": "accounting_entity.remainder",
+        "identificationCode": "CUSTOMER_ACCOUNT.IDENTIFICATION_CODE",
+        "kboNumber": "economic_operator.KBO_NUMBER",
+        "reservering_aangifte": "accounting_entity.remainder",
+        "reservering_vergunning": "accounting_entity.remainder",
+        "totale_borgtocht": "CUSTOMER_ACCOUNT.total_guaranteed",
+        "uitstel_van_betaling": "accounting_entity.remainder",
+        "zekerheid_accijnsbeweging": "accounting_entity.remainder",
+        "zekerheid_douanevervoer": "accounting_entity.remainder",
+    }

@@ -1,7 +1,7 @@
 from sql_metadata import Parser
 
 
-def test_column_aliases():
+def test_column_aliases_with_subquery():
     query = """
     SELECT yearweek(SignDate) as                         Aggregation,
        BusinessSource,
@@ -56,3 +56,46 @@ order by 1, 2;
         "End1": "EndDate",
         "Start1": "StartDate",
     }
+
+
+def test_column_aliases_with_multiple_functions():
+    query = """
+    SELECT a, sum(b) + sum(c) as alias1, custome_func(d) alias2 from aa, bb
+    """
+    parser = Parser(query)
+    assert parser.tables == ["aa", "bb"]
+    assert parser.columns == ["a", "b", "c", "d"]
+    assert parser.columns_aliases_names == ["alias1", "alias2"]
+    assert parser.columns_aliases == {"alias1": ["b", "c"], "alias2": "d"}
+
+
+def test_column_aliases_with_columns_operations():
+    query = """
+    SELECT a, b + c - u as alias1, custome_func(d) alias2 from aa, bb
+    """
+    parser = Parser(query)
+    assert parser.tables == ["aa", "bb"]
+    assert parser.columns == ["a", "b", "c", "u", "d"]
+    assert parser.columns_aliases_names == ["alias1", "alias2"]
+    assert parser.columns_aliases == {"alias1": ["b", "c", "u"], "alias2": "d"}
+
+
+def test_column_aliases_with_redundant_brackets():
+    query = """
+    SELECT a, (b + c - u) as alias1, custome_func(d) alias2 from aa, bb
+    """
+    parser = Parser(query)
+    assert parser.tables == ["aa", "bb"]
+    assert parser.columns == ["a", "b", "c", "u", "d"]
+    assert parser.columns_aliases_names == ["alias1", "alias2"]
+    assert parser.columns_aliases == {"alias1": ["b", "c", "u"], "alias2": "d"}
+
+
+def test_mutiple_functions():
+    parser = Parser(
+        "select count(col) + max(col2) + min(col3)"
+        "+ count(distinct  col4) + custom_func(col5) as result from dual"
+    )
+    assert parser.columns == ["col", "col2", "col3", "col4", "col5"]
+    assert parser.columns_aliases_names == ["result"]
+    assert parser.columns_aliases == {"result": ["col", "col2", "col3", "col4", "col5"]}
