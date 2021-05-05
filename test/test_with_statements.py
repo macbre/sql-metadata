@@ -28,6 +28,24 @@ LEFT JOIN database2.table2 ON ("tt"."ttt"."fff" = "xx"."xxx")
         ]
         == Parser(
             """
+WITH
+    database1.tableFromWith AS (SELECT * FROM table3),
+    database1.tableFromWith2 AS (SELECT * FROM table4),
+    database1.tableFromWith3 AS (SELECT * FROM table5),
+    database1.tableFromWith4 AS (SELECT * FROM table6)
+SELECT
+  "xxxxx"
+FROM
+  database1.tableFromWith alias
+LEFT JOIN database2.table2 ON ("tt"."ttt"."fff" = "xx"."xxx")
+"""
+        ).with_names
+    )
+
+    assert (
+        ["table3", "table4", "table5", "table6", "database2.table2"]
+        == Parser(
+            """
     WITH
         database1.tableFromWith AS (SELECT * FROM table3),
         database1.tableFromWith2 AS (SELECT * FROM table4),
@@ -39,24 +57,6 @@ LEFT JOIN database2.table2 ON ("tt"."ttt"."fff" = "xx"."xxx")
       database1.tableFromWith alias
     LEFT JOIN database2.table2 ON ("tt"."ttt"."fff" = "xx"."xxx")
     """
-        ).with_names
-    )
-
-    assert (
-        ["table3", "table4", "table5", "table6", "database2.table2"]
-        == Parser(
-            """
-        WITH
-            database1.tableFromWith AS (SELECT * FROM table3),
-            database1.tableFromWith2 AS (SELECT * FROM table4),
-            database1.tableFromWith3 AS (SELECT * FROM table5),
-            database1.tableFromWith4 AS (SELECT * FROM table6)
-        SELECT
-          "xxxxx"
-        FROM
-          database1.tableFromWith alias
-        LEFT JOIN database2.table2 ON ("tt"."ttt"."fff" = "xx"."xxx")
-        """
         ).tables
     )
 
@@ -85,3 +85,13 @@ WHERE cte1.a = cte2.c;
 """
         ).tables
     )
+
+
+def test_with_with_columns():
+    # fix for setting columns in with
+    # https://github.com/macbre/sql-metadata/issues/128
+    query = "WITH t1 AS (SELECT * FROM t2), t3 (c1, c2) AS (SELECT c3, c4 FROM t4) SELECT * FROM t1, t3, t5;"
+    parser = Parser(query)
+    assert parser.with_names == ["t1", "t3"]
+    assert parser.tables == ["t2", "t4", "t5"]
+    assert parser.columns == ["*", "c3", "c4"]

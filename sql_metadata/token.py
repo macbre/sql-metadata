@@ -2,7 +2,7 @@
 Module contains internal SQLToken that creates linked list
 """
 import dataclasses
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Union
 
 from sql_metadata.keywords_lists import FUNCTIONS_IGNORED
 
@@ -31,6 +31,8 @@ class SQLToken:  # pylint: disable=R0902
     is_subquery_end: bool = False
     is_nested_function_start: bool = False
     is_nested_function_end: bool = False
+    is_column_definition_start: bool = False
+    is_column_definition_end: bool = False
 
     last_keyword: Optional[str] = None
     previous_token: Optional["SQLToken"] = None
@@ -48,6 +50,12 @@ class SQLToken:  # pylint: disable=R0902
         """
         repr_str = ["=".join([str(k), str(v)]) for k, v in self.__dict__.items()]
         return f"SQLToken({','.join(repr_str)})"
+
+    # def __bool__(self) -> bool:
+    #     """
+    #     Checks if token is not an EmptyToken
+    #     """
+    #     return self.value != ""
 
     @property
     def normalized(self) -> str:
@@ -92,7 +100,7 @@ class SQLToken:  # pylint: disable=R0902
         """
         value = str(self)
         token = self
-        while token.previous_token.is_dot:
+        while token.previous_token and token.previous_token.is_dot:
             if token.get_nth_previous(2) and token.get_nth_previous(2).is_name:
                 value = f"{token.get_nth_previous(2)}." + value
             token = token.get_nth_previous(2)
@@ -103,22 +111,9 @@ class SQLToken:  # pylint: disable=R0902
         """
         Property checks if token is surrounded with brackets ()
         """
-        token = self
-        left_parenthesis = False
-        right_parenthesis = False
-        while token.previous_token:
-            if token.previous_token.is_left_parenthesis:
-                left_parenthesis = True
-                break
-            token = token.previous_token
-        token = self
-        while token.next_token:
-            if token.next_token.is_right_parenthesis:
-                right_parenthesis = True
-                break
-            token = token.next_token
-
-        return left_parenthesis and right_parenthesis
+        left_parenthesis = self.find_token("(")
+        right_parenthesis = self.find_token(")", direction="right")
+        return left_parenthesis.value != "" and right_parenthesis.value != ""
 
     def table_prefixed_column(self, table_aliases: Dict) -> str:
         """
@@ -143,6 +138,27 @@ class SQLToken:  # pylint: disable=R0902
                 return self.previous_token.get_nth_previous(level=level - 1)
             return self.previous_token
         return None  # pragma: no cover
+
+    def find_token(
+        self,
+        value: Union[Union[str, bool], List[Union[str, bool]]],
+        direction: str = "left",
+        value_attribute: str = "value",
+    ) -> "SQLToken":
+        """
+        Returns token with given value to the left or right.
+        If value is not found it returns EmptyToken.
+        """
+        if not isinstance(value, list):
+            value = [value]
+        attribute = "previous_token" if direction == "left" else "next_token"
+        token = self
+        while getattr(token, attribute):
+            tok_value = getattr(getattr(token, attribute), value_attribute)
+            if tok_value in value:
+                return getattr(token, attribute)
+            token = getattr(token, attribute)
+        return EmptyToken
 
 
 EmptyToken = SQLToken(

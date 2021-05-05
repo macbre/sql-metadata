@@ -34,14 +34,25 @@ order by 1, 2;
     assert parser.columns == [
         "SignDate",
         "BusinessSource",
-        "C2Count",
-        "C2",
-        "Start1",
-        "End1",
         "ContractID",
         "StartDate",
         "EndDate",
         "sq.BusinessSource",
         "data_contracts_report.BusinessSource",
+    ]
+    assert parser.columns_aliases_names == [
+        "Aggregation",
+        "C2Count",
+        "Start1",
+        "End1",
+        "C2",
         "CountOfConsultants",
     ]
+    assert parser.columns_aliases == {
+        "Aggregation": "SignDate",
+        "C2": "ContractID",
+        "C2Count": "C2",
+        "CountOfConsultants": "C2Count",
+        "End1": "EndDate",
+        "Start1": "StartDate",
+    }

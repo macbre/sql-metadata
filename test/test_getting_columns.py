@@ -123,6 +123,11 @@ def test_complex_queries_columns():
         "INNER JOIN dimension_wikis AS d ON r.wiki_id = d.wiki_id WHERE d.is_public = '1' "
         "AND r.lang IN ( 'en', 'ru' ) AND r.hub_name = 'gaming' ORDER BY pageviews DESC LIMIT 300"
     )
+    assert parser.columns_aliases_names == ["id", "pageviews"]
+    assert parser.columns_aliases == {
+        "id": "report_wiki_recent_pageviews.wiki_id",
+        "pageviews": "pageviews_7day",
+    }
     assert parser.columns == [
         "report_wiki_recent_pageviews.wiki_id",
         "pageviews_7day",
@@ -130,8 +135,15 @@ def test_complex_queries_columns():
         "dimension_wikis.is_public",
         "report_wiki_recent_pageviews.lang",
         "report_wiki_recent_pageviews.hub_name",
-        "pageviews",
     ]
+    assert parser.columns_aliases_dict == {
+        "order_by": ["pageviews"],
+        "select": ["id", "pageviews"],
+    }
+    assert parser.columns_aliases == {
+        "id": "report_wiki_recent_pageviews.wiki_id",
+        "pageviews": "pageviews_7day",
+    }
     assert parser.columns_dict == {
         "select": ["report_wiki_recent_pageviews.wiki_id", "pageviews_7day"],
         "join": ["report_wiki_recent_pageviews.wiki_id", "dimension_wikis.wiki_id"],
@@ -140,7 +152,7 @@ def test_complex_queries_columns():
             "report_wiki_recent_pageviews.lang",
             "report_wiki_recent_pageviews.hub_name",
         ],
-        "order_by": ["pageviews"],
+        "order_by": ["pageviews_7day"],
     }
 
     # self joins
