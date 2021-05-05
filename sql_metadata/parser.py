@@ -52,6 +52,9 @@ class Parser:  # pylint: disable=R0902
         self._values = None
         self._values_dict = None
 
+        self._subquery_level = 0
+        self._open_parentheses = []
+
     @property
     def query(self) -> str:
         """
@@ -78,43 +81,22 @@ class Parser:  # pylint: disable=R0902
             token for token in sqlparse_tokens if token.ttype is not Whitespace
         ]
         last_keyword = None
-        subquery_level = 0
-        open_parenthesises = []
         for index, tok in enumerate(non_empty_tokens):
             token = SQLToken(
                 tok=tok,
                 index=index,
-                subquery_level=subquery_level,
+                subquery_level=self._subquery_level,
                 last_keyword=last_keyword,
             )
             if index > 0:
+                # create links between consecutive tokens
                 token.previous_token = tokens[index - 1]
                 tokens[index - 1].next_token = token
 
             if token.is_left_parenthesis:
-                if token.previous_token.normalized in SUBQUERY_PRECEDING_KEYWORDS:
-                    token.is_subquery_start = True
-                    subquery_level += 1
-                    token.subquery_level = subquery_level
-                elif (
-                    token.previous_token.normalized in KEYWORDS_BEFORE_COLUMNS
-                    or token.previous_token.normalized == ","
-                ):
-                    # we are in columns and in a column subquery definition
-                    token.is_column_definition_start = True
-                else:
-                    # nested function
-                    token.is_nested_function_start = True
-                open_parenthesises.append(token)
+                self._determine_opening_parenthesis_type(token=token)
             elif token.is_right_parenthesis:
-                last_open_parenthesis = open_parenthesises.pop(-1)
-                if last_open_parenthesis.is_subquery_start:
-                    token.is_subquery_end = True
-                    subquery_level -= 1
-                elif last_open_parenthesis.is_column_definition_start:
-                    token.is_column_definition_end = True
-                else:
-                    token.is_nested_function_end = True
+                self._determine_closing_parenthesis_type(token=token)
 
             if tok.is_keyword and tok.normalized not in KEYWORDS_IGNORED:
                 last_keyword = tok.normalized
@@ -627,6 +609,36 @@ class Parser:  # pylint: disable=R0902
         else:
             alias_of = alias_token.left_expanded
         return alias_of
+
+    def _determine_opening_parenthesis_type(self, token: SQLToken):
+        """
+        Determines the type of left parenthesis in query
+        """
+        if token.previous_token.normalized in SUBQUERY_PRECEDING_KEYWORDS:
+            # inside subquery / derived table
+            token.is_subquery_start = True
+            self._subquery_level += 1
+            token.subquery_level = self._subquery_level
+        elif token.previous_token.normalized in KEYWORDS_BEFORE_COLUMNS + [","]:
+            # we are in columns and in a column subquery definition
+            token.is_column_definition_start = True
+        else:
+            # nested function
+            token.is_nested_function_start = True
+        self._open_parentheses.append(token)
+
+    def _determine_closing_parenthesis_type(self, token: SQLToken):
+        """
+        Determines the type of right parenthesis in query
+        """
+        last_open_parenthesis = self._open_parentheses.pop(-1)
+        if last_open_parenthesis.is_subquery_start:
+            token.is_subquery_end = True
+            self._subquery_level -= 1
+        elif last_open_parenthesis.is_column_definition_start:
+            token.is_column_definition_end = True
+        else:
+            token.is_nested_function_end = True
 
     def _preprocess_query(self) -> str:
         """
