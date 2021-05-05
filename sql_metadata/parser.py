@@ -6,7 +6,7 @@ from typing import Dict, List, Optional, Tuple
 
 import sqlparse
 from sqlparse.sql import TokenList
-from sqlparse.tokens import Name, Number, Punctuation, Whitespace, Wildcard
+from sqlparse.tokens import Whitespace
 
 from sql_metadata.generalizator import Generalizator
 from sql_metadata.keywords_lists import (
@@ -18,7 +18,7 @@ from sql_metadata.keywords_lists import (
     TABLE_ADJUSTMENT_KEYWORDS,
     WITH_ENDING_KEYWORDS,
 )
-from sql_metadata.token import EmptyToken, SQLToken
+from sql_metadata.token import SQLToken
 from sql_metadata.utils import UniqueList
 
 
@@ -82,47 +82,29 @@ class Parser:  # pylint: disable=R0902
         open_parenthesises = []
         for index, tok in enumerate(non_empty_tokens):
             token = SQLToken(
-                value=tok.value,
-                is_keyword=tok.is_keyword,
-                is_name=tok.ttype is Name,
-                is_punctuation=tok.ttype is Punctuation,
-                is_dot=str(tok) == ".",
-                is_wildcard=tok.ttype is Wildcard,
-                is_integer=tok.ttype is Number.Integer,
-                is_float=tok.ttype is Number.Float,
-                is_left_parenthesis=str(tok) == "(",
-                is_right_parenthesis=str(tok) == ")",
-                position=index,
-                last_keyword=last_keyword,
-                next_token=EmptyToken,
-                previous_token=EmptyToken,
+                tok=tok,
+                index=index,
                 subquery_level=subquery_level,
+                last_keyword=last_keyword,
             )
             if index > 0:
                 token.previous_token = tokens[index - 1]
                 tokens[index - 1].next_token = token
 
-            if (
-                token.is_left_parenthesis
-                and token.previous_token.normalized not in SUBQUERY_PRECEDING_KEYWORDS
-            ):
-                if (
+            if token.is_left_parenthesis:
+                if token.previous_token.normalized in SUBQUERY_PRECEDING_KEYWORDS:
+                    token.is_subquery_start = True
+                    subquery_level += 1
+                    token.subquery_level = subquery_level
+                elif (
                     token.previous_token.normalized in KEYWORDS_BEFORE_COLUMNS
                     or token.previous_token.normalized == ","
                 ):
-                    # we are in columns it's a column subquery definition
+                    # we are in columns and in a column subquery definition
                     token.is_column_definition_start = True
                 else:
                     # nested function
                     token.is_nested_function_start = True
-                open_parenthesises.append(token)
-            elif (
-                token.is_left_parenthesis
-                and token.previous_token.normalized in SUBQUERY_PRECEDING_KEYWORDS
-            ):
-                token.is_subquery_start = True
-                subquery_level += 1
-                token.subquery_level = subquery_level
                 open_parenthesises.append(token)
             elif token.is_right_parenthesis:
                 last_open_parenthesis = open_parenthesises.pop(-1)

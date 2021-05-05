@@ -1,17 +1,58 @@
 """
 Module contains internal SQLToken that creates linked list
 """
-import dataclasses
 from typing import Dict, List, Optional, Union
+
+import sqlparse.sql
+from sqlparse.tokens import Name, Number, Punctuation, Wildcard
 
 from sql_metadata.keywords_lists import FUNCTIONS_IGNORED
 
 
-@dataclasses.dataclass
 class SQLToken:  # pylint: disable=R0902
     """
     Class representing single token and connected into linked list
     """
+
+    def __init__(
+        self,
+        tok: sqlparse.sql.Token = None,
+        index: int = -1,
+        subquery_level: int = 0,
+        last_keyword: str = None,
+    ):
+        self.position = index
+        if tok is None:
+            self._set_default_values()
+        else:
+            self.value = tok.value
+            self.is_keyword = tok.is_keyword
+            self.is_name = tok.ttype is Name
+            self.is_punctuation = tok.ttype is Punctuation
+            self.is_dot = str(tok) == "."
+            self.is_wildcard = tok.ttype is Wildcard
+            self.is_integer = tok.ttype is Number.Integer
+            self.is_float = tok.ttype is Number.Float
+            self.is_left_parenthesis = str(tok) == "("
+            self.is_right_parenthesis = str(tok) == ")"
+            self.last_keyword = last_keyword
+            self.next_token = EmptyToken
+            self.previous_token = EmptyToken
+            self.subquery_level = subquery_level
+
+    def _set_default_values(self):
+        self.value = ""
+        self.is_keyword = False
+        self.is_name = False
+        self.is_punctuation = False
+        self.is_dot = False
+        self.is_wildcard = False
+        self.is_integer = False
+        self.is_float = False
+        self.is_left_parenthesis = False
+        self.is_right_parenthesis = False
+        self.last_keyword = None
+        self.subquery_level = 0
 
     value: Optional[str]
     is_keyword: bool
@@ -161,18 +202,4 @@ class SQLToken:  # pylint: disable=R0902
         return EmptyToken
 
 
-EmptyToken = SQLToken(
-    value="",
-    is_keyword=False,
-    is_name=False,
-    is_punctuation=False,
-    is_dot=False,
-    is_wildcard=False,
-    is_integer=False,
-    is_float=False,
-    is_left_parenthesis=False,
-    is_right_parenthesis=False,
-    last_keyword=None,
-    subquery_level=0,
-    position=-1,
-)
+EmptyToken = SQLToken()
