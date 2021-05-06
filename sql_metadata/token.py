@@ -90,12 +90,6 @@ class SQLToken:  # pylint: disable=R0902
         repr_str = ["=".join([str(k), str(v)]) for k, v in self.__dict__.items()]
         return f"SQLToken({','.join(repr_str)})"
 
-    # def __bool__(self) -> bool:
-    #     """
-    #     Checks if token is not an EmptyToken
-    #     """
-    #     return self.value != ""
-
     @property
     def normalized(self) -> str:
         """
