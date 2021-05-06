@@ -92,3 +92,4 @@ FROM
         "staff_id",
         "order_date",
     ]
+    assert parser.columns_dict == {"select": ["staff_id", "*"], "where": ["order_date"]}

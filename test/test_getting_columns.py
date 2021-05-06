@@ -46,28 +46,28 @@ def test_joins():
 
 
 def test_getting_columns():
-    # assert Parser("SELECT * FROM `test_table`").columns == ["*"]
-    # assert Parser("SELECT foo.* FROM `test_table`").columns == ["foo.*"]
-    # assert Parser("SELECT foo FROM `test_table`").columns == ["foo"]
-    # assert Parser("SELECT count(foo) FROM `test_table`").columns == ["foo"]
-    # assert Parser("SELECT COUNT(foo), max(time_id) FROM `test_table`").columns == [
-    #     "foo",
-    #     "time_id",
-    # ]
-    # assert Parser("SELECT id, foo FROM test_table WHERE id = 3").columns == [
-    #     "id",
-    #     "foo",
-    # ]
-    # assert Parser(
-    #     "SELECT id, foo FROM test_table WHERE foo_id = 3 AND bar = 5"
-    # ).columns == ["id", "foo", "foo_id", "bar"]
-    # assert Parser(
-    #     "SELECT foo, count(*) as bar FROM `test_table` WHERE id = 3"
-    # ).columns == ["foo", "id"]
-    # assert Parser("SELECT foo, test as bar FROM `test_table`").columns == [
-    #     "foo",
-    #     "test",
-    # ]
+    assert Parser("SELECT * FROM `test_table`").columns == ["*"]
+    assert Parser("SELECT foo.* FROM `test_table`").columns == ["foo.*"]
+    assert Parser("SELECT foo FROM `test_table`").columns == ["foo"]
+    assert Parser("SELECT count(foo) FROM `test_table`").columns == ["foo"]
+    assert Parser("SELECT COUNT(foo), max(time_id) FROM `test_table`").columns == [
+        "foo",
+        "time_id",
+    ]
+    assert Parser("SELECT id, foo FROM test_table WHERE id = 3").columns == [
+        "id",
+        "foo",
+    ]
+    assert Parser(
+        "SELECT id, foo FROM test_table WHERE foo_id = 3 AND bar = 5"
+    ).columns == ["id", "foo", "foo_id", "bar"]
+    assert Parser(
+        "SELECT foo, count(*) as bar FROM `test_table` WHERE id = 3"
+    ).columns == ["foo", "id"]
+    assert Parser("SELECT foo, test as bar FROM `test_table`").columns == [
+        "foo",
+        "test",
+    ]
     assert Parser("SELECT /* a comment */ bar FROM test_table").columns == ["bar"]
 
 
@@ -166,32 +166,37 @@ def test_complex_queries_columns():
         "IN ('23312','70256','168929','463633','381622','1089624')) "
         "AND ((dw.url IS NOT NULL AND dw.title IS NOT NULL))"
     )
+    assert parser.tables_aliases == {
+        "dw": "dimension_wikis",
+        "fw1": "fact_wam_scores",
+        "fw2": "fact_wam_scores",
+    }
     assert parser.columns == [
-        "fw1.wiki_id",
-        "fw2.wiki_id",
-        "fw2.time_id",
-        "dw.wiki_id",
-        "fw1.time_id",
-        "dw.url",
-        "dw.title",
-        "fw1.vertical_id",
+        "fact_wam_scores.wiki_id",
+        "fact_wam_scores.time_id",
+        "dimension_wikis.wiki_id",
+        "dimension_wikis.url",
+        "dimension_wikis.title",
+        "fact_wam_scores.vertical_id",
     ]
     assert parser.columns_dict == {
-        "select": ["fw1.wiki_id"],
-        "join": ["fw1.wiki_id", "fw2.wiki_id", "fw2.time_id", "dw.wiki_id"],
+        "select": ["fact_wam_scores.wiki_id"],
+        "join": [
+            "fact_wam_scores.wiki_id",
+            "fact_wam_scores.time_id",
+            "dimension_wikis.wiki_id",
+        ],
         "where": [
-            "fw1.time_id",
-            "dw.url",
-            "dw.title",
-            "fw1.vertical_id",
-            "fw1.wiki_id",
+            "fact_wam_scores.time_id",
+            "dimension_wikis.url",
+            "dimension_wikis.title",
+            "fact_wam_scores.vertical_id",
+            "fact_wam_scores.wiki_id",
         ],
     }
 
-    assert Parser(
-        "SELECT date_format(time_id,'%Y-%m-%d') AS date, pageviews AS cnt         FROM rollup_wiki_pageviews      WHERE period_id = '2'   AND wiki_id = '1676379'         AND time_id BETWEEN '2018-01-08'        AND '2018-01-01'"
-    ).columns == ["time_id", "pageviews", "period_id", "wiki_id"]
 
+def test_columns_with_comments():
     parser = Parser(
         "INSERT /* VoteHelper::addVote xxx */  INTO `page_vote` (article_id,user_id,`time`) VALUES ('442001','27574631','20180228130846')"
     )
@@ -222,6 +227,14 @@ def test_complex_queries_columns():
         "where": ["cl_type", "cl_to"],
         "order_by": ["cl_sortkey"],
     }
+
+
+def test_columns_with_keyword_aliases():
+    parser = Parser(
+        "SELECT date_format(time_id,'%Y-%m-%d') AS date, pageviews AS cnt         FROM rollup_wiki_pageviews      WHERE period_id = '2'   AND wiki_id = '1676379'         AND time_id BETWEEN '2018-01-08'        AND '2018-01-01'"
+    )
+    assert parser.columns == ["time_id", "pageviews", "period_id", "wiki_id"]
+    assert parser.columns_aliases_names == ["date", "cnt"]
 
 
 def test_columns_and_sql_functions():

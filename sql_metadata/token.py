@@ -25,8 +25,10 @@ class SQLToken:  # pylint: disable=R0902
         if tok is None:
             self._set_default_values()
         else:
-            self.value = tok.value
-            self.is_keyword = tok.is_keyword
+            self.value = tok.value.strip("`").strip('"')
+            self.is_keyword = tok.is_keyword or (
+                tok.ttype.parent is Name and tok.ttype is not Name
+            )
             self.is_name = tok.ttype is Name
             self.is_punctuation = tok.ttype is Punctuation
             self.is_dot = str(tok) == "."
@@ -68,6 +70,8 @@ class SQLToken:  # pylint: disable=R0902
         self.is_subquery_end = False
         self.is_with_query_start = False
         self.is_with_query_end = False
+        self.is_with_columns_start = False
+        self.is_with_columns_end = False
         self.is_nested_function_start = False
         self.is_nested_function_end = False
         self.is_column_definition_start = False
@@ -149,6 +153,29 @@ class SQLToken:  # pylint: disable=R0902
         left_parenthesis = self.find_token("(")
         right_parenthesis = self.find_token(")", direction="right")
         return left_parenthesis.value != "" and right_parenthesis.value != ""
+
+    @property
+    def is_alias_without_as(self) -> bool:
+        """
+        Checks if a given token is an alias without as keyword,
+        like: select col <alias1>, col2 <alias2> from table
+        """
+        return (
+            self.next_token.normalized in [",", "FROM"]
+            and self.previous_token.normalized not in [",", ".", "(", "SELECT"]
+            and self.last_keyword_normalized == "SELECT"
+            and not self.previous_token.is_comment
+        )
+
+    @property
+    def is_in_with_columns(self) -> bool:
+        """
+        Checks if token is inside with colums part of a query
+        """
+        return (
+            self.find_token("(").is_with_columns_start
+            and self.find_token(")", direction="right").is_with_columns_end
+        )
 
     def table_prefixed_column(self, table_aliases: Dict) -> str:
         """

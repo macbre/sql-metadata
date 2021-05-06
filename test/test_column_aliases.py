@@ -82,13 +82,21 @@ def test_column_aliases_with_columns_operations():
 
 def test_column_aliases_with_redundant_brackets():
     query = """
-    SELECT a, (b + c - u) as alias1, custome_func(d) alias2 from aa, bb
+    SELECT a, (b + c - u) as alias1, custome_func(d) alias2 from aa, bb order by alias1
     """
     parser = Parser(query)
     assert parser.tables == ["aa", "bb"]
     assert parser.columns == ["a", "b", "c", "u", "d"]
     assert parser.columns_aliases_names == ["alias1", "alias2"]
     assert parser.columns_aliases == {"alias1": ["b", "c", "u"], "alias2": "d"}
+    assert parser.columns_aliases_dict == {
+        "order_by": ["alias1"],
+        "select": ["alias1", "alias2"],
+    }
+    assert parser.columns_dict == {
+        "order_by": ["b", "c", "u"],
+        "select": ["a", "b", "c", "u", "d"],
+    }
 
 
 def test_mutiple_functions():
