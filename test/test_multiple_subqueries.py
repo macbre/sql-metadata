@@ -81,23 +81,20 @@ from (
         "lifecycle.creation_date",
         "job_request.creation_date",
         "job_request_application.application_source",
+        "job_request_application.id",
+        "job_request_offer.stage",
         "job_request_application.job_request_id",
         "job_request_offer.job_request_application_id",
-        "job_request_application.id",
         "lifecycle.object_id",
         "lifecycle.lifecycle_object_type",
         "lifecycle.event",
         "job_request_offer.first_interview_scheduled_date",
+        "job_request_offer.first_presented_date",
         "jrah2.job_request_application_id",  # subquery nested resolve?
         "job_request.client_id",
         "client.id",
         "job_request.from_point_break",
         "client.name",
-        "PROJECT_ID",  # recursive search?
-        "RowNo",  # subquery name?
-        "days_to_offer",  # should be resoled?
-        "job_request_offer.first_presented_date",
-        "InitialChangeDate",  # alias of other column
         "presentation.id",
         "presentation_job_request_offer.presentation_id",
         "presentation_job_request_offer.job_request_offer_id",
@@ -111,22 +108,19 @@ from (
         "lifecycle.creation_date",
         "job_request.creation_date",
         "job_request_application.application_source",
+        "job_request_application.id",
+        "job_request_offer.stage",
         "job_request_application.job_request_id",
         "job_request_offer.job_request_application_id",
-        "job_request_application.id",
         "lifecycle.object_id",
         "lifecycle.lifecycle_object_type",
         "lifecycle.event",
         "job_request_offer.first_interview_scheduled_date",
+        "job_request_offer.first_presented_date",
         "job_request.client_id",
         "client.id",
         "job_request.from_point_break",
         "client.name",
-        "PROJECT_ID",  # recursive search?
-        "RowNo",  # subquery name?
-        "days_to_offer",  # should be resoled?
-        "job_request_offer.first_presented_date",
-        "InitialChangeDate",  # alias of other column
         "presentation.id",
         "presentation_job_request_offer.presentation_id",
         "presentation_job_request_offer.job_request_offer_id",
@@ -243,6 +237,8 @@ task_type_id = 80
     parser = Parser(query)
     assert parser.subqueries_names == ["a", "b"]
     assert parser.tables == ["some_task_detail", "some_task"]
+    assert parser.columns_aliases_names == ["new_task_id"]
+    assert parser.columns_aliases == {"new_task_id": "some_task_detail.task_id"}
     assert parser.columns == [
         "some_task_detail.task_id",
         "some_task_detail.STATUS",

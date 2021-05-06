@@ -55,6 +55,34 @@ parser.columns_dict
 # {'select': ['product_a.users.*'], 'join': ['product_a.users.ip_address', 'product_b.users.ip_address']}
 ```
 
+### Extracting columns aliases from query
+
+```python
+from sql_metadata import Parser
+parser = Parser("SELECT a, (b + c - u) as alias1, custome_func(d) alias2 from aa, bb order by alias1")
+
+# note that columns list do not contain aliases of the columns
+parser.columns
+# ["a", "b", "c", "u", "d"]
+
+# but you can still extract aliases names
+parser.columns_aliases_names
+# ["alias1", "alias2"]
+
+# aliases are resolved to the columns which they refer to
+parser.columns_aliases
+# {"alias1": ["b", "c", "u"], "alias2": "d"}
+
+# you can also extract aliases used by section of the query in which they are used
+parser.columns_aliases_dict
+# {"order_by": ["alias1"], "select": ["alias1", "alias2"]}
+
+# the same applies to aliases used in queries section when you extract columns_dict
+# here only the alias is used in order by but it's resolved to actual columns
+assert parser.columns_dict == {'order_by': ['b', 'c', 'u'],
+                               'select': ['a', 'b', 'c', 'u', 'd']}
+```
+
 ### Extracting tables from query
 
 ```python
