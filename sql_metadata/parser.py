@@ -237,12 +237,12 @@ class Parser:  # pylint: disable=R0902
                     token_check = token.previous_token
                 if token_check.is_column_definition_end:
                     # nested subquery like select a, (select a as b from x) as column
-                    start_token = token.find_token(
+                    start_token = token.find_nearest_token(
                         True, value_attribute="is_column_definition_start"
                     )
                     if start_token.next_token.normalized == "SELECT":
                         # we have a subquery
-                        alias_token = start_token.next_token.find_token(
+                        alias_token = start_token.next_token.find_nearest_token(
                             self._aliases_to_check, direction="right"
                         )
                         alias_of = self._resolve_alias_to_column(alias_token)
@@ -259,11 +259,11 @@ class Parser:  # pylint: disable=R0902
                     # it can be one function or a chain of functions
                     # like: sum(a) + sum(b) as alias
                     # or operation on columns like: col1 + col2 as alias
-                    start_token = token.find_token(
+                    start_token = token.find_nearest_token(
                         [",", "SELECT"], value_attribute="normalized"
                     )
                     while start_token.is_in_nested_function:
-                        start_token = start_token.find_token(
+                        start_token = start_token.find_nearest_token(
                             [",", "SELECT"], value_attribute="normalized"
                         )
                     alias_of = self._find_all_columns_between_tokens(
@@ -338,7 +338,7 @@ class Parser:  # pylint: disable=R0902
                 if token.next_token.is_dot:
                     pass  # part of the qualified name
                 elif token.is_in_parenthesis and (
-                    token.find_token("(").previous_token.value in with_names
+                    token.find_nearest_token("(").previous_token.value in with_names
                     or token.last_keyword_normalized == "INTO"
                 ):
                     # we are in <columns> of INSERT INTO <TABLE> (<columns>)
@@ -448,7 +448,7 @@ class Parser:  # pylint: disable=R0902
                             # like: with (col1, col2) as (subquery)
                             token.is_with_columns_end = True
                             token.is_nested_function_end = False
-                            start_token = token.find_token("(")
+                            start_token = token.find_nearest_token("(")
                             start_token.is_with_columns_start = True
                             start_token.is_nested_function_start = False
                             prev_token = start_token.previous_token
@@ -611,7 +611,7 @@ class Parser:  # pylint: disable=R0902
         alias = token.left_expanded
         if (
             token.last_keyword_normalized in ["FROM", "WITH"]
-            and token.find_token("(").is_with_columns_start
+            and token.find_nearest_token("(").is_with_columns_start
         ):
             keyword = "SELECT"
         section = COLUMNS_SECTIONS[keyword]
@@ -680,11 +680,11 @@ class Parser:  # pylint: disable=R0902
                 self._is_in_nested_function = False
 
     def _find_column_for_with_column_alias(self, token: SQLToken) -> str:
-        start_token = token.find_token(
+        start_token = token.find_nearest_token(
             True, direction="right", value_attribute="is_with_query_start"
         )
         if start_token not in self._with_columns_candidates:
-            end_token = start_token.find_token(
+            end_token = start_token.find_nearest_token(
                 True, direction="right", value_attribute="is_with_query_end"
             )
             columns = self._find_all_columns_between_tokens(

@@ -144,8 +144,8 @@ class SQLToken:  # pylint: disable=R0902
         """
         Property checks if token is surrounded with brackets ()
         """
-        left_parenthesis = self.find_token("(")
-        right_parenthesis = self.find_token(")", direction="right")
+        left_parenthesis = self.find_nearest_token("(")
+        right_parenthesis = self.find_nearest_token(")", direction="right")
         return left_parenthesis.value != "" and right_parenthesis.value != ""
 
     @property
@@ -167,8 +167,8 @@ class SQLToken:  # pylint: disable=R0902
         Checks if token is inside with colums part of a query
         """
         return (
-            self.find_token("(").is_with_columns_start
-            and self.find_token(")", direction="right").is_with_columns_end
+            self.find_nearest_token("(").is_with_columns_start
+            and self.find_nearest_token(")", direction="right").is_with_columns_end
         )
 
     def table_prefixed_column(self, table_aliases: Dict) -> str:
@@ -195,7 +195,7 @@ class SQLToken:  # pylint: disable=R0902
             return self.previous_token
         return EmptyToken  # pragma: no cover
 
-    def find_token(
+    def find_nearest_token(
         self,
         value: Union[Union[str, bool], List[Union[str, bool]]],
         direction: str = "left",
