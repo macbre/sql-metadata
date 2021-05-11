@@ -59,8 +59,6 @@ class Generalizator:
 
         Based on Mediawiki's DatabaseBase::generalizeSQL
 
-        :type sql str|None
-        :rtype: str
         """
         if self._raw_query == "":
             return ""
