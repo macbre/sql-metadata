@@ -10,30 +10,36 @@ into:
 from sql_metadata.compat import get_query_columns, get_query_tables
 
 """
+# pylint:disable=missing-function-docstring
 from typing import List, Optional, Tuple
 
 import sqlparse
+
+from sql_metadata import Parser
 
 
 def preprocess_query(query: str) -> str:
     pass
 
 
-def get_query_tokens(query: str)  -> List[sqlparse.sql.Token]:
+def get_query_tokens(query: str) -> List[sqlparse.sql.Token]:
     pass
 
 
 def get_query_columns(query: str) -> List[str]:
-    pass
+    return Parser(query).columns
 
 
 def get_query_tables(query: str) -> List[str]:
-    pass
+    return Parser(query).tables
 
 
 def get_query_limit_and_offset(query: str) -> Optional[Tuple[int, int]]:
-    pass
+    return Parser(query).limit_and_offset
 
 
 def generalize_sql(sql: Optional[str]) -> Optional[str]:
+    if sql is None:
+        return None
+
     pass
