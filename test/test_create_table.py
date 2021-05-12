@@ -27,7 +27,7 @@ CREATE TABLE `new_table` (
     )
 
     assert parser.tables == ["new_table"]
-    # assert parser.columns == ["item_id", "foo"]
+    assert parser.columns == ["item_id", "foo"]
 
 
 def test_create_table_as_select():

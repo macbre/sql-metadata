@@ -18,7 +18,7 @@ from sql_metadata.keywords_lists import (
     TABLE_ADJUSTMENT_KEYWORDS,
     WITH_ENDING_KEYWORDS,
 )
-from sql_metadata.token import SQLToken
+from sql_metadata.token import SQLToken, EmptyToken
 from sql_metadata.utils import UniqueList
 
 
@@ -123,6 +123,22 @@ class Parser:  # pylint: disable=R0902
         subqueries_names = self.subqueries_names
 
         for token in self.tokens:
+            # handle CREATE TABLE queries (#35)
+            if token.is_name and self._is_create_table_query:
+                # previous token is either ( or , -> indicates the column name
+                if token.is_in_parenthesis and token.previous_token.is_punctuation:
+                    columns.append(str(token))
+                    continue
+
+                # we're in CREATE TABLE query with the columns
+                # ignore any annotations outside the parenthesis with the list of columns
+                if (
+                    not token.is_in_parenthesis
+                    and token.find_nearest_token("SELECT", value_attribute="normalized")
+                    is EmptyToken
+                ):
+                    continue
+
             if token.is_name and not token.next_token.is_dot:
                 # analyze the name tokens, column names and where condition values
                 if (
