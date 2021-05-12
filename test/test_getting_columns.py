@@ -123,6 +123,11 @@ def test_complex_queries_columns():
         "INNER JOIN dimension_wikis AS d ON r.wiki_id = d.wiki_id WHERE d.is_public = '1' "
         "AND r.lang IN ( 'en', 'ru' ) AND r.hub_name = 'gaming' ORDER BY pageviews DESC LIMIT 300"
     )
+    assert parser.columns_aliases_names == ["id", "pageviews"]
+    assert parser.columns_aliases == {
+        "id": "report_wiki_recent_pageviews.wiki_id",
+        "pageviews": "pageviews_7day",
+    }
     assert parser.columns == [
         "report_wiki_recent_pageviews.wiki_id",
         "pageviews_7day",
@@ -130,8 +135,15 @@ def test_complex_queries_columns():
         "dimension_wikis.is_public",
         "report_wiki_recent_pageviews.lang",
         "report_wiki_recent_pageviews.hub_name",
-        "pageviews",
     ]
+    assert parser.columns_aliases_dict == {
+        "order_by": ["pageviews"],
+        "select": ["id", "pageviews"],
+    }
+    assert parser.columns_aliases == {
+        "id": "report_wiki_recent_pageviews.wiki_id",
+        "pageviews": "pageviews_7day",
+    }
     assert parser.columns_dict == {
         "select": ["report_wiki_recent_pageviews.wiki_id", "pageviews_7day"],
         "join": ["report_wiki_recent_pageviews.wiki_id", "dimension_wikis.wiki_id"],
@@ -140,7 +152,7 @@ def test_complex_queries_columns():
             "report_wiki_recent_pageviews.lang",
             "report_wiki_recent_pageviews.hub_name",
         ],
-        "order_by": ["pageviews"],
+        "order_by": ["pageviews_7day"],
     }
 
     # self joins
@@ -154,32 +166,37 @@ def test_complex_queries_columns():
         "IN ('23312','70256','168929','463633','381622','1089624')) "
         "AND ((dw.url IS NOT NULL AND dw.title IS NOT NULL))"
     )
+    assert parser.tables_aliases == {
+        "dw": "dimension_wikis",
+        "fw1": "fact_wam_scores",
+        "fw2": "fact_wam_scores",
+    }
     assert parser.columns == [
-        "fw1.wiki_id",
-        "fw2.wiki_id",
-        "fw2.time_id",
-        "dw.wiki_id",
-        "fw1.time_id",
-        "dw.url",
-        "dw.title",
-        "fw1.vertical_id",
+        "fact_wam_scores.wiki_id",
+        "fact_wam_scores.time_id",
+        "dimension_wikis.wiki_id",
+        "dimension_wikis.url",
+        "dimension_wikis.title",
+        "fact_wam_scores.vertical_id",
     ]
     assert parser.columns_dict == {
-        "select": ["fw1.wiki_id"],
-        "join": ["fw1.wiki_id", "fw2.wiki_id", "fw2.time_id", "dw.wiki_id"],
+        "select": ["fact_wam_scores.wiki_id"],
+        "join": [
+            "fact_wam_scores.wiki_id",
+            "fact_wam_scores.time_id",
+            "dimension_wikis.wiki_id",
+        ],
         "where": [
-            "fw1.time_id",
-            "dw.url",
-            "dw.title",
-            "fw1.vertical_id",
-            "fw1.wiki_id",
+            "fact_wam_scores.time_id",
+            "dimension_wikis.url",
+            "dimension_wikis.title",
+            "fact_wam_scores.vertical_id",
+            "fact_wam_scores.wiki_id",
         ],
     }
 
-    assert Parser(
-        "SELECT date_format(time_id,'%Y-%m-%d') AS date, pageviews AS cnt         FROM rollup_wiki_pageviews      WHERE period_id = '2'   AND wiki_id = '1676379'         AND time_id BETWEEN '2018-01-08'        AND '2018-01-01'"
-    ).columns == ["time_id", "pageviews", "period_id", "wiki_id"]
 
+def test_columns_with_comments():
     parser = Parser(
         "INSERT /* VoteHelper::addVote xxx */  INTO `page_vote` (article_id,user_id,`time`) VALUES ('442001','27574631','20180228130846')"
     )
@@ -210,3 +227,26 @@ def test_complex_queries_columns():
         "where": ["cl_type", "cl_to"],
         "order_by": ["cl_sortkey"],
     }
+
+
+def test_columns_with_keyword_aliases():
+    parser = Parser(
+        "SELECT date_format(time_id,'%Y-%m-%d') AS date, pageviews AS cnt         FROM rollup_wiki_pageviews      WHERE period_id = '2'   AND wiki_id = '1676379'         AND time_id BETWEEN '2018-01-08'        AND '2018-01-01'"
+    )
+    assert parser.columns == ["time_id", "pageviews", "period_id", "wiki_id"]
+    assert parser.columns_aliases_names == ["date", "cnt"]
+
+
+def test_columns_and_sql_functions():
+    """
+    See https://github.com/macbre/sql-metadata/issues/125
+    """
+    assert Parser("select max(col3)+avg(col)+1+sum(col2) from dual").columns == [
+        "col3",
+        "col",
+        "col2",
+    ]
+    assert Parser("select avg(col)+sum(col2) from dual").columns == ["col", "col2"]
+    assert Parser(
+        "select count(col)+max(col2)+ min(col3)+ count(distinct  col4) + custom_func(col5) from dual"
+    ).columns == ["col", "col2", "col3", "col4", "col5"]

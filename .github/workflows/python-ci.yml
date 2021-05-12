@@ -62,10 +62,10 @@ jobs:
         poetry show
 
     - name: Test with pytest
-      run: poetry run pytest -vv --cov=sql_metadata --cov-report=term
+      run: make coverage
 
     - name: Lint with pylint
-      run: poetry run pylint sql_metadata
+      run: make lint
 
     - name: Build a distribution package
       run: poetry build -vvv

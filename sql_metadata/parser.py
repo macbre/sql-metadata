@@ -2,14 +2,15 @@
 This module provides SQL query parsing functions
 """
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import sqlparse
 from sqlparse.sql import TokenList
-from sqlparse.tokens import Name, Number, Punctuation, Whitespace, Wildcard
+from sqlparse.tokens import Whitespace
 
 from sql_metadata.generalizator import Generalizator
 from sql_metadata.keywords_lists import (
+    COLUMNS_SECTIONS,
     FUNCTIONS_IGNORED,
     KEYWORDS_BEFORE_COLUMNS,
     KEYWORDS_IGNORED,
@@ -17,7 +18,7 @@ from sql_metadata.keywords_lists import (
     TABLE_ADJUSTMENT_KEYWORDS,
     WITH_ENDING_KEYWORDS,
 )
-from sql_metadata.token import EmptyToken, SQLToken
+from sql_metadata.token import SQLToken, EmptyToken
 from sql_metadata.utils import UniqueList
 
 
@@ -34,6 +35,10 @@ class Parser:  # pylint: disable=R0902
 
         self._columns = None
         self._columns_dict = None
+        self._columns_aliases_names = None
+        self._columns_aliases = None
+        self._columns_with_tables_aliases = dict()
+        self._columns_aliases_dict = None
 
         self._tables = None
         self._table_aliases = None
@@ -47,6 +52,14 @@ class Parser:  # pylint: disable=R0902
         self._values = None
         self._values_dict = None
 
+        self._subquery_level = 0
+        self._nested_level = 0
+        self._open_parentheses = []
+        self._aliases_to_check = None
+        self._is_in_nested_function = False
+        self._is_in_with_block = False
+        self._with_columns_candidates = dict()
+
     @property
     def query(self) -> str:
         """
@@ -57,7 +70,7 @@ class Parser:  # pylint: disable=R0902
     @property
     def tokens(self) -> List[SQLToken]:
         """
-        :rtype: list[SQLToken]
+        Tokenizes the query
         """
         if self._tokens is not None:
             return self._tokens
@@ -73,54 +86,26 @@ class Parser:  # pylint: disable=R0902
             token for token in sqlparse_tokens if token.ttype is not Whitespace
         ]
         last_keyword = None
-        subquery_level = 0
-        open_parenthesises = []
         for index, tok in enumerate(non_empty_tokens):
             token = SQLToken(
-                value=tok.value,
-                is_keyword=tok.is_keyword,
-                is_name=tok.ttype is Name,
-                is_punctuation=tok.ttype is Punctuation,
-                is_dot=str(tok) == ".",
-                is_wildcard=tok.ttype is Wildcard,
-                is_integer=tok.ttype is Number.Integer,
-                is_float=tok.ttype is Number.Float,
-                is_left_parenthesis=str(tok) == "(",
-                is_right_parenthesis=str(tok) == ")",
-                position=index,
+                tok=tok,
+                index=index,
+                subquery_level=self._subquery_level,
                 last_keyword=last_keyword,
-                next_token=EmptyToken,
-                previous_token=EmptyToken,
-                subquery_level=subquery_level,
             )
             if index > 0:
+                # create links between consecutive tokens
                 token.previous_token = tokens[index - 1]
                 tokens[index - 1].next_token = token
 
-            if (
-                token.is_left_parenthesis
-                and token.previous_token.normalized not in SUBQUERY_PRECEDING_KEYWORDS
-            ):
-                token.is_nested_function_start = True
-                open_parenthesises.append(token)
-            elif (
-                token.is_left_parenthesis
-                and token.previous_token.normalized in SUBQUERY_PRECEDING_KEYWORDS
-            ):
-                token.is_subquery_start = True
-                subquery_level += 1
-                token.subquery_level = subquery_level
-                open_parenthesises.append(token)
+            if token.is_left_parenthesis:
+                self._determine_opening_parenthesis_type(token=token)
             elif token.is_right_parenthesis:
-                last_open_parenthesis = open_parenthesises.pop(-1)
-                if last_open_parenthesis.is_subquery_start:
-                    token.is_subquery_end = True
-                    subquery_level -= 1
-                else:
-                    token.is_nested_function_end = True
+                self._determine_closing_parenthesis_type(token=token)
 
             if tok.is_keyword and tok.normalized not in KEYWORDS_IGNORED:
                 last_keyword = tok.normalized
+            token.is_in_nested_function = self._is_in_nested_function
             tokens.append(token)
 
         self._tokens = tokens
@@ -129,7 +114,7 @@ class Parser:  # pylint: disable=R0902
     @property
     def columns(self) -> List[str]:
         """
-        :rtype: list[str]
+        Returns the list columns this query refers to
         """
         if self._columns is not None:
             return self._columns
@@ -138,18 +123,45 @@ class Parser:  # pylint: disable=R0902
         subqueries_names = self.subqueries_names
 
         for token in self.tokens:
+            # handle CREATE TABLE queries (#35)
+            if token.is_name and self._is_create_table_query:
+                # previous token is either ( or , -> indicates the column name
+                if token.is_in_parenthesis and token.previous_token.is_punctuation:
+                    columns.append(str(token))
+                    continue
+
+                # we're in CREATE TABLE query with the columns
+                # ignore any annotations outside the parenthesis with the list of columns
+                # e.g. ) CHARACTER SET utf8;
+                if (
+                    not token.is_in_parenthesis
+                    and token.find_nearest_token("SELECT", value_attribute="normalized")
+                    is EmptyToken
+                ):
+                    continue
+
             if token.is_name and not token.next_token.is_dot:
                 # analyze the name tokens, column names and where condition values
                 if (
                     token.last_keyword_normalized in KEYWORDS_BEFORE_COLUMNS
-                    and token.previous_token.normalized != "AS"
+                    and token.previous_token.normalized not in ["AS", ")"]
+                    and token.previous_token.table_prefixed_column(tables_aliases)
+                    not in columns
+                    and token.left_expanded not in self.columns_aliases_names
                 ):
-                    if token.normalized not in FUNCTIONS_IGNORED and not (
-                        # aliases of sub-queries i.e.: select from (...) <alias>
-                        token.previous_token.is_right_parenthesis
-                        and token.value in subqueries_names
+                    if (
+                        token.normalized not in FUNCTIONS_IGNORED
+                        and not (
+                            # aliases of sub-queries i.e.: select from (...) <alias>
+                            token.previous_token.is_right_parenthesis
+                            and token.value in subqueries_names
+                        )
+                        # custom functions - they are followed by the parenthesis
+                        # e.g. custom_func(...
+                        and not token.next_token.is_left_parenthesis
                     ):
                         column = token.table_prefixed_column(tables_aliases)
+                        self._columns_with_tables_aliases[token.left_expanded] = column
                         self._add_to_columns_subsection(
                             keyword=token.last_keyword_normalized, column=column
                         )
@@ -164,6 +176,8 @@ class Parser:  # pylint: disable=R0902
                         keyword=token.last_keyword_normalized, column=column
                     )
                     columns.append(column)
+                elif token.left_expanded in self.columns_aliases_names:
+                    self._add_to_columns_aliases_subsection(token=token)
             elif (
                 token.is_wildcard
                 and token.last_keyword_normalized == "SELECT"
@@ -171,6 +185,7 @@ class Parser:  # pylint: disable=R0902
             ):
                 # handle * wildcard in SELECT part, but ignore count(*)
                 column = token.table_prefixed_column(tables_aliases)
+                self._columns_with_tables_aliases[token.left_expanded] = column
                 self._add_to_columns_subsection(
                     keyword=token.last_keyword_normalized, column=column
                 )
@@ -196,15 +211,134 @@ class Parser:  # pylint: disable=R0902
 
         Sections consist of: select, where, order_by, join, insert and update
         """
-        if self._columns_dict:
-            return self._columns_dict
-        _ = self.columns
+        if not self._columns_dict:
+            _ = self.columns
+        if self.columns_aliases_dict:
+            for key, value in self.columns_aliases_dict.items():
+                for alias in value:
+                    resolved = self._resolve_column_alias(alias)
+                    if isinstance(resolved, list):
+                        for res_alias in resolved:
+                            self._columns_dict.setdefault(key, UniqueList()).append(
+                                res_alias
+                            )
+                    else:
+                        self._columns_dict.setdefault(key, UniqueList()).append(
+                            resolved
+                        )
         return self._columns_dict
+
+    @property
+    def columns_aliases(self) -> Dict:
+        """
+        Returns a dictionary of column aliases with columns
+        """
+        if self._columns_aliases is not None:
+            return self._columns_aliases
+        column_aliases = dict()
+        _ = self.columns
+        self._aliases_to_check = (
+            list(self._columns_with_tables_aliases.keys())
+            + self.columns_aliases_names
+            + ["*"]
+        )
+        for token in self.tokens:
+            if (
+                token.value in self.columns_aliases_names
+                and token.value not in column_aliases
+                and not token.previous_token.is_nested_function_start
+            ):
+                if token.previous_token.normalized == "AS":
+                    token_check = token.get_nth_previous(2)
+                else:
+                    token_check = token.previous_token
+                if token_check.is_column_definition_end:
+                    # nested subquery like select a, (select a as b from x) as column
+                    start_token = token.find_nearest_token(
+                        True, value_attribute="is_column_definition_start"
+                    )
+                    if start_token.next_token.normalized == "SELECT":
+                        # we have a subquery
+                        alias_token = start_token.next_token.find_nearest_token(
+                            self._aliases_to_check, direction="right"
+                        )
+                        alias_of = self._resolve_alias_to_column(alias_token)
+                    else:
+                        # chain of functions or redundant parenthesis
+                        alias_of = self._find_all_columns_between_tokens(
+                            start_token=start_token, end_token=token
+                        )
+                elif token.is_in_with_columns:
+                    # columns definition is to the right in subquery
+                    # we are in: with with_name (<aliases>) as (subquery)
+                    alias_of = self._find_column_for_with_column_alias(token)
+                else:
+                    # it can be one function or a chain of functions
+                    # like: sum(a) + sum(b) as alias
+                    # or operation on columns like: col1 + col2 as alias
+                    start_token = token.find_nearest_token(
+                        [",", "SELECT"], value_attribute="normalized"
+                    )
+                    while start_token.is_in_nested_function:
+                        start_token = start_token.find_nearest_token(
+                            [",", "SELECT"], value_attribute="normalized"
+                        )
+                    alias_of = self._find_all_columns_between_tokens(
+                        start_token=start_token, end_token=token
+                    )
+                if token.value != alias_of:
+                    # skip aliases of self, like sum(column) as column
+                    column_aliases[token.left_expanded] = alias_of
+
+        self._columns_aliases = column_aliases
+        return self._columns_aliases
+
+    @property
+    def columns_aliases_dict(self) -> Dict[str, List[str]]:
+        """
+        Returns dictionary of column names divided into section of the query in which
+        given column is present.
+
+        Sections consist of: select, where, order_by, join, insert and update
+        """
+        if self._columns_aliases_dict:
+            return self._columns_aliases_dict
+        _ = self.columns_aliases_names
+        return self._columns_aliases_dict
+
+    @property
+    def columns_aliases_names(self) -> List[str]:
+        """
+        Extract names of the column aliases used in query
+        """
+        if self._columns_aliases_names is not None:
+            return self._columns_aliases_names
+        column_aliases_names = UniqueList()
+        with_names = self.with_names
+        subqueries_names = self.subqueries_names
+        for token in self.tokens:
+            if (
+                token.is_name
+                or (token.is_keyword and token.previous_token.normalized == "AS")
+            ) and not token.next_token.is_dot:
+                if (
+                    token.last_keyword_normalized in KEYWORDS_BEFORE_COLUMNS
+                    and (
+                        token.previous_token.normalized in ["AS", ")"]
+                        or token.is_alias_without_as
+                    )
+                    or token.is_in_with_columns
+                ) and token.value not in with_names + subqueries_names:
+                    alias = token.left_expanded
+                    column_aliases_names.append(alias)
+
+        self._columns_aliases_names = column_aliases_names
+        return self._columns_aliases_names
 
     @property
     def tables(self) -> List[str]:
         """
-        :rtype: list[str]
+        Return the list of tables this query refers to
         """
         if self._tables is not None:
             return self._tables
@@ -218,8 +352,20 @@ class Parser:  # pylint: disable=R0902
                 and token.previous_token.normalized not in ["AS", "WITH"]
                 and token.normalized not in ["AS", "SELECT"]
             ):
+                # handle CREATE TABLE queries (#35)
+                # skip keyword that are withing parenthesis-wrapped list of column
+                if self._is_create_table_query and token.is_in_parenthesis:
+                    continue
+
                 if token.next_token.is_dot:
                     pass  # part of the qualified name
+                elif token.is_in_parenthesis and (
+                    token.find_nearest_token("(").previous_token.value in with_names
+                    or token.last_keyword_normalized == "INTO"
+                ):
+                    # we are in <columns> of INSERT INTO <TABLE> (<columns>)
+                    # or columns of with statement: with (<columns>) as ...
+                    pass
                 elif token.previous_token.is_dot:
                     tables.append(token.left_expanded)  # full qualified name
                 elif (
@@ -230,11 +376,6 @@ class Parser:  # pylint: disable=R0902
                     # hence, it can be the case of alias without AS,
                     # e.g. SELECT * FROM foo bar
                     # or an alias of subquery (SELECT * FROM foo) bar
-                    pass
-                elif (
-                    token.last_keyword_normalized == "INTO" and token.is_in_parenthesis
-                ):
-                    # we are in <columns> of INSERT INTO <TABLE> (<columns>)
                     pass
                 else:
                     table_name = str(token.value.strip("`"))
@@ -247,8 +388,6 @@ class Parser:  # pylint: disable=R0902
     def limit_and_offset(self) -> Optional[Tuple[int, int]]:
         """
         Returns value for limit and offset if set
-
-        :rtype: (int, int)
         """
         if self._limit_and_offset is not None:
             return self._limit_and_offset
@@ -322,11 +461,22 @@ class Parser:  # pylint: disable=R0902
         with_names = UniqueList()
         for token in self.tokens:
             if token.previous_token.normalized == "WITH":
-                in_with = True
-                while in_with and token.next_token:
+                self._is_in_with_block = True
+                while self._is_in_with_block and token.next_token:
                     # name is first
                     if token.next_token.normalized == "AS":
-                        with_names.append(token.left_expanded)
+                        if token.is_right_parenthesis:
+                            # inside columns of with statement
+                            # like: with (col1, col2) as (subquery)
+                            token.is_with_columns_end = True
+                            token.is_nested_function_end = False
+                            start_token = token.find_nearest_token("(")
+                            start_token.is_with_columns_start = True
+                            start_token.is_nested_function_start = False
+                            prev_token = start_token.previous_token
+                            with_names.append(prev_token.left_expanded)
+                        else:
+                            with_names.append(token.left_expanded)
                         # move to next with if exists, this with ends with
                         #  ) + , if many withs or ) + select if one
                         # need to move to next as AS can be in
@@ -340,7 +490,7 @@ class Parser:  # pylint: disable=R0902
                         ):
                             token = token.next_token
                         if token.next_token.normalized in WITH_ENDING_KEYWORDS:
-                            in_with = False
+                            self._is_in_with_block = False
                     else:
                         token = token.next_token
 
@@ -447,50 +597,146 @@ class Parser:  # pylint: disable=R0902
     def comments(self) -> List[str]:
         """
         Return comments from SQL query
-
-        :rtype: List[str]
         """
-        return Generalizator(self._raw_query).comments
+        return [x.value for x in self.tokens if x.is_comment]
 
     @property
     def without_comments(self) -> str:
         """
         Removes comments from SQL query
-
-        :rtype: str
         """
         return Generalizator(self._raw_query).without_comments
 
     @property
-    def generalize(self) -> Optional[str]:
+    def generalize(self) -> str:
         """
         Removes most variables from an SQL query
         and replaces them with X or N for numbers.
 
         Based on Mediawiki's DatabaseBase::generalizeSQL
-
-        :rtype: Optional[str]
         """
         return Generalizator(self._raw_query).generalize
 
     def _add_to_columns_subsection(self, keyword: str, column: str):
-        sections = {
-            "SELECT": "select",
-            "WHERE": "where",
-            "ORDERBY": "order_by",
-            "ON": "join",
-            "INTO": "insert",
-            "SET": "update",
-        }
-        section = sections[keyword]
+        """
+        Add columns to the section in which it appears in query
+        """
+        section = COLUMNS_SECTIONS[keyword]
         self._columns_dict = self._columns_dict or dict()
         self._columns_dict.setdefault(section, UniqueList()).append(column)
+
+    def _add_to_columns_aliases_subsection(self, token: SQLToken):
+        """
+        Add alias to the section in which it appears in query
+        """
+        keyword = token.last_keyword_normalized
+        alias = token.left_expanded
+        if (
+            token.last_keyword_normalized in ["FROM", "WITH"]
+            and token.find_nearest_token("(").is_with_columns_start
+        ):
+            keyword = "SELECT"
+        section = COLUMNS_SECTIONS[keyword]
+        self._columns_aliases_dict = self._columns_aliases_dict or dict()
+        self._columns_aliases_dict.setdefault(section, UniqueList()).append(alias)
+
+    def _resolve_column_alias(self, alias: str) -> str:
+        """
+        Returns a column name for a given alias
+        """
+        while alias in self.columns_aliases:
+            alias = self.columns_aliases[alias]
+            if isinstance(alias, list):
+                break
+        if isinstance(alias, list):
+            alias = [self._resolve_column_alias(x) for x in alias]
+        return alias
+
+    def _resolve_alias_to_column(self, alias_token: SQLToken) -> str:
+        """
+        Resolves aliases of tables to already resolved columns
+        """
+        if alias_token.left_expanded in self._columns_with_tables_aliases:
+            alias_of = self._columns_with_tables_aliases[alias_token.left_expanded]
+        else:
+            alias_of = alias_token.left_expanded
+        return alias_of
+
+    def _determine_opening_parenthesis_type(self, token: SQLToken):
+        """
+        Determines the type of left parenthesis in query
+        """
+        if token.previous_token.normalized in SUBQUERY_PRECEDING_KEYWORDS:
+            # inside subquery / derived table
+            token.is_subquery_start = True
+            self._subquery_level += 1
+            token.subquery_level = self._subquery_level
+        elif token.previous_token.normalized in KEYWORDS_BEFORE_COLUMNS + [","]:
+            # we are in columns and in a column subquery definition
+            token.is_column_definition_start = True
+        elif token.previous_token.normalized == "AS":
+            token.is_with_query_start = True
+        else:
+            # nested function
+            token.is_nested_function_start = True
+            self._nested_level += 1
+            self._is_in_nested_function = True
+        self._open_parentheses.append(token)
+
+    def _determine_closing_parenthesis_type(self, token: SQLToken):
+        """
+        Determines the type of right parenthesis in query
+        """
+        last_open_parenthesis = self._open_parentheses.pop(-1)
+        if last_open_parenthesis.is_subquery_start:
+            token.is_subquery_end = True
+            self._subquery_level -= 1
+        elif last_open_parenthesis.is_column_definition_start:
+            token.is_column_definition_end = True
+        elif last_open_parenthesis.is_with_query_start:
+            token.is_with_query_end = True
+        else:
+            token.is_nested_function_end = True
+            self._nested_level -= 1
+            if self._nested_level == 0:
+                self._is_in_nested_function = False
+
+    def _find_column_for_with_column_alias(self, token: SQLToken) -> str:
+        start_token = token.find_nearest_token(
+            True, direction="right", value_attribute="is_with_query_start"
+        )
+        if start_token not in self._with_columns_candidates:
+            end_token = start_token.find_nearest_token(
+                True, direction="right", value_attribute="is_with_query_end"
+            )
+            columns = self._find_all_columns_between_tokens(
+                start_token=start_token, end_token=end_token
+            )
+            self._with_columns_candidates[start_token] = columns
+        if isinstance(self._with_columns_candidates[start_token], list):
+            alias_of = self._with_columns_candidates[start_token].pop(0)
+        else:
+            alias_of = self._with_columns_candidates[start_token]
+        return alias_of
+
+    def _find_all_columns_between_tokens(
+        self, start_token: SQLToken, end_token: SQLToken
+    ) -> Union[str, List[str]]:
+        """
+        Returns a list of columns between tw tokens
+        """
+        loop_token = start_token
+        aliases = []
+        while loop_token.next_token != end_token:
+            if loop_token.next_token.left_expanded in self._aliases_to_check:
+                alias_token = loop_token.next_token
+                aliases.append(self._resolve_alias_to_column(alias_token))
+            loop_token = loop_token.next_token
+        return aliases[0] if len(aliases) == 1 else aliases
 
     def _preprocess_query(self) -> str:
         """
         Perform initial query cleanup
-
-        :rtype str
         """
         if self._raw_query == "":
             return ""
@@ -504,3 +750,16 @@ class Parser:  # pylint: disable=R0902
         query = re.sub(r"`([^`]+)`\.`([^`]+)`", r"\1.\2", query)
 
         return query
+
+    @property
+    def _is_create_table_query(self) -> bool:
+        """
+        Return True if the query begins with "CREATE TABLE" statement
+        """
+        if (
+            self.tokens[0].normalized == "CREATE"
+            and self.tokens[1].normalized == "TABLE"
+        ):
+            return True
+
+        return False
