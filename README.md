@@ -258,6 +258,15 @@ The following functions from the old API are available in the `sql_metadata.comp
 * `get_query_tokens`
 * `preprocess_query`
 
+## Authors and contributors
+
+Created and maintained by [@macbre](https://github.com/macbre) with a great contributions from [@collerek](https://github.com/collerek) and the others.
+
+* aborecki (https://github.com/aborecki)
+* collerek (https://github.com/collerek)
+* dylanhogg (https://github.com/dylanhogg)
+* macbre (https://github.com/macbre)
+
 ## Stargazers over time
 
 [![Stargazers over time](https://starchart.cc/macbre/sql-metadata.svg)](https://starchart.cc/macbre/sql-metadata)
