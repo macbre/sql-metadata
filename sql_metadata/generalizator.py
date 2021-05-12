@@ -2,8 +2,6 @@
 Module used to produce generalized sql out of given query
 """
 import re
-from typing import List
-
 import sqlparse
 
 
@@ -40,16 +38,6 @@ class Generalizator:
                 )
 
         return sql
-
-    @property
-    def comments(self) -> List[str]:
-        """
-        Gets comments from SQL query
-
-        :rtype: str
-        """
-        comments = re.findall(r"\s?/\*.+?\*/", self._raw_query)
-        return [x.strip() for x in comments]
 
     @property
     def without_comments(self) -> str:
