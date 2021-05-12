@@ -233,6 +233,31 @@ parser.comments
 
 See `test/test_normalization.py` file for more examples of a bit more complex queries.
 
+## Migrating from `sql_metadata` 1.x
+
+`sql_metadata.compat` module has been implemented to make the introduction of sql-metadata v2.0 smoother.
+
+You can use it by simply changing the imports in your code from:
+
+```python
+from sql_metadata import get_query_columns, get_query_tables
+```
+
+into:
+
+```python
+from sql_metadata.compat import get_query_columns, get_query_tables
+```
+
+The following functions from the old API are available in the `sql_metadata.compat` module:
+
+* `generalize_sql`
+* `get_query_columns`
+* `get_query_limit_and_offset`
+* `get_query_tables`
+* `get_query_tokens`
+* `preprocess_query`
+
 ## Stargazers over time
 
 [![Stargazers over time](https://starchart.cc/macbre/sql-metadata.svg)](https://starchart.cc/macbre/sql-metadata)
