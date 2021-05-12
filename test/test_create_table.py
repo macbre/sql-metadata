@@ -28,3 +28,16 @@ CREATE TABLE `new_table` (
 
     assert parser.tables == ["new_table"]
     # assert parser.columns == ["item_id", "foo"]
+
+
+def test_create_table_as_select():
+    parser = Parser(
+        """
+create table abc.foo
+    as SELECT pqr.foo1 , ab.foo2
+    FROM foo pqr, bar ab;
+    """
+    )
+
+    assert parser.tables == ["abc.foo", "foo", "bar"]
+    assert parser.columns == ["foo.foo1", "bar.foo2"]
