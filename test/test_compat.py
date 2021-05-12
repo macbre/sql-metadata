@@ -1,9 +1,12 @@
+from sqlparse.tokens import Punctuation, Wildcard
+
 from sql_metadata.compat import (
     get_query_columns,
     get_query_tables,
     get_query_limit_and_offset,
     generalize_sql,
     preprocess_query,
+    get_query_tokens,
 )
 
 
@@ -43,3 +46,16 @@ def test_preprocess_query():
     assert "SELECT /* foo */ test FROM foo.bar" == preprocess_query(
         "SELECT /* foo */ test\nFROM `foo`.`bar`"
     )
+
+
+def test_get_query_tokens():
+    tokens = get_query_tokens("SELECT * FROM foo;")
+    assert len(tokens) == 5
+
+    assert tokens[0].normalized == "SELECT"
+    assert tokens[1].ttype is Wildcard
+    assert tokens[2].normalized == "FROM"
+    assert tokens[3].normalized == "foo"
+    assert tokens[4].ttype is Punctuation
+
+    assert [] == get_query_tokens("")

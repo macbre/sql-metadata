@@ -14,6 +14,8 @@ from sql_metadata.compat import get_query_columns, get_query_tables
 from typing import List, Optional, Tuple
 
 import sqlparse
+from sqlparse.sql import TokenList
+from sqlparse.tokens import Whitespace
 
 from sql_metadata import Parser
 
@@ -23,7 +25,16 @@ def preprocess_query(query: str) -> str:
 
 
 def get_query_tokens(query: str) -> List[sqlparse.sql.Token]:
-    pass
+    query = preprocess_query(query)
+    parsed = sqlparse.parse(query)
+
+    # handle empty queries (#12)
+    if not parsed:
+        return []
+
+    tokens = TokenList(parsed[0].tokens).flatten()
+
+    return [token for token in tokens if token.ttype is not Whitespace]
 
 
 def get_query_columns(query: str) -> List[str]:
