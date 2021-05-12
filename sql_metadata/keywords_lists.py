@@ -16,6 +16,9 @@ KEYWORDS_IGNORED = [
     "LIKE",
     "CASE",
     "WHEN",
+    "THEN",
+    "ELSE",
+    "END",
     "DISTINCT",
     "UNIQUE",
 ]
@@ -80,3 +83,15 @@ SUBQUERY_PRECEDING_KEYWORDS = [
     "LEFTOUTERJOIN",
     "RIGHTOUTERJOIN",
 ]
+
+# section of a query in which column can exists
+# based on last normalized keyword
+COLUMNS_SECTIONS = {
+    "SELECT": "select",
+    "WHERE": "where",
+    "ORDERBY": "order_by",
+    "ON": "join",
+    "INTO": "insert",
+    "SET": "update",
+    "GROUPBY": "group_by",
+}
