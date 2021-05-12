@@ -2,8 +2,6 @@
 Module used to produce generalized sql out of given query
 """
 import re
-from typing import Optional
-
 import sqlparse
 
 
@@ -53,12 +51,11 @@ class Generalizator:
         return sql
 
     @property
-    def generalize(self) -> Optional[str]:
+    def generalize(self) -> str:
         """
         Removes most variables from an SQL query and replaces them with X or N for numbers.
 
         Based on Mediawiki's DatabaseBase::generalizeSQL
-
         """
         if self._raw_query == "":
             return ""
