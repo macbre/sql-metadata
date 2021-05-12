@@ -132,6 +132,7 @@ class Parser:  # pylint: disable=R0902
 
                 # we're in CREATE TABLE query with the columns
                 # ignore any annotations outside the parenthesis with the list of columns
+                # e.g. ) CHARACTER SET utf8;
                 if (
                     not token.is_in_parenthesis
                     and token.find_nearest_token("SELECT", value_attribute="normalized")
