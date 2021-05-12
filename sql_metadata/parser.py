@@ -462,7 +462,7 @@ class Parser:  # pylint: disable=R0902
         return Generalizator(self._raw_query).without_comments
 
     @property
-    def generalize(self) -> Optional[str]:
+    def generalize(self) -> str:
         """
         Removes most variables from an SQL query
         and replaces them with X or N for numbers.
