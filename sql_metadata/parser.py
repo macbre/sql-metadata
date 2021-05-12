@@ -335,6 +335,11 @@ class Parser:  # pylint: disable=R0902
                 and token.previous_token.normalized not in ["AS", "WITH"]
                 and token.normalized not in ["AS", "SELECT"]
             ):
+                # handle CREATE TABLE queries (#35)
+                # skip keyword that are withing parenthesis-wrapped list of column
+                if self._is_create_table_query and token.is_in_parenthesis:
+                    continue
+
                 if token.next_token.is_dot:
                     pass  # part of the qualified name
                 elif token.is_in_parenthesis and (
@@ -728,3 +733,16 @@ class Parser:  # pylint: disable=R0902
         query = re.sub(r"`([^`]+)`\.`([^`]+)`", r"\1.\2", query)
 
         return query
+
+    @property
+    def _is_create_table_query(self) -> bool:
+        """
+        Return True if the query begins with "CREATE TABLE" statement
+        """
+        if (
+            self.tokens[0].normalized == "CREATE"
+            and self.tokens[1].normalized == "TABLE"
+        ):
+            return True
+
+        return False
