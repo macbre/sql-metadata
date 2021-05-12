@@ -19,7 +19,7 @@ from sql_metadata import Parser
 
 
 def preprocess_query(query: str) -> str:
-    pass
+    return Parser(query).query
 
 
 def get_query_tokens(query: str) -> List[sqlparse.sql.Token]:
@@ -38,8 +38,8 @@ def get_query_limit_and_offset(query: str) -> Optional[Tuple[int, int]]:
     return Parser(query).limit_and_offset
 
 
-def generalize_sql(sql: Optional[str]) -> Optional[str]:
-    if sql is None:
+def generalize_sql(query: Optional[str] = None) -> Optional[str]:
+    if query is None:
         return None
 
-    pass
+    return Parser(query).generalize
