@@ -252,11 +252,20 @@ from sql_metadata.compat import get_query_columns, get_query_tables
 The following functions from the old API are available in the `sql_metadata.compat` module:
 
 * `generalize_sql`
-* `get_query_columns`
+* `get_query_columns` (since #131 columns aliases ARE NOT returned by this function)
 * `get_query_limit_and_offset`
 * `get_query_tables`
 * `get_query_tokens`
 * `preprocess_query`
+
+## Authors and contributors
+
+Created and maintained by [@macbre](https://github.com/macbre) with a great contributions from [@collerek](https://github.com/collerek) and the others.
+
+* aborecki (https://github.com/aborecki)
+* collerek (https://github.com/collerek)
+* dylanhogg (https://github.com/dylanhogg)
+* macbre (https://github.com/macbre)
 
 ## Stargazers over time
 
