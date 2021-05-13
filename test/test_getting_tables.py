@@ -422,6 +422,10 @@ with ur
 
 def test_get_tables_with_leading_digits():
     # see #139
+
+    # Identifiers may begin with a digit but unless quoted may not consist solely of digits.
+    assert ["0020"] == Parser("SELECT * FROM `0020`").tables
+
     assert ["0020_big_table"] == Parser(
         "SELECT t.val as value, count(*) FROM `0020_big_table` as t WHERE id BETWEEN 10 AND 20 GROUP BY val"
     ).tables
