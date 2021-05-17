@@ -55,6 +55,34 @@ parser.columns_dict
 # {'select': ['product_a.users.*'], 'join': ['product_a.users.ip_address', 'product_b.users.ip_address']}
 ```
 
+### Extracting columns aliases from query
+
+```python
+from sql_metadata import Parser
+parser = Parser("SELECT a, (b + c - u) as alias1, custome_func(d) alias2 from aa, bb order by alias1")
+
+# note that columns list do not contain aliases of the columns
+parser.columns
+# ["a", "b", "c", "u", "d"]
+
+# but you can still extract aliases names
+parser.columns_aliases_names
+# ["alias1", "alias2"]
+
+# aliases are resolved to the columns which they refer to
+parser.columns_aliases
+# {"alias1": ["b", "c", "u"], "alias2": "d"}
+
+# you can also extract aliases used by section of the query in which they are used
+parser.columns_aliases_dict
+# {"order_by": ["alias1"], "select": ["alias1", "alias2"]}
+
+# the same applies to aliases used in queries section when you extract columns_dict
+# here only the alias is used in order by but it's resolved to actual columns
+assert parser.columns_dict == {'order_by': ['b', 'c', 'u'],
+                               'select': ['a', 'b', 'c', 'u', 'd']}
+```
+
 ### Extracting tables from query
 
 ```python
@@ -204,6 +232,40 @@ parser.comments
 ```
 
 See `test/test_normalization.py` file for more examples of a bit more complex queries.
+
+## Migrating from `sql_metadata` 1.x
+
+`sql_metadata.compat` module has been implemented to make the introduction of sql-metadata v2.0 smoother.
+
+You can use it by simply changing the imports in your code from:
+
+```python
+from sql_metadata import get_query_columns, get_query_tables
+```
+
+into:
+
+```python
+from sql_metadata.compat import get_query_columns, get_query_tables
+```
+
+The following functions from the old API are available in the `sql_metadata.compat` module:
+
+* `generalize_sql`
+* `get_query_columns` (since #131 columns aliases ARE NOT returned by this function)
+* `get_query_limit_and_offset`
+* `get_query_tables`
+* `get_query_tokens`
+* `preprocess_query`
+
+## Authors and contributors
+
+Created and maintained by [@macbre](https://github.com/macbre) with a great contributions from [@collerek](https://github.com/collerek) and the others.
+
+* aborecki (https://github.com/aborecki)
+* collerek (https://github.com/collerek)
+* dylanhogg (https://github.com/dylanhogg)
+* macbre (https://github.com/macbre)
 
 ## Stargazers over time
 

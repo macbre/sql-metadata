@@ -2,8 +2,6 @@
 Module used to produce generalized sql out of given query
 """
 import re
-from typing import List, Optional
-
 import sqlparse
 
 
@@ -42,16 +40,6 @@ class Generalizator:
         return sql
 
     @property
-    def comments(self) -> List[str]:
-        """
-        Gets comments from SQL query
-
-        :rtype: str
-        """
-        comments = re.findall(r"\s?/\*.+?\*/", self._raw_query)
-        return [x.strip() for x in comments]
-
-    @property
     def without_comments(self) -> str:
         """
         Removes comments from SQL query
@@ -63,17 +51,14 @@ class Generalizator:
         return sql
 
     @property
-    def generalize(self) -> Optional[str]:
+    def generalize(self) -> str:
         """
         Removes most variables from an SQL query and replaces them with X or N for numbers.
 
         Based on Mediawiki's DatabaseBase::generalizeSQL
-
-        :type sql str|None
-        :rtype: str
         """
-        if self._raw_query is None:
-            return None
+        if self._raw_query == "":
+            return ""
 
         # MW comments
         # e.g. /* CategoryDataService::getMostVisited N.N.N.N */
