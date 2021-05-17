@@ -250,3 +250,16 @@ def test_columns_and_sql_functions():
     assert Parser(
         "select count(col)+max(col2)+ min(col3)+ count(distinct  col4) + custom_func(col5) from dual"
     ).columns == ["col", "col2", "col3", "col4", "col5"]
+
+
+def test_columns_starting_with_keywords():
+    query = "SELECT `schema_name`, full_table_name, `column_name`, `catalog_name`, `table_name`, column_length, annotation FROM corporate.all_tables"
+    assert Parser(query).columns == [
+        "schema_name",
+        "full_table_name",
+        "column_name",
+        "catalog_name",
+        "table_name",
+        "column_length",
+        "annotation",
+    ]
