@@ -5,8 +5,8 @@ import re
 from typing import Dict, List, Optional, Tuple, Union
 
 import sqlparse
-from sqlparse.sql import TokenList
-from sqlparse.tokens import Whitespace
+from sqlparse.sql import Token
+from sqlparse.tokens import Name, Number, Whitespace
 
 from sql_metadata.generalizator import Generalizator
 from sql_metadata.keywords_lists import (
@@ -18,7 +18,7 @@ from sql_metadata.keywords_lists import (
     TABLE_ADJUSTMENT_KEYWORDS,
     WITH_ENDING_KEYWORDS,
 )
-from sql_metadata.token import SQLToken, EmptyToken
+from sql_metadata.token import EmptyToken, SQLToken
 from sql_metadata.utils import UniqueList
 
 
@@ -60,6 +60,8 @@ class Parser:  # pylint: disable=R0902
         self._is_in_with_block = False
         self._with_columns_candidates = dict()
 
+        self.sqlparse_tokens = None
+
     @property
     def query(self) -> str:
         """
@@ -81,7 +83,8 @@ class Parser:  # pylint: disable=R0902
         if not parsed:
             return tokens
 
-        sqlparse_tokens = TokenList(parsed[0].tokens).flatten()
+        self.sqlparse_tokens = parsed[0].tokens
+        sqlparse_tokens = self._flatten_sqlparse()
         non_empty_tokens = [
             token for token in sqlparse_tokens if token.ttype is not Whitespace
         ]
@@ -744,12 +747,46 @@ class Parser:  # pylint: disable=R0902
         # 0. remove newlines
         query = self._raw_query.replace("\n", " ")
         # 1. remove quotes "
-        query = query.replace('"', "")
+        query = query.replace('"', "`")
 
         # 2. `database`.`table` notation -> database.table
         query = re.sub(r"`([^`]+)`\.`([^`]+)`", r"\1.\2", query)
 
         return query
+
+    def _flatten_sqlparse(self):
+        for token in self.sqlparse_tokens:
+            # sqlparse returns mysql digit starting identifiers as group
+            # check https://github.com/andialbrecht/sqlparse/issues/337
+            is_grouped_mysql_digit_name = (
+                token.is_group
+                and len(token.tokens) == 2
+                and token.tokens[0].ttype is Number.Integer
+                and (
+                    token.tokens[1].is_group and token.tokens[1].tokens[0].ttype is Name
+                )
+            )
+            if token.is_group and not is_grouped_mysql_digit_name:
+                yield from token.flatten()
+            elif is_grouped_mysql_digit_name:
+                # we have digit starting name
+                new_tok = Token(
+                    value=f"{token.tokens[0].normalized}"
+                    f"{token.tokens[1].tokens[0].normalized}",
+                    ttype=token.tokens[1].tokens[0].ttype,
+                )
+                new_tok.parent = token.parent
+                yield new_tok
+                if len(token.tokens[1].tokens) > 1:
+                    # unfortunately there might be nested groups
+                    remaining_tokens = token.tokens[1].tokens[1:]
+                    for tok in remaining_tokens:
+                        if tok.is_group:
+                            yield from tok.flatten()
+                        else:
+                            yield tok
+            else:
+                yield token
 
     @property
     def _is_create_table_query(self) -> bool:
