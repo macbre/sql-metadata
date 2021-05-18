@@ -253,13 +253,35 @@ def test_columns_and_sql_functions():
 
 
 def test_columns_starting_with_keywords():
-    query = "SELECT `schema_name`, full_table_name, `column_name`, `catalog_name`, `table_name`, column_length, annotation FROM corporate.all_tables"
-    assert Parser(query).columns == [
+    query = """
+    SELECT `schema_name`, full_table_name, `column_name`, `catalog_name`, 
+    `table_name`, column_length, column_weight, annotation 
+    FROM corporate.all_tables
+    """
+    parser = Parser(query)
+    assert parser.columns == [
         "schema_name",
         "full_table_name",
         "column_name",
         "catalog_name",
         "table_name",
         "column_length",
+        "column_weight",
         "annotation",
+    ]
+    for col in parser.columns:
+        print(is_keyword(col))
+
+
+def test_columns_with_keywords():
+    query = """
+    SELECT column_length, column_weight, table_random, drop_20, create_table
+    FROM sample_table
+    """
+    assert Parser(query).columns == [
+        "column_length",
+        "column_weight",
+        "table_random",
+        "drop_20",
+        "create_table",
     ]
