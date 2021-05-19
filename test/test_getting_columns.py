@@ -285,7 +285,7 @@ def test_columns_with_keywords_parts():
     ]
 
 
-def test_columns_with_aliases_same_as_columns():
+def test_columns_with_complex_aliases_same_as_columns():
     query = """
     select targetingtype, sellerid, sguid, 'd01' as datetype, adgroupname, targeting, 
     customersearchterm, 
@@ -325,3 +325,28 @@ def test_columns_with_aliases_same_as_columns():
         "spend",
         "reportday",
     ]
+
+
+def test_columns_with_aliases_same_as_columns():
+    query = """
+    select 
+    round(sum(impressions),1) as impressions, 
+    sum(clicks) as clicks
+    from amazon_pl.search_term_report_impala 
+    """
+    parser = Parser(query)
+    assert parser.columns == ["impressions", "clicks"]
+    assert parser.columns_aliases == {}
+
+    query = """
+    select
+    if(sum(clicks) > 0, round(sum(seventotalunits)/sum(clicks), 4), 0) as clicks, 
+    if(sum(clicks) > 0, round(sum(spend)/sum(clicks), 2), 0) as cpc 
+    from amazon_pl.search_term_report_impala 
+    """
+    parser = Parser(query)
+    assert parser.columns == ["clicks", "seventotalunits", "spend"]
+    assert parser.columns_aliases == {
+        "clicks": ["clicks", "seventotalunits"],
+        "cpc": ["clicks", "spend"],
+    }

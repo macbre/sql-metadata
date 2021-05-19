@@ -742,7 +742,7 @@ class Parser:  # pylint: disable=R0902
         Returns a list of columns between tw tokens
         """
         loop_token = start_token
-        aliases = []
+        aliases = UniqueList()
         while loop_token.next_token != end_token:
             if loop_token.next_token.left_expanded in self._aliases_to_check:
                 alias_token = loop_token.next_token
