@@ -5,8 +5,8 @@ import re
 from typing import Dict, List, Optional, Tuple, Union
 
 import sqlparse
-from sqlparse.sql import TokenList
-from sqlparse.tokens import Whitespace
+from sqlparse.sql import Token
+from sqlparse.tokens import Name, Number, Whitespace
 
 from sql_metadata.generalizator import Generalizator
 from sql_metadata.keywords_lists import (
@@ -18,7 +18,7 @@ from sql_metadata.keywords_lists import (
     TABLE_ADJUSTMENT_KEYWORDS,
     WITH_ENDING_KEYWORDS,
 )
-from sql_metadata.token import SQLToken, EmptyToken
+from sql_metadata.token import EmptyToken, SQLToken
 from sql_metadata.utils import UniqueList
 
 
@@ -59,6 +59,9 @@ class Parser:  # pylint: disable=R0902
         self._is_in_nested_function = False
         self._is_in_with_block = False
         self._with_columns_candidates = dict()
+        self._column_aliases_max_subquery_level = dict()
+
+        self.sqlparse_tokens = None
 
     @property
     def query(self) -> str:
@@ -81,7 +84,8 @@ class Parser:  # pylint: disable=R0902
         if not parsed:
             return tokens
 
-        sqlparse_tokens = TokenList(parsed[0].tokens).flatten()
+        self.sqlparse_tokens = parsed[0].tokens
+        sqlparse_tokens = self._flatten_sqlparse()
         non_empty_tokens = [
             token for token in sqlparse_tokens if token.ttype is not Whitespace
         ]
@@ -145,10 +149,15 @@ class Parser:  # pylint: disable=R0902
                 if (
                     token.last_keyword_normalized in KEYWORDS_BEFORE_COLUMNS
                     and token.previous_token.normalized not in ["AS", ")"]
-                    and token.previous_token.table_prefixed_column(tables_aliases)
-                    not in columns
-                    and token.left_expanded not in self.columns_aliases_names
+                    and not token.is_alias_without_as
+                    and (
+                        token.left_expanded not in self.columns_aliases_names
+                        or token.token_is_alias_of_self_not_from_subquery(
+                            aliases_levels=self._column_aliases_max_subquery_level
+                        )
+                    )
                 ):
+
                     if (
                         token.normalized not in FUNCTIONS_IGNORED
                         and not (
@@ -331,6 +340,13 @@ class Parser:  # pylint: disable=R0902
                 ) and token.value not in with_names + subqueries_names:
                     alias = token.left_expanded
                     column_aliases_names.append(alias)
+                    current_level = self._column_aliases_max_subquery_level.setdefault(
+                        alias, 0
+                    )
+                    if token.subquery_level > current_level:
+                        self._column_aliases_max_subquery_level[
+                            alias
+                        ] = token.subquery_level
 
         self._columns_aliases_names = column_aliases_names
         return self._columns_aliases_names
@@ -726,7 +742,7 @@ class Parser:  # pylint: disable=R0902
         Returns a list of columns between tw tokens
         """
         loop_token = start_token
-        aliases = []
+        aliases = UniqueList()
         while loop_token.next_token != end_token:
             if loop_token.next_token.left_expanded in self._aliases_to_check:
                 alias_token = loop_token.next_token
@@ -744,12 +760,46 @@ class Parser:  # pylint: disable=R0902
         # 0. remove newlines
         query = self._raw_query.replace("\n", " ")
         # 1. remove quotes "
-        query = query.replace('"', "")
+        query = query.replace('"', "`")
 
         # 2. `database`.`table` notation -> database.table
         query = re.sub(r"`([^`]+)`\.`([^`]+)`", r"\1.\2", query)
 
         return query
+
+    def _flatten_sqlparse(self):
+        for token in self.sqlparse_tokens:
+            # sqlparse returns mysql digit starting identifiers as group
+            # check https://github.com/andialbrecht/sqlparse/issues/337
+            is_grouped_mysql_digit_name = (
+                token.is_group
+                and len(token.tokens) == 2
+                and token.tokens[0].ttype is Number.Integer
+                and (
+                    token.tokens[1].is_group and token.tokens[1].tokens[0].ttype is Name
+                )
+            )
+            if token.is_group and not is_grouped_mysql_digit_name:
+                yield from token.flatten()
+            elif is_grouped_mysql_digit_name:
+                # we have digit starting name
+                new_tok = Token(
+                    value=f"{token.tokens[0].normalized}"
+                    f"{token.tokens[1].tokens[0].normalized}",
+                    ttype=token.tokens[1].tokens[0].ttype,
+                )
+                new_tok.parent = token.parent
+                yield new_tok
+                if len(token.tokens[1].tokens) > 1:
+                    # unfortunately there might be nested groups
+                    remaining_tokens = token.tokens[1].tokens[1:]
+                    for tok in remaining_tokens:
+                        if tok.is_group:
+                            yield from tok.flatten()
+                        else:
+                            yield tok
+            else:
+                yield token
 
     @property
     def _is_create_table_query(self) -> bool:

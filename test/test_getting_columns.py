@@ -250,3 +250,103 @@ def test_columns_and_sql_functions():
     assert Parser(
         "select count(col)+max(col2)+ min(col3)+ count(distinct  col4) + custom_func(col5) from dual"
     ).columns == ["col", "col2", "col3", "col4", "col5"]
+
+
+def test_columns_starting_with_keywords():
+    query = """
+    SELECT `schema_name`, full_table_name, `column_name`, `catalog_name`, 
+    `table_name`, column_length, column_weight, annotation 
+    FROM corporate.all_tables
+    """
+    parser = Parser(query)
+    assert parser.columns == [
+        "schema_name",
+        "full_table_name",
+        "column_name",
+        "catalog_name",
+        "table_name",
+        "column_length",
+        "column_weight",
+        "annotation",
+    ]
+
+
+def test_columns_with_keywords_parts():
+    query = """
+    SELECT column_length, column_weight, table_random, drop_20, create_table
+    FROM sample_table
+    """
+    assert Parser(query).columns == [
+        "column_length",
+        "column_weight",
+        "table_random",
+        "drop_20",
+        "create_table",
+    ]
+
+
+def test_columns_with_complex_aliases_same_as_columns():
+    query = """
+    select targetingtype, sellerid, sguid, 'd01' as datetype, adgroupname, targeting, 
+    customersearchterm, 
+    'product_search_term' as `type`, 
+    sum(impressions) as impr, 
+    sum(clicks) as clicks, 
+    sum(seventotalunits) as sold, 
+    sum(sevenadvertisedskuunits) as advertisedskuunits, 
+    sum(sevenotherskuunits) as otherskuunits, 
+    sum(sevendaytotalsales) as totalsales, 
+    round(sum(spend), 4) as spend, if(sum(impressions) > 0, 
+    round(sum(clicks)/sum(impressions), 4), 0) as ctr, 
+    if(sum(clicks) > 0, round(sum(seventotalunits)/sum(clicks), 4), 0) as cr, 
+    if(sum(clicks) > 0, round(sum(spend)/sum(clicks), 2), 0) as cpc 
+    from amazon_pl.search_term_report_impala 
+    where reportday >= to_date('2021-05-16 00:00:00.0') 
+    and reportday <= to_date('2021-05-16 00:00:00.0') 
+    and targetingtype in ('auto','manual') 
+    and sguid is not null and sguid != '' 
+    group by targetingtype,sellerid,sguid,adgroupname,targeting,customersearchterm 
+    order by impr desc
+    """
+    parser = Parser(query)
+    assert parser.columns == [
+        "targetingtype",
+        "sellerid",
+        "sguid",
+        "adgroupname",
+        "targeting",
+        "customersearchterm",
+        "impressions",
+        "clicks",
+        "seventotalunits",
+        "sevenadvertisedskuunits",
+        "sevenotherskuunits",
+        "sevendaytotalsales",
+        "spend",
+        "reportday",
+    ]
+
+
+def test_columns_with_aliases_same_as_columns():
+    query = """
+    select 
+    round(sum(impressions),1) as impressions, 
+    sum(clicks) as clicks
+    from amazon_pl.search_term_report_impala 
+    """
+    parser = Parser(query)
+    assert parser.columns == ["impressions", "clicks"]
+    assert parser.columns_aliases == {}
+
+    query = """
+    select
+    if(sum(clicks) > 0, round(sum(seventotalunits)/sum(clicks), 4), 0) as clicks, 
+    if(sum(clicks) > 0, round(sum(spend)/sum(clicks), 2), 0) as cpc 
+    from amazon_pl.search_term_report_impala 
+    """
+    parser = Parser(query)
+    assert parser.columns == ["clicks", "seventotalunits", "spend"]
+    assert parser.columns_aliases == {
+        "clicks": ["clicks", "seventotalunits"],
+        "cpc": ["clicks", "spend"],
+    }
