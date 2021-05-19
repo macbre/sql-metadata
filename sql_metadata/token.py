@@ -162,6 +162,22 @@ class SQLToken:  # pylint: disable=R0902
         )
 
     @property
+    def is_alias_of_self(self) -> bool:
+        """
+        Checks if a given token is an alias but at the same time
+        is also an alias of self, so not really an alias
+        """
+
+        end_of_column = self.find_nearest_token(
+            [",", "FROM"], value_attribute="normalized", direction="right"
+        )
+        while end_of_column.is_in_nested_function:
+            end_of_column = end_of_column.find_nearest_token(
+                [",", "FROM"], value_attribute="normalized", direction="right"
+            )
+        return end_of_column.previous_token.normalized == self.normalized
+
+    @property
     def is_in_with_columns(self) -> bool:
         """
         Checks if token is inside with colums part of a query
@@ -169,6 +185,17 @@ class SQLToken:  # pylint: disable=R0902
         return (
             self.find_nearest_token("(").is_with_columns_start
             and self.find_nearest_token(")", direction="right").is_with_columns_end
+        )
+
+    def token_is_alias_of_self_not_from_subquery(self, aliases_levels: Dict) -> bool:
+        """
+        Checks if token is also an alias, but is an alias of self that is not
+        coming from a subquery, that means it's a valid column
+        """
+        return (
+            self.last_keyword_normalized == "SELECT"
+            and self.is_alias_of_self
+            and self.subquery_level == aliases_levels[self.value]
         )
 
     def table_prefixed_column(self, table_aliases: Dict) -> str:

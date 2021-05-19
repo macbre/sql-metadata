@@ -59,6 +59,7 @@ class Parser:  # pylint: disable=R0902
         self._is_in_nested_function = False
         self._is_in_with_block = False
         self._with_columns_candidates = dict()
+        self._column_aliases_max_subquery_level = dict()
 
         self.sqlparse_tokens = None
 
@@ -148,10 +149,15 @@ class Parser:  # pylint: disable=R0902
                 if (
                     token.last_keyword_normalized in KEYWORDS_BEFORE_COLUMNS
                     and token.previous_token.normalized not in ["AS", ")"]
-                    and token.previous_token.table_prefixed_column(tables_aliases)
-                    not in columns
-                    and token.left_expanded not in self.columns_aliases_names
+                    and not token.is_alias_without_as
+                    and (
+                        token.left_expanded not in self.columns_aliases_names
+                        or token.token_is_alias_of_self_not_from_subquery(
+                            aliases_levels=self._column_aliases_max_subquery_level
+                        )
+                    )
                 ):
+
                     if (
                         token.normalized not in FUNCTIONS_IGNORED
                         and not (
@@ -334,6 +340,13 @@ class Parser:  # pylint: disable=R0902
                 ) and token.value not in with_names + subqueries_names:
                     alias = token.left_expanded
                     column_aliases_names.append(alias)
+                    current_level = self._column_aliases_max_subquery_level.setdefault(
+                        alias, 0
+                    )
+                    if token.subquery_level > current_level:
+                        self._column_aliases_max_subquery_level[
+                            alias
+                        ] = token.subquery_level
 
         self._columns_aliases_names = column_aliases_names
         return self._columns_aliases_names

@@ -269,11 +269,9 @@ def test_columns_starting_with_keywords():
         "column_weight",
         "annotation",
     ]
-    for col in parser.columns:
-        print(is_keyword(col))
 
 
-def test_columns_with_keywords():
+def test_columns_with_keywords_parts():
     query = """
     SELECT column_length, column_weight, table_random, drop_20, create_table
     FROM sample_table
@@ -284,4 +282,46 @@ def test_columns_with_keywords():
         "table_random",
         "drop_20",
         "create_table",
+    ]
+
+
+def test_columns_with_aliases_same_as_columns():
+    query = """
+    select targetingtype, sellerid, sguid, 'd01' as datetype, adgroupname, targeting, 
+    customersearchterm, 
+    'product_search_term' as `type`, 
+    sum(impressions) as impr, 
+    sum(clicks) as clicks, 
+    sum(seventotalunits) as sold, 
+    sum(sevenadvertisedskuunits) as advertisedskuunits, 
+    sum(sevenotherskuunits) as otherskuunits, 
+    sum(sevendaytotalsales) as totalsales, 
+    round(sum(spend), 4) as spend, if(sum(impressions) > 0, 
+    round(sum(clicks)/sum(impressions), 4), 0) as ctr, 
+    if(sum(clicks) > 0, round(sum(seventotalunits)/sum(clicks), 4), 0) as cr, 
+    if(sum(clicks) > 0, round(sum(spend)/sum(clicks), 2), 0) as cpc 
+    from amazon_pl.search_term_report_impala 
+    where reportday >= to_date('2021-05-16 00:00:00.0') 
+    and reportday <= to_date('2021-05-16 00:00:00.0') 
+    and targetingtype in ('auto','manual') 
+    and sguid is not null and sguid != '' 
+    group by targetingtype,sellerid,sguid,adgroupname,targeting,customersearchterm 
+    order by impr desc
+    """
+    parser = Parser(query)
+    assert parser.columns == [
+        "targetingtype",
+        "sellerid",
+        "sguid",
+        "adgroupname",
+        "targeting",
+        "customersearchterm",
+        "impressions",
+        "clicks",
+        "seventotalunits",
+        "sevenadvertisedskuunits",
+        "sevenotherskuunits",
+        "sevendaytotalsales",
+        "spend",
+        "reportday",
     ]
