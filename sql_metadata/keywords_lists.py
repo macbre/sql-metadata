@@ -50,6 +50,16 @@ COLUMNS_SECTIONS = {
     "GROUPBY": "group_by",
 }
 
+SUPPORTED_QUERY_TYPES = {
+    "INSERT": "Insert",
+    "REPLACE": "Replace",
+    "UPDATE": "Update",
+    "SELECT": "Select",
+    "WITH": "Select",
+    "CREATETABLE": "Create",
+    "ALTERTABLE": "Alter",
+}
+
 # all the keywords we care for - rest is ignored in assigning
 # the last keyword
 RELEVANT_KEYWORDS = {

@@ -28,40 +28,40 @@ def test_simple_queries_tables():
 
 
 def test_complex_query_tables():
-    # # complex queries
-    # # @see https://github.com/macbre/query-digest/issues/16
-    # assert ["report_wiki_recent_pageviews", "dimension_wikis"] == Parser(
-    #     "SELECT r.wiki_id AS id, pageviews_Nday AS pageviews FROM report_wiki_recent_pageviews AS r INNER JOIN dimension_wikis AS d ON r.wiki_id = d.wiki_id WHERE d.public = X AND r.lang = X AND r.hub_name = X ORDER BY pageviews DESC LIMIT N"
-    # ).tables
-    #
-    # assert ["dimension_wikis", "fact_wam_scores"] == Parser(
-    #     "SELECT DISTINCT dw.lang FROM `dimension_wikis` `dw` INNER JOIN `fact_wam_scores` `fwN` ON ((dw.wiki_id = fwN.wiki_id)) WHERE fwN.time_id = FROM_UNIXTIME(N) ORDER BY dw.lang ASC"
-    # ).tables
-    #
-    # assert ["fact_wam_scores", "dimension_wikis"] == Parser(
-    #     "SELECT count(fwN.wiki_id) as wam_results_total FROM `fact_wam_scores` `fwN` left join `fact_wam_scores` `fwN` ON ((fwN.wiki_id = fwN.wiki_id) AND (fwN.time_id = FROM_UNIXTIME(N))) left join `dimension_wikis` `dw` ON ((fwN.wiki_id = dw.wiki_id)) WHERE (fwN.time_id = FROM_UNIXTIME(N)) AND (dw.url like X OR dw.title like X) AND fwN.vertical_id IN (XYZ) AND dw.lang = X AND (fwN.wiki_id NOT IN (XYZ)) AND ((dw.url IS NOT NULL AND dw.title IS NOT NULL))"
-    # ).tables
-    #
-    # assert ["revision", "page", "wikicities_cN.user"] == Parser(
-    #     "SELECT rev_id,rev_page,rev_text_id,rev_timestamp,rev_comment,rev_user_text,rev_user,rev_minor_edit,rev_deleted,rev_len,rev_parent_id,rev_shaN,page_namespace,page_title,page_id,page_latest,user_name FROM `revision` INNER JOIN `page` ON ((page_id = rev_page)) LEFT JOIN `wikicities_cN`.`user` ON ((rev_user != N) AND (user_id = rev_user)) WHERE rev_id = X LIMIT N"
-    # ).tables
-    #
-    # # complex queries, take two
-    # # @see https://github.com/macbre/sql-metadata/issues/6
-    # assert ["foo_pageviews"] == Parser(
-    #     "SELECT 1 as c    FROM foo_pageviews      WHERE time_id = '2018-01-07 00:00:00'   AND period_id = '2' LIMIT 1"
-    # ).tables
-    #
-    # # table aliases
-    # assert ["report_wiki_recent_pageviews", "dimension_wikis"] == Parser(
-    #     "SELECT r.wiki_id AS id, pageviews_7day AS pageviews FROM report_wiki_recent_pageviews AS r INNER JOIN dimension_wikis AS d ON r.wiki_id = d.wiki_id WHERE d.public = '1' AND r.lang IN ( 'en', 'ru' ) AND r.hub_name = 'gaming' ORDER BY pageviews DESC LIMIT 300"
-    # ).tables
-    #
-    # # include multiple FROM tables when they prefixed
-    # # @see https://github.com/macbre/sql-metadata/issues/38
-    # assert ["MYDB1.TABLE1", "MYDB2.TABLE2"] == Parser(
-    #     "SELECT A.FIELD1, B.FIELD1, (A.FIELD1 * B.FIELD1) AS QTY FROM MYDB1.TABLE1 AS A, MYDB2.TABLE2 AS B"
-    # ).tables
+    # complex queries
+    # @see https://github.com/macbre/query-digest/issues/16
+    assert ["report_wiki_recent_pageviews", "dimension_wikis"] == Parser(
+        "SELECT r.wiki_id AS id, pageviews_Nday AS pageviews FROM report_wiki_recent_pageviews AS r INNER JOIN dimension_wikis AS d ON r.wiki_id = d.wiki_id WHERE d.public = X AND r.lang = X AND r.hub_name = X ORDER BY pageviews DESC LIMIT N"
+    ).tables
+
+    assert ["dimension_wikis", "fact_wam_scores"] == Parser(
+        "SELECT DISTINCT dw.lang FROM `dimension_wikis` `dw` INNER JOIN `fact_wam_scores` `fwN` ON ((dw.wiki_id = fwN.wiki_id)) WHERE fwN.time_id = FROM_UNIXTIME(N) ORDER BY dw.lang ASC"
+    ).tables
+
+    assert ["fact_wam_scores", "dimension_wikis"] == Parser(
+        "SELECT count(fwN.wiki_id) as wam_results_total FROM `fact_wam_scores` `fwN` left join `fact_wam_scores` `fwN` ON ((fwN.wiki_id = fwN.wiki_id) AND (fwN.time_id = FROM_UNIXTIME(N))) left join `dimension_wikis` `dw` ON ((fwN.wiki_id = dw.wiki_id)) WHERE (fwN.time_id = FROM_UNIXTIME(N)) AND (dw.url like X OR dw.title like X) AND fwN.vertical_id IN (XYZ) AND dw.lang = X AND (fwN.wiki_id NOT IN (XYZ)) AND ((dw.url IS NOT NULL AND dw.title IS NOT NULL))"
+    ).tables
+
+    assert ["revision", "page", "wikicities_cN.user"] == Parser(
+        "SELECT rev_id,rev_page,rev_text_id,rev_timestamp,rev_comment,rev_user_text,rev_user,rev_minor_edit,rev_deleted,rev_len,rev_parent_id,rev_shaN,page_namespace,page_title,page_id,page_latest,user_name FROM `revision` INNER JOIN `page` ON ((page_id = rev_page)) LEFT JOIN `wikicities_cN`.`user` ON ((rev_user != N) AND (user_id = rev_user)) WHERE rev_id = X LIMIT N"
+    ).tables
+
+    # complex queries, take two
+    # @see https://github.com/macbre/sql-metadata/issues/6
+    assert ["foo_pageviews"] == Parser(
+        "SELECT 1 as c    FROM foo_pageviews      WHERE time_id = '2018-01-07 00:00:00'   AND period_id = '2' LIMIT 1"
+    ).tables
+
+    # table aliases
+    assert ["report_wiki_recent_pageviews", "dimension_wikis"] == Parser(
+        "SELECT r.wiki_id AS id, pageviews_7day AS pageviews FROM report_wiki_recent_pageviews AS r INNER JOIN dimension_wikis AS d ON r.wiki_id = d.wiki_id WHERE d.public = '1' AND r.lang IN ( 'en', 'ru' ) AND r.hub_name = 'gaming' ORDER BY pageviews DESC LIMIT 300"
+    ).tables
+
+    # include multiple FROM tables when they prefixed
+    # @see https://github.com/macbre/sql-metadata/issues/38
+    assert ["MYDB1.TABLE1", "MYDB2.TABLE2"] == Parser(
+        "SELECT A.FIELD1, B.FIELD1, (A.FIELD1 * B.FIELD1) AS QTY FROM MYDB1.TABLE1 AS A, MYDB2.TABLE2 AS B"
+    ).tables
 
     # test whitespaces in keywords
     # @see https://github.com/macbre/sql-metadata/issues/80

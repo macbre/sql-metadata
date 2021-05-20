@@ -1,16 +1,19 @@
+import pytest
+
 from sql_metadata import Parser
 
 
 def test_is_create_table_query():
-    assert Parser("BEGIN")._is_create_table_query is False
-    assert Parser("SELECT * FROM `foo` ()")._is_create_table_query is False
+    with pytest.raises(ValueError):
+        assert Parser("BEGIN").query_type
 
-    assert Parser("CREATE TABLE `foo` ()")._is_create_table_query is True
+    assert Parser("SELECT * FROM `foo` ()").query_type == "Select"
+    assert Parser("CREATE TABLE `foo` ()").query_type == "Create"
     assert (
         Parser(
             "create table abc.foo as SELECT pqr.foo1 , ab.foo2 FROM foo pqr, bar ab"
-        )._is_create_table_query
-        is True
+        ).query_type
+        == "Create"
     )
 
 

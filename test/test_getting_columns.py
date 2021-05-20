@@ -107,6 +107,7 @@ def test_update_and_replace():
     parser = Parser(
         "REPLACE INTO `page_props` (pp_page,pp_propname,pp_value) VALUES ('47','infoboxes','')"
     )
+    assert parser.query_type == "Replace"
     assert parser.columns == ["pp_page", "pp_propname", "pp_value"]
     assert parser.columns_dict == {"insert": ["pp_page", "pp_propname", "pp_value"]}
 
@@ -200,12 +201,14 @@ def test_columns_with_comments():
     parser = Parser(
         "INSERT /* VoteHelper::addVote xxx */  INTO `page_vote` (article_id,user_id,`time`) VALUES ('442001','27574631','20180228130846')"
     )
+    assert parser.query_type == "Insert"
     assert parser.columns == ["article_id", "user_id", "time"]
 
     # REPLACE queries
     parser = Parser(
         "REPLACE INTO `page_props` (pp_page,pp_propname,pp_value) VALUES ('47','infoboxes','')"
     )
+    assert parser.query_type == "Replace"
     assert parser.columns == ["pp_page", "pp_propname", "pp_value"]
     assert parser.columns_dict == {"insert": ["pp_page", "pp_propname", "pp_value"]}
 

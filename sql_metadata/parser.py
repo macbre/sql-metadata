@@ -14,6 +14,7 @@ from sql_metadata.keywords_lists import (
     KEYWORDS_BEFORE_COLUMNS,
     RELEVANT_KEYWORDS,
     SUBQUERY_PRECEDING_KEYWORDS,
+    SUPPORTED_QUERY_TYPES,
     TABLE_ADJUSTMENT_KEYWORDS,
     WITH_ENDING_KEYWORDS,
 )
@@ -29,6 +30,7 @@ class Parser:  # pylint: disable=R0902
     def __init__(self, sql: str = "") -> None:
         self._raw_query = sql
         self._query = self._preprocess_query()
+        self._query_type = None
 
         self._tokens = None
 
@@ -68,6 +70,24 @@ class Parser:  # pylint: disable=R0902
         Returns preprocessed query
         """
         return self._query
+
+    @property
+    def query_type(self) -> str:
+        """
+        Returns type of the query
+        """
+        if self._query_type:
+            return self._query_type
+        if not self._tokens:
+            _ = self.tokens
+        if self._tokens[0].normalized in ["CREATE", "ALTER"]:
+            switch = self._tokens[0].normalized + self._tokens[1].normalized
+        else:
+            switch = self._tokens[0].normalized
+        self._query_type = SUPPORTED_QUERY_TYPES.get(switch, "UNSUPPORTED")
+        if self._query_type == "UNSUPPORTED":
+            raise ValueError("Not supported query type!")
+        return self._query_type
 
     @property
     def tokens(self) -> List[SQLToken]:
@@ -112,6 +132,7 @@ class Parser:  # pylint: disable=R0902
             tokens.append(token)
 
         self._tokens = tokens
+        _ = self.query_type
         return tokens
 
     @property
@@ -127,7 +148,7 @@ class Parser:  # pylint: disable=R0902
 
         for token in self.tokens:
             # handle CREATE TABLE queries (#35)
-            if token.is_name and self._is_create_table_query:
+            if token.is_name and self.query_type == "Create":
                 # previous token is either ( or , -> indicates the column name
                 if token.is_in_parenthesis and token.previous_token.is_punctuation:
                     columns.append(str(token))
@@ -369,7 +390,7 @@ class Parser:  # pylint: disable=R0902
             ):
                 # handle CREATE TABLE queries (#35)
                 # skip keyword that are withing parenthesis-wrapped list of column
-                if self._is_create_table_query and token.is_in_parenthesis:
+                if self.query_type == "Create" and token.is_in_parenthesis:
                     continue
 
                 if token.next_token.is_dot:
@@ -799,16 +820,3 @@ class Parser:  # pylint: disable=R0902
                             yield tok
             else:
                 yield token
-
-    @property
-    def _is_create_table_query(self) -> bool:
-        """
-        Return True if the query begins with "CREATE TABLE" statement
-        """
-        if (
-            self.tokens[0].normalized == "CREATE"
-            and self.tokens[1].normalized == "TABLE"
-        ):
-            return True
-
-        return False

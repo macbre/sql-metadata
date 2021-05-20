@@ -88,3 +88,4 @@ def test_multiple_with_statements_with_with_columns():
     assert parser.columns == ["*", "c5", "c6"]
     assert parser.columns_aliases_names == ["c1", "c2", "c3", "c4"]
     assert parser.columns_aliases == {"c1": "*", "c2": "*", "c3": "c5", "c4": "c6"}
+    assert parser.query_type == "Select"
