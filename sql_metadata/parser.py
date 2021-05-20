@@ -11,9 +11,8 @@ from sqlparse.tokens import Name, Number, Whitespace
 from sql_metadata.generalizator import Generalizator
 from sql_metadata.keywords_lists import (
     COLUMNS_SECTIONS,
-    FUNCTIONS_IGNORED,
     KEYWORDS_BEFORE_COLUMNS,
-    KEYWORDS_IGNORED,
+    RELEVANT_KEYWORDS,
     SUBQUERY_PRECEDING_KEYWORDS,
     TABLE_ADJUSTMENT_KEYWORDS,
     WITH_ENDING_KEYWORDS,
@@ -107,7 +106,7 @@ class Parser:  # pylint: disable=R0902
             elif token.is_right_parenthesis:
                 self._determine_closing_parenthesis_type(token=token)
 
-            if tok.is_keyword and tok.normalized not in KEYWORDS_IGNORED:
+            if tok.is_keyword and "".join(tok.normalized.split()) in RELEVANT_KEYWORDS:
                 last_keyword = tok.normalized
             token.is_in_nested_function = self._is_in_nested_function
             tokens.append(token)
@@ -159,8 +158,8 @@ class Parser:  # pylint: disable=R0902
                 ):
 
                     if (
-                        token.normalized not in FUNCTIONS_IGNORED
-                        and not (
+                        # token.normalized in RELEVANT_KEYWORDS
+                        not (
                             # aliases of sub-queries i.e.: select from (...) <alias>
                             token.previous_token.is_right_parenthesis
                             and token.value in subqueries_names
@@ -687,7 +686,7 @@ class Parser:  # pylint: disable=R0902
             token.is_subquery_start = True
             self._subquery_level += 1
             token.subquery_level = self._subquery_level
-        elif token.previous_token.normalized in KEYWORDS_BEFORE_COLUMNS + [","]:
+        elif token.previous_token.normalized in KEYWORDS_BEFORE_COLUMNS.union({","}):
             # we are in columns and in a column subquery definition
             token.is_column_definition_start = True
         elif token.previous_token.normalized == "AS":

@@ -6,7 +6,7 @@ from typing import Dict, List, Union
 import sqlparse.sql
 from sqlparse.tokens import Comment, Name, Number, Punctuation, Wildcard
 
-from sql_metadata.keywords_lists import FUNCTIONS_IGNORED
+from sql_metadata.keywords_lists import RELEVANT_KEYWORDS
 
 
 class SQLToken:  # pylint: disable=R0902
@@ -109,7 +109,8 @@ class SQLToken:  # pylint: disable=R0902
                 or self.previous_token.normalized in ["(", "."]
                 or (
                     self.is_left_parenthesis
-                    and self.previous_token.normalized in FUNCTIONS_IGNORED
+                    and self.previous_token.normalized
+                    not in RELEVANT_KEYWORDS.union({"*", ",", "IN", "NOTIN"})
                 )
             ):
                 return str(self)
