@@ -55,6 +55,7 @@ class Parser:  # pylint: disable=R0902
 
         self._subquery_level = 0
         self._nested_level = 0
+        self._parenthesis_level = 0
         self._open_parentheses = []
         self._aliases_to_check = None
         self._is_in_nested_function = False
@@ -129,6 +130,7 @@ class Parser:  # pylint: disable=R0902
             if tok.is_keyword and "".join(tok.normalized.split()) in RELEVANT_KEYWORDS:
                 last_keyword = tok.normalized
             token.is_in_nested_function = self._is_in_nested_function
+            token.parenthesis_level = self._parenthesis_level
             tokens.append(token)
 
         self._tokens = tokens
@@ -150,8 +152,12 @@ class Parser:  # pylint: disable=R0902
             # handle CREATE TABLE queries (#35)
             if token.is_name and self.query_type == "Create":
                 # previous token is either ( or , -> indicates the column name
-                if token.is_in_parenthesis and token.previous_token.is_punctuation:
-                    columns.append(str(token))
+                if (
+                    token.is_in_parenthesis
+                    and token.previous_token.is_punctuation
+                    and token.last_keyword_normalized == "TABLE"
+                ):
+                    columns.append(token.value)
                     continue
 
                 # we're in CREATE TABLE query with the columns
@@ -164,7 +170,9 @@ class Parser:  # pylint: disable=R0902
                 ):
                     continue
 
-            if token.is_name and not token.next_token.is_dot:
+            if (
+                token.is_name and not token.next_token.is_dot
+            ) or token.is_keyword_column_name:
                 # analyze the name tokens, column names and where condition values
                 if (
                     token.last_keyword_normalized in KEYWORDS_BEFORE_COLUMNS
@@ -718,6 +726,7 @@ class Parser:  # pylint: disable=R0902
             self._nested_level += 1
             self._is_in_nested_function = True
         self._open_parentheses.append(token)
+        self._parenthesis_level += 1
 
     def _determine_closing_parenthesis_type(self, token: SQLToken):
         """
@@ -736,6 +745,7 @@ class Parser:  # pylint: disable=R0902
             self._nested_level -= 1
             if self._nested_level == 0:
                 self._is_in_nested_function = False
+        self._parenthesis_level -= 1
 
     def _find_column_for_with_column_alias(self, token: SQLToken) -> str:
         start_token = token.find_nearest_token(

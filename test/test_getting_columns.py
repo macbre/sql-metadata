@@ -274,6 +274,25 @@ def test_columns_starting_with_keywords():
     ]
 
 
+def test_columns_as_unquoted_keywords():
+    query = """
+    SELECT schema_name, full_table_name, column_name, catalog_name, 
+    table_name, column_length, column_weight, annotation 
+    FROM corporate.all_tables
+    """
+    parser = Parser(query)
+    assert parser.columns == [
+        "schema_name",
+        "full_table_name",
+        "column_name",
+        "catalog_name",
+        "table_name",
+        "column_length",
+        "column_weight",
+        "annotation",
+    ]
+
+
 def test_columns_with_keywords_parts():
     query = """
     SELECT column_length, column_weight, table_random, drop_20, create_table
@@ -328,6 +347,35 @@ def test_columns_with_complex_aliases_same_as_columns():
         "spend",
         "reportday",
     ]
+
+
+def test_columns_aliases_as_unqoted_keywords():
+    query = """
+    select
+    product_search_term as type, 
+    sum(clicks) as clicks, 
+    sum(seventotalunits) as schema_name, 
+    sum(sevenadvertisedskuunits) as advertisedskuunits
+    from amazon_pl.search_term_report_impala 
+    """
+    parser = Parser(query)
+    assert parser.columns == [
+        "product_search_term",
+        "clicks",
+        "seventotalunits",
+        "sevenadvertisedskuunits",
+    ]
+    assert parser.columns_aliases_names == [
+        "type",
+        "clicks",
+        "schema_name",
+        "advertisedskuunits",
+    ]
+    assert parser.columns_aliases == {
+        "advertisedskuunits": "sevenadvertisedskuunits",
+        "schema_name": "seventotalunits",
+        "type": "product_search_term",
+    }
 
 
 def test_columns_with_aliases_same_as_columns():

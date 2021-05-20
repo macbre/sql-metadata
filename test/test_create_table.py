@@ -33,7 +33,7 @@ CREATE TABLE `new_table` (
     assert parser.columns == ["item_id", "foo"]
 
 
-def test_create_table_as_select():
+def test_simple_create_table_as_select():
     parser = Parser(
         """
 create table abc.foo
@@ -44,3 +44,23 @@ create table abc.foo
 
     assert parser.tables == ["abc.foo", "foo", "bar"]
     assert parser.columns == ["foo.foo1", "bar.foo2"]
+
+
+def test_create_table_as_select_with_joins():
+    qry = """
+        create table xyz as 
+        select *
+        from table_a
+        join table_b on (table_a.name = table_b.name)
+        left join table_c on (table_a.age = table_c.age)
+        order by table_a.name, table_a.age
+        """
+    parser = Parser(qry)
+    assert parser.columns == [
+        "*",
+        "table_a.name",
+        "table_b.name",
+        "table_a.age",
+        "table_c.age",
+    ]
+    assert parser.tables == ["xyz", "table_a", "table_b", "table_c"]

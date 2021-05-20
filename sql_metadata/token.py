@@ -66,6 +66,7 @@ class SQLToken:  # pylint: disable=R0902
 
     def _set_default_parenthesis_status(self):
         self.is_in_nested_function = False
+        self.parenthesis_level = 0
         self.is_subquery_start = False
         self.is_subquery_end = False
         self.is_with_query_start = False
@@ -145,9 +146,19 @@ class SQLToken:  # pylint: disable=R0902
         """
         Property checks if token is surrounded with brackets ()
         """
-        left_parenthesis = self.find_nearest_token("(")
-        right_parenthesis = self.find_nearest_token(")", direction="right")
-        return left_parenthesis.value != "" and right_parenthesis.value != ""
+        return self.parenthesis_level > 0
+
+    @property
+    def is_keyword_column_name(self) -> bool:
+        """
+        Checks if given keyword can be a column name in select query
+        """
+        return (
+            self.is_keyword
+            and self.normalized not in RELEVANT_KEYWORDS
+            and self.previous_token.normalized in [",", "SELECT"]
+            and self.next_token.normalized in [",", "AS"]
+        )
 
     @property
     def is_alias_without_as(self) -> bool:
