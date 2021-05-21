@@ -107,7 +107,9 @@ class Parser:  # pylint: disable=R0902
         self.sqlparse_tokens = parsed[0].tokens
         sqlparse_tokens = self._flatten_sqlparse()
         non_empty_tokens = [
-            token for token in sqlparse_tokens if token.ttype is not Whitespace
+            token
+            for token in sqlparse_tokens
+            if token.ttype is not Whitespace and token.ttype.parent is not Whitespace
         ]
         last_keyword = None
         for index, tok in enumerate(non_empty_tokens):
@@ -787,13 +789,11 @@ class Parser:  # pylint: disable=R0902
         if self._raw_query == "":
             return ""
 
-        # 0. remove newlines
-        query = self._raw_query.replace("\n", " ")
-        # 1. remove quotes "
-        query = query.replace('"', "`")
-
-        # 2. `database`.`table` notation -> database.table
-        query = re.sub(r"`([^`]+)`\.`([^`]+)`", r"\1.\2", query)
+        # unify quoting in queries, replace double quotes to backticks
+        # it's best to keep the quotes as they can have keywords
+        # or digits at the beginning so we only stip them in SQLToken
+        query = re.sub(r'"([^`]+?)"', r"`\1`", self._raw_query)
+        query = re.sub(r'"([^`]+?)"\."([^`]+?)"', r"`\1`.`\2`", query)
 
         return query
 

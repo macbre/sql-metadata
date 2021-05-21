@@ -15,7 +15,8 @@ def test_get_query_tokens():
 
 def test_preprocessing():
     # normalize database selector
-    assert Parser("SELECT foo FROM `db`.`test`").query == "SELECT foo FROM db.test"
+    assert Parser("SELECT foo FROM `db`.`test`").query == "SELECT foo FROM `db`.`test`"
+    assert Parser('SELECT foo FROM "db"."test"').query == "SELECT foo FROM `db`.`test`"
 
     assert (
         Parser(
@@ -24,16 +25,10 @@ def test_preprocessing():
         == "SELECT r1.wiki_id AS id FROM report_wiki_recent_pageviews AS r1 INNER JOIN dimension_wikis AS d ON r.wiki_id = d.wiki_id"
     )
 
-    # normalize newlines
-    assert (
-        Parser("SELECT foo,\nid\nFROM `db`.`test`").query
-        == "SELECT foo, id FROM db.test"
-    )
-
     # comments are kept
     assert (
         Parser("SELECT /*my random comment*/ foo, id FROM `db`.`test`").query
-        == "SELECT /*my random comment*/ foo, id FROM db.test"
+        == "SELECT /*my random comment*/ foo, id FROM `db`.`test`"
     )
 
 
