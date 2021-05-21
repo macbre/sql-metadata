@@ -31,6 +31,26 @@ def test_preprocessing():
         == "SELECT /*my random comment*/ foo, id FROM `db`.`test`"
     )
 
+    # check " in strings are kept
+    assert (
+        Parser("SELECT * from aa where name = 'test name with \" in string'").query
+        == "SELECT * from aa where name = 'test name with \" in string'"
+    )
+    assert (
+        Parser("SELECT * from aa where name = 'test name with \"aa\" in string'").query
+        == "SELECT * from aa where name = 'test name with \"aa\" in string'"
+    )
+    assert (
+        Parser("SELECT * from aa where name = 'test name with \"aa\" in string'").query
+        == "SELECT * from aa where name = 'test name with \"aa\" in string'"
+    )
+    assert (
+        Parser(
+            "SELECT * from aa where name = 'test name with \"aa\" in string' and aa =' as \"aa.oo\" '"
+        ).query
+        == "SELECT * from aa where name = 'test name with \"aa\" in string' and aa =' as \"aa.oo\" '"
+    )
+
 
 def test_case_insensitive():
     # case-insensitive handling
