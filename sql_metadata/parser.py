@@ -12,6 +12,7 @@ from sql_metadata.generalizator import Generalizator
 from sql_metadata.keywords_lists import (
     COLUMNS_SECTIONS,
     KEYWORDS_BEFORE_COLUMNS,
+    QueryType,
     RELEVANT_KEYWORDS,
     SUBQUERY_PRECEDING_KEYWORDS,
     SUPPORTED_QUERY_TYPES,
@@ -70,7 +71,7 @@ class Parser:  # pylint: disable=R0902
         """
         Returns preprocessed query
         """
-        return self._query
+        return self._query.replace("\n", " ").replace("  ", " ")
 
     @property
     def query_type(self) -> str:
@@ -98,7 +99,7 @@ class Parser:  # pylint: disable=R0902
         if self._tokens is not None:
             return self._tokens
 
-        parsed = sqlparse.parse(self.query)
+        parsed = sqlparse.parse(self._query)
         tokens = []
         # handle empty queries (#12)
         if not parsed:
@@ -120,7 +121,7 @@ class Parser:  # pylint: disable=R0902
                 last_keyword=last_keyword,
             )
             if index > 0:
-                # create links between consecutive tokens
+                # CREATE links between consecutive tokens
                 token.previous_token = tokens[index - 1]
                 tokens[index - 1].next_token = token
 
@@ -152,7 +153,7 @@ class Parser:  # pylint: disable=R0902
 
         for token in self.tokens:
             # handle CREATE TABLE queries (#35)
-            if token.is_name and self.query_type == "Create":
+            if token.is_name and self.query_type == QueryType.CREATE:
                 # previous token is either ( or , -> indicates the column name
                 if (
                     token.is_in_parenthesis
@@ -191,7 +192,7 @@ class Parser:  # pylint: disable=R0902
                     if (
                         # token.normalized in RELEVANT_KEYWORDS
                         not (
-                            # aliases of sub-queries i.e.: select from (...) <alias>
+                            # aliases of sub-queries i.e.: SELECT from (...) <alias>
                             token.previous_token.is_right_parenthesis
                             and token.value in subqueries_names
                         )
@@ -248,7 +249,7 @@ class Parser:  # pylint: disable=R0902
         Returns dictionary of column names divided into section of the query in which
         given column is present.
 
-        Sections consist of: select, where, order_by, join, insert and update
+        Sections consist of: SELECT, where, order_by, join, INSERT and UPDATE
         """
         if not self._columns_dict:
             _ = self.columns
@@ -292,7 +293,7 @@ class Parser:  # pylint: disable=R0902
                 else:
                     token_check = token.previous_token
                 if token_check.is_column_definition_end:
-                    # nested subquery like select a, (select a as b from x) as column
+                    # nested subquery like SELECT a, (SELECT a as b from x) as column
                     start_token = token.find_nearest_token(
                         True, value_attribute="is_column_definition_start"
                     )
@@ -338,7 +339,7 @@ class Parser:  # pylint: disable=R0902
         Returns dictionary of column names divided into section of the query in which
         given column is present.
 
-        Sections consist of: select, where, order_by, join, insert and update
+        Sections consist of: SELECT, where, order_by, join, INSERT and UPDATE
         """
         if self._columns_aliases_dict:
             return self._columns_aliases_dict
@@ -400,7 +401,7 @@ class Parser:  # pylint: disable=R0902
             ):
                 # handle CREATE TABLE queries (#35)
                 # skip keyword that are withing parenthesis-wrapped list of column
-                if self.query_type == "Create" and token.is_in_parenthesis:
+                if self.query_type == QueryType.CREATE and token.is_in_parenthesis:
                     continue
 
                 if token.next_token.is_dot:
@@ -524,7 +525,7 @@ class Parser:  # pylint: disable=R0902
                         else:
                             with_names.append(token.left_expanded)
                         # move to next with if exists, this with ends with
-                        #  ) + , if many withs or ) + select if one
+                        #  ) + , if many withs or ) + SELECT if one
                         # need to move to next as AS can be in
                         # sub-queries inside with definition
                         while token.next_token and not (
@@ -602,7 +603,7 @@ class Parser:  # pylint: disable=R0902
     @property
     def values(self) -> List:
         """
-        Returns list of values from insert queries
+        Returns list of values from INSERT queries
         """
         if self._values:
             return self._values
@@ -651,7 +652,7 @@ class Parser:  # pylint: disable=R0902
         """
         Removes comments from SQL query
         """
-        return Generalizator(self._raw_query).without_comments
+        return Generalizator(self.query).without_comments
 
     @property
     def generalize(self) -> str:
@@ -790,8 +791,8 @@ class Parser:  # pylint: disable=R0902
             return ""
 
         # python re does not have variable length look back/forward
-        # so we need to replace all the " (double quote) for a
-        # temporary placeholder as we DO NOT want to replace those
+        # so we need to REPLACE all the " (double quote) for a
+        # temporary placeholder as we DO NOT want to REPLACE those
         # in the strings as this is something that user provided
         def replace_quotes_in_string(match):
             return re.sub('"', "<!!__QUOTE__!!>", match.group())
@@ -799,7 +800,7 @@ class Parser:  # pylint: disable=R0902
         def replace_back_quotes_in_string(match):
             return re.sub("<!!__QUOTE__!!>", '"', match.group())
 
-        # unify quoting in queries, replace double quotes to backticks
+        # unify quoting in queries, REPLACE double quotes to backticks
         # it's best to keep the quotes as they can have keywords
         # or digits at the beginning so we only stip them in SQLToken
         query = re.sub(r"'.*?'", replace_quotes_in_string, self._raw_query)

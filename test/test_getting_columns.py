@@ -1,3 +1,4 @@
+from sql_metadata.keywords_lists import QueryType
 from sql_metadata.parser import Parser
 
 
@@ -5,11 +6,11 @@ def test_cast_and_convert_functions():
     # https://dev.mysql.com/doc/refman/8.0/en/cast-functions.html
     parser = Parser("SELECT count(c) as test, id FROM foo where cast(d as bigint) > e")
     assert parser.columns == ["c", "id", "d", "e"]
-    assert parser.columns_dict == {"select": ["c", "id"], "where": ["d", "e"]}
+    assert parser.columns_dict == {"SELECT": ["c", "id"], "where": ["d", "e"]}
 
     parser = Parser("SELECT CONVERT(latin1_column USING utf8) FROM latin1_table;")
     assert parser.columns == ["latin1_column"]
-    assert parser.columns_dict == {"select": ["latin1_column"]}
+    assert parser.columns_dict == {"SELECT": ["latin1_column"]}
 
 
 def test_queries_with_null_conditions():
@@ -18,7 +19,7 @@ def test_queries_with_null_conditions():
     )
     assert parser.columns == ["id", "cm.status", "cm.OPERATIONDATE", "cm.OID"]
     assert parser.columns_dict == {
-        "select": ["id"],
+        "SELECT": ["id"],
         "where": ["cm.status", "cm.OPERATIONDATE", "cm.OID"],
     }
 
@@ -27,7 +28,7 @@ def test_queries_with_null_conditions():
     )
     assert parser.columns == ["id", "cm.status", "cm.OPERATIONDATE", "cm.OID"]
     assert parser.columns_dict == {
-        "select": ["id"],
+        "SELECT": ["id"],
         "where": ["cm.status", "cm.OPERATIONDATE", "cm.OID"],
     }
 
@@ -95,21 +96,21 @@ def test_update_and_replace():
     )
     assert parser.columns == ["page_touched", "other_column", "page_id"]
     assert parser.columns_dict == {
-        "update": ["page_touched", "other_column"],
+        "UPDATE": ["page_touched", "other_column"],
         "where": ["page_id"],
     }
 
     parser = Parser("UPDATE `page` SET page_touched = 'value' WHERE page_id = 'test'")
     assert parser.columns == ["page_touched", "page_id"]
-    assert parser.columns_dict == {"update": ["page_touched"], "where": ["page_id"]}
+    assert parser.columns_dict == {"UPDATE": ["page_touched"], "where": ["page_id"]}
 
     # REPLACE queries
     parser = Parser(
         "REPLACE INTO `page_props` (pp_page,pp_propname,pp_value) VALUES ('47','infoboxes','')"
     )
-    assert parser.query_type == "Replace"
+    assert parser.query_type == QueryType.REPLACE
     assert parser.columns == ["pp_page", "pp_propname", "pp_value"]
-    assert parser.columns_dict == {"insert": ["pp_page", "pp_propname", "pp_value"]}
+    assert parser.columns_dict == {"INSERT": ["pp_page", "pp_propname", "pp_value"]}
 
 
 def test_complex_queries_columns():
@@ -139,14 +140,14 @@ def test_complex_queries_columns():
     ]
     assert parser.columns_aliases_dict == {
         "order_by": ["pageviews"],
-        "select": ["id", "pageviews"],
+        "SELECT": ["id", "pageviews"],
     }
     assert parser.columns_aliases == {
         "id": "report_wiki_recent_pageviews.wiki_id",
         "pageviews": "pageviews_7day",
     }
     assert parser.columns_dict == {
-        "select": ["report_wiki_recent_pageviews.wiki_id", "pageviews_7day"],
+        "SELECT": ["report_wiki_recent_pageviews.wiki_id", "pageviews_7day"],
         "join": ["report_wiki_recent_pageviews.wiki_id", "dimension_wikis.wiki_id"],
         "where": [
             "dimension_wikis.is_public",
@@ -181,7 +182,7 @@ def test_complex_queries_columns():
         "fact_wam_scores.vertical_id",
     ]
     assert parser.columns_dict == {
-        "select": ["fact_wam_scores.wiki_id"],
+        "SELECT": ["fact_wam_scores.wiki_id"],
         "join": [
             "fact_wam_scores.wiki_id",
             "fact_wam_scores.time_id",
@@ -201,16 +202,16 @@ def test_columns_with_comments():
     parser = Parser(
         "INSERT /* VoteHelper::addVote xxx */  INTO `page_vote` (article_id,user_id,`time`) VALUES ('442001','27574631','20180228130846')"
     )
-    assert parser.query_type == "Insert"
+    assert parser.query_type == QueryType.INSERT
     assert parser.columns == ["article_id", "user_id", "time"]
 
     # REPLACE queries
     parser = Parser(
         "REPLACE INTO `page_props` (pp_page,pp_propname,pp_value) VALUES ('47','infoboxes','')"
     )
-    assert parser.query_type == "Replace"
+    assert parser.query_type == QueryType.REPLACE
     assert parser.columns == ["pp_page", "pp_propname", "pp_value"]
-    assert parser.columns_dict == {"insert": ["pp_page", "pp_propname", "pp_value"]}
+    assert parser.columns_dict == {"INSERT": ["pp_page", "pp_propname", "pp_value"]}
 
     assert Parser(
         "SELECT /* CategoryPaginationViewer::processSection */  "
@@ -219,7 +220,7 @@ def test_columns_with_comments():
         "WHERE cl_type = 'page' AND cl_to = 'Spotify/Song'  "
         "ORDER BY cl_sortkey LIMIT 927600,200"
     ).columns_dict == {
-        "select": [
+        "SELECT": [
             "page_namespace",
             "page_title",
             "page_len",
@@ -244,14 +245,14 @@ def test_columns_and_sql_functions():
     """
     See https://github.com/macbre/sql-metadata/issues/125
     """
-    assert Parser("select max(col3)+avg(col)+1+sum(col2) from dual").columns == [
+    assert Parser("SELECT max(col3)+avg(col)+1+sum(col2) from dual").columns == [
         "col3",
         "col",
         "col2",
     ]
-    assert Parser("select avg(col)+sum(col2) from dual").columns == ["col", "col2"]
+    assert Parser("SELECT avg(col)+sum(col2) from dual").columns == ["col", "col2"]
     assert Parser(
-        "select count(col)+max(col2)+ min(col3)+ count(distinct  col4) + custom_func(col5) from dual"
+        "SELECT count(col)+max(col2)+ min(col3)+ count(distinct  col4) + custom_func(col5) from dual"
     ).columns == ["col", "col2", "col3", "col4", "col5"]
 
 
@@ -309,7 +310,7 @@ def test_columns_with_keywords_parts():
 
 def test_columns_with_complex_aliases_same_as_columns():
     query = """
-    select targetingtype, sellerid, sguid, 'd01' as datetype, adgroupname, targeting, 
+    SELECT targetingtype, sellerid, sguid, 'd01' as datetype, adgroupname, targeting, 
     customersearchterm, 
     'product_search_term' as `type`, 
     sum(impressions) as impr, 
@@ -351,7 +352,7 @@ def test_columns_with_complex_aliases_same_as_columns():
 
 def test_columns_aliases_as_unqoted_keywords():
     query = """
-    select
+    SELECT
     product_search_term as type, 
     sum(clicks) as clicks, 
     sum(seventotalunits) as schema_name, 
@@ -380,7 +381,7 @@ def test_columns_aliases_as_unqoted_keywords():
 
 def test_columns_with_aliases_same_as_columns():
     query = """
-    select 
+    SELECT 
     round(sum(impressions),1) as impressions, 
     sum(clicks) as clicks
     from amazon_pl.search_term_report_impala 
@@ -390,7 +391,7 @@ def test_columns_with_aliases_same_as_columns():
     assert parser.columns_aliases == {}
 
     query = """
-    select
+    SELECT
     if(sum(clicks) > 0, round(sum(seventotalunits)/sum(clicks), 4), 0) as clicks, 
     if(sum(clicks) > 0, round(sum(spend)/sum(clicks), 2), 0) as cpc 
     from amazon_pl.search_term_report_impala 

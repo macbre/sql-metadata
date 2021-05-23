@@ -5,10 +5,10 @@ def test_column_aliases_with_subquery():
     query = """
     SELECT yearweek(SignDate) as                         Aggregation,
        BusinessSource,
-       (select sum(C2Count)
-        from (select count(C2) as C2Count, BusinessSource, yearweek(Start1) Start1, yearweek(End1) End1
+       (SELECT sum(C2Count)
+        from (SELECT count(C2) as C2Count, BusinessSource, yearweek(Start1) Start1, yearweek(End1) End1
               from (
-                       select ContractID as C2, BusinessSource, StartDate as Start1, EndDate as End1
+                       SELECT ContractID as C2, BusinessSource, StartDate as Start1, EndDate as End1
                        from data_contracts_report
                    ) sq2
               group by 2, 3, 4) sq
@@ -24,11 +24,11 @@ order by 1, 2;
     assert parser.tables == ["data_contracts_report"]
     assert parser.subqueries_names == ["sq2", "sq"]
     assert parser.subqueries == {
-        "sq": "select count(C2) as C2Count, BusinessSource, yearweek(Start1) Start1, "
-        "yearweek(End1) End1 from (select ContractID as C2, BusinessSource, "
+        "sq": "SELECT count(C2) as C2Count, BusinessSource, yearweek(Start1) Start1, "
+        "yearweek(End1) End1 from (SELECT ContractID as C2, BusinessSource, "
         "StartDate as Start1, EndDate as End1 from data_contracts_report) sq2 "
         "group by 2, 3, 4",
-        "sq2": "select ContractID as C2, BusinessSource, StartDate as Start1, EndDate "
+        "sq2": "SELECT ContractID as C2, BusinessSource, StartDate as Start1, EndDate "
         "as End1 from data_contracts_report",
     }
     assert parser.columns == [
@@ -91,17 +91,17 @@ def test_column_aliases_with_redundant_brackets():
     assert parser.columns_aliases == {"alias1": ["b", "c", "u"], "alias2": "d"}
     assert parser.columns_aliases_dict == {
         "order_by": ["alias1"],
-        "select": ["alias1", "alias2"],
+        "SELECT": ["alias1", "alias2"],
     }
     assert parser.columns_dict == {
         "order_by": ["b", "c", "u"],
-        "select": ["a", "b", "c", "u", "d"],
+        "SELECT": ["a", "b", "c", "u", "d"],
     }
 
 
 def test_mutiple_functions():
     parser = Parser(
-        "select count(col) + max(col2) + min(col3)"
+        "SELECT count(col) + max(col2) + min(col3)"
         "+ count(distinct  col4) + custom_func(col5) as result from dual"
     )
     assert parser.columns == ["col", "col2", "col3", "col4", "col5"]

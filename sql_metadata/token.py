@@ -151,7 +151,7 @@ class SQLToken:  # pylint: disable=R0902
     @property
     def is_keyword_column_name(self) -> bool:
         """
-        Checks if given keyword can be a column name in select query
+        Checks if given keyword can be a column name in SELECT query
         """
         return (
             self.is_keyword
@@ -164,7 +164,7 @@ class SQLToken:  # pylint: disable=R0902
     def is_alias_without_as(self) -> bool:
         """
         Checks if a given token is an alias without as keyword,
-        like: select col <alias1>, col2 <alias2> from table
+        like: SELECT col <alias1>, col2 <alias2> from table
         """
         return (
             self.next_token.normalized in [",", "FROM"]

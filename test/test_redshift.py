@@ -1,4 +1,5 @@
-from sql_metadata.parser import Parser
+from sql_metadata import Parser
+from sql_metadata import QueryType
 
 
 def test_redshift():
@@ -7,5 +8,5 @@ def test_redshift():
         "target_table",
         "source_table",
     ]
-    assert parser.query_type == "Alter"
+    assert parser.query_type == QueryType.ALTER
     assert Parser("ALTER TABLE x APPEND FROM y").tables == ["x", "y"]

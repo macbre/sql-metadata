@@ -56,19 +56,19 @@ def test_case_insensitive():
     # case-insensitive handling
     # https://github.com/macbre/sql-metadata/issues/71
     assert ["abc.foo", "foo", "bar"] == Parser(
-        "create table abc.foo as SELECT pqr.foo1 , ab.foo2 FROM foo pqr, bar ab"
+        "CREATE table abc.foo as SELECT pqr.foo1 , ab.foo2 FROM foo pqr, bar ab"
     ).tables
 
     assert ["abc.foo", "foo", "bar"] == Parser(
-        "create table abc.foo as select pqr.foo1 , ab.foo2 FROM foo pqr, bar ab"
+        "CREATE table abc.foo as SELECT pqr.foo1 , ab.foo2 FROM foo pqr, bar ab"
     ).tables
 
     assert ["foo.foo1", "bar.foo2"] == Parser(
-        "create table abc.foo as SELECT pqr.foo1 , ab.foo2 FROM foo pqr, bar ab"
+        "CREATE table abc.foo as SELECT pqr.foo1 , ab.foo2 FROM foo pqr, bar ab"
     ).columns
 
     assert ["foo.foo1", "bar.foo2"] == Parser(
-        "create table abc.foo as select pqr.foo1 , ab.foo2 FROM foo pqr, bar ab"
+        "CREATE table abc.foo as SELECT pqr.foo1 , ab.foo2 FROM foo pqr, bar ab"
     ).columns
 
 
@@ -91,7 +91,7 @@ def test_handle_force_index():
         "cl_to",
     ]
     assert parser.columns_dict == {
-        "select": ["page_title", "page_namespace"],
+        "SELECT": ["page_title", "page_namespace"],
         "join": ["page_id", "cl_from"],
         "where": ["page_is_redirect", "page_random", "cl_to"],
         "order_by": ["page_random"],
@@ -111,14 +111,14 @@ def test_insert_into_select():
     query = "INSERT INTO foo SELECT id, price FROM bar WHERE qty > 200"
     assert Parser(query).tables == ["foo", "bar"]
     assert Parser(query).columns == ["id", "price", "qty"]
-    assert Parser(query).columns_dict == {"select": ["id", "price"], "where": ["qty"]}
+    assert Parser(query).columns_dict == {"SELECT": ["id", "price"], "where": ["qty"]}
 
 
 def test_case_syntax():
     # https://dev.mysql.com/doc/refman/8.0/en/case.html
     assert Parser(
-        "select case when p > 0 then 1 else 0 end as cs from c where g > f"
+        "SELECT case when p > 0 then 1 else 0 end as cs from c where g > f"
     ).columns == ["p", "g", "f"]
     assert Parser(
-        "select case when p > 0 then 1 else 0 end as cs from c where g > f"
+        "SELECT case when p > 0 then 1 else 0 end as cs from c where g > f"
     ).tables == ["c"]

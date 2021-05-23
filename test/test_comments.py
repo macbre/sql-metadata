@@ -28,11 +28,16 @@ def test_getting_comments():
         "WHERE cl_type = 'page' AND cl_to = 'Spotify/Song' "
         "ORDER BY cl_sortkey LIMIT 927600,200"
     )
+    # no comments and new lines
+    assert (
+        "SELECT test FROM `foo`.`bar`"
+        == Parser("SELECT /* foo */ test\nFROM `foo`.`bar`").without_comments
+    )
 
 
 def test_inline_comments():
     query = """
-    select *
+    SELECT *
     from foo -- this comment should not be hiding rest of the query
     join bar on foo.a=bar.b
     where foo.c = 'am'
@@ -45,7 +50,7 @@ def test_inline_comments():
     ]
 
     query = """
-    select * --multiple
+    SELECT * --multiple
     from foo -- comments
     left outer join bar on foo.a=bar.b --works too
     where foo.c = 'am'
@@ -58,7 +63,7 @@ def test_inline_comments():
 
 def test_inline_comments_with_hash():
     query = """
-        select * # multiple
+        SELECT * # multiple
         from foo # comments
         left outer join bar on foo.a=bar.b # works too
         where foo.c = 'am'
@@ -120,7 +125,7 @@ def test_inline_comments_with_hash():
             "RESERVATION.CA4_ID",
             "RESERVATION.DECLARATION_ID",
         ],
-        "select": [
+        "SELECT": [
             "ACCOUNTING_ENTITY.VERSION",
             "ACCOUNTING_ENTITY.ACTIVE",
             "ACCOUNTING_ENTITY.CATEGORY",

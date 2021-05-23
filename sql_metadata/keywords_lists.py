@@ -4,6 +4,8 @@ checks for tables an columns
 """
 
 # these keywords are followed by columns reference
+from enum import Enum
+
 KEYWORDS_BEFORE_COLUMNS = {"SELECT", "WHERE", "ORDERBY", "GROUPBY", "ON", "SET"}
 
 # normalized list of table preceding keywords
@@ -41,23 +43,38 @@ SUBQUERY_PRECEDING_KEYWORDS = {
 # section of a query in which column can exists
 # based on last normalized keyword
 COLUMNS_SECTIONS = {
-    "SELECT": "select",
+    "SELECT": "SELECT",
     "WHERE": "where",
     "ORDERBY": "order_by",
     "ON": "join",
-    "INTO": "insert",
-    "SET": "update",
+    "INTO": "INSERT",
+    "SET": "UPDATE",
     "GROUPBY": "group_by",
 }
 
+
+class QueryType(str, Enum):
+    """
+    Types of supported queries
+    """
+
+    INSERT = "INSERT"
+    REPLACE = "REPLACE"
+    UPDATE = "UPDATE"
+    SELECT = "SELECT"
+    CREATE = "CREATE TABLE"
+    ALTER = "ALTER TABLE"
+
+
+# cannot fully replace with enum as with/select has the same key
 SUPPORTED_QUERY_TYPES = {
-    "INSERT": "Insert",
-    "REPLACE": "Replace",
-    "UPDATE": "Update",
-    "SELECT": "Select",
-    "WITH": "Select",
-    "CREATETABLE": "Create",
-    "ALTERTABLE": "Alter",
+    "INSERT": QueryType.INSERT,
+    "REPLACE": QueryType.REPLACE,
+    "UPDATE": QueryType.UPDATE,
+    "SELECT": QueryType.SELECT,
+    "WITH": QueryType.SELECT,
+    "CREATETABLE": QueryType.CREATE,
+    "ALTERTABLE": QueryType.ALTER,
 }
 
 # all the keywords we care for - rest is ignored in assigning

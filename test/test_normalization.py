@@ -49,9 +49,9 @@ def test_generalization_of_sql():
 
     assert (
         Parser(
-            "delete /* DatabaseBase::sourceFile( /usr/wikia/slot1/3690/src/maintenance/cleanupStarter.sql ) CreateWiki scri... */ from text where old_id not in (select rev_text_id from revision)"
+            "delete /* DatabaseBase::sourceFile( /usr/wikia/slot1/3690/src/maintenance/cleanupStarter.sql ) CreateWiki scri... */ from text where old_id not in (SELECT rev_text_id from revision)"
         ).generalize
-        == "delete from text where old_id not in (select rev_text_id from revision)"
+        == "delete from text where old_id not in (SELECT rev_text_id from revision)"
     )
 
     assert (
@@ -110,9 +110,9 @@ def test_generalization_of_sql():
 
     assert (
         Parser(
-            "select curation_cms.topics.slug from curation_cms.topics where curation_cms.topics.id in (   87, 86, 79, 77, 76, 73, 72, 70, 71, 69, 68, 66, 65, 64, 62, 63, 2, 57, 17, 1,    22, 49, 30, 55, 15, 3, 48, 43, 24, 47, 45, 10, 50, 39, 36, 8, 34, 25, 13, 6, 4 )"
+            "SELECT curation_cms.topics.slug from curation_cms.topics where curation_cms.topics.id in (   87, 86, 79, 77, 76, 73, 72, 70, 71, 69, 68, 66, 65, 64, 62, 63, 2, 57, 17, 1,    22, 49, 30, 55, 15, 3, 48, 43, 24, 47, 45, 10, 50, 39, 36, 8, 34, 25, 13, 6, 4 )"
         ).generalize
-        == "select curation_cms.topics.slug from curation_cms.topics where curation_cms.topics.id in (XYZ)"
+        == "SELECT curation_cms.topics.slug from curation_cms.topics where curation_cms.topics.id in (XYZ)"
     )
 
 
@@ -134,7 +134,7 @@ def test_generalize_insert():
 
     assert (
         Parser(
-            "/* 7e6384e5 */ insert into notification_stats.request_info (   type,    request_id,    title,    message,    details ) values (   'action-notification',    '51f8a962-bae0-4d25-9341-130658161541',    'RickSanchez15 replied to What''s your overall favourite Season of South Park?.',    'Cool',    'null' )"
+            "/* 7e6384e5 */ INSERT into notification_stats.request_info (   type,    request_id,    title,    message,    details ) values (   'action-notification',    '51f8a962-bae0-4d25-9341-130658161541',    'RickSanchez15 replied to What''s your overall favourite Season of South Park?.',    'Cool',    'null' )"
         ).generalize
-        == "insert into notification_stats.request_info ( type, request_id, title, message, details ) values (XYZ)"
+        == "INSERT into notification_stats.request_info ( type, request_id, title, message, details ) values (XYZ)"
     )

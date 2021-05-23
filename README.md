@@ -50,9 +50,9 @@ parser.columns
 # ['product_a.*', 'product_a.users.ip_address', 'product_b.users.ip_address']
 
 # note that you can also extract columns with their place in the query
-# which will return dict with lists divided into select, where, order_by, join, insert and update
+# which will return dict with lists divided into SELECT, where, order_by, join, INSERT and UPDATE
 parser.columns_dict
-# {'select': ['product_a.users.*'], 'join': ['product_a.users.ip_address', 'product_b.users.ip_address']}
+# {'SELECT': ['product_a.users.*'], 'join': ['product_a.users.ip_address', 'product_b.users.ip_address']}
 ```
 
 ### Extracting columns aliases from query
@@ -75,12 +75,12 @@ parser.columns_aliases
 
 # you can also extract aliases used by section of the query in which they are used
 parser.columns_aliases_dict
-# {"order_by": ["alias1"], "select": ["alias1", "alias2"]}
+# {"order_by": ["alias1"], "SELECT": ["alias1", "alias2"]}
 
 # the same applies to aliases used in queries section when you extract columns_dict
 # here only the alias is used in order by but it's resolved to actual columns
 assert parser.columns_dict == {'order_by': ['b', 'c', 'u'],
-                               'select': ['a', 'b', 'c', 'u', 'd']}
+                               'SELECT': ['a', 'b', 'c', 'u', 'd']}
 ```
 
 ### Extracting tables from query
@@ -156,7 +156,7 @@ parser = Parser(
 WITH
     database1.tableFromWith AS (SELECT aa.* FROM table3 as aa 
                                 left join table4 on aa.col1=table4.col2),
-    test as (select * from table3)
+    test as (SELECT * from table3)
 SELECT
   "xxxxx"
 FROM

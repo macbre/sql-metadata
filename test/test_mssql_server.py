@@ -28,7 +28,7 @@ def test_sql_server_cte():
             WITH x AS (
                 SELECT * FROM n
             )
-            select
+            SELECT
                 *
             FROM x
             JOIN y ON x.a = y.a
@@ -43,7 +43,7 @@ def test_sql_server_cte():
             WITH foo AS (
                 SELECT * FROM n
             )
-            update z from foo set z.q = foo.y 
+            UPDATE z from foo set z.q = foo.y 
                 """.strip()
         ).tables
         == ["n", "z"]
@@ -94,6 +94,6 @@ FROM
     ]
     assert parser.columns_dict == {
         "group_by": ["staff_id"],
-        "select": ["staff_id", "*"],
+        "SELECT": ["staff_id", "*"],
         "where": ["order_date"],
     }

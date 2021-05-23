@@ -1,19 +1,20 @@
 import pytest
 
 from sql_metadata import Parser
+from sql_metadata.keywords_lists import QueryType
 
 
 def test_is_create_table_query():
     with pytest.raises(ValueError):
         assert Parser("BEGIN").query_type
 
-    assert Parser("SELECT * FROM `foo` ()").query_type == "Select"
-    assert Parser("CREATE TABLE `foo` ()").query_type == "Create"
+    assert Parser("SELECT * FROM `foo` ()").query_type == QueryType.SELECT
+    assert Parser("CREATE TABLE `foo` ()").query_type == QueryType.CREATE
     assert (
         Parser(
-            "create table abc.foo as SELECT pqr.foo1 , ab.foo2 FROM foo pqr, bar ab"
+            "CREATE table abc.foo as SELECT pqr.foo1 , ab.foo2 FROM foo pqr, bar ab"
         ).query_type
-        == "Create"
+        == QueryType.CREATE
     )
 
 
@@ -36,7 +37,7 @@ CREATE TABLE `new_table` (
 def test_simple_create_table_as_select():
     parser = Parser(
         """
-create table abc.foo
+CREATE table abc.foo
     as SELECT pqr.foo1 , ab.foo2
     FROM foo pqr, bar ab;
     """
@@ -48,8 +49,8 @@ create table abc.foo
 
 def test_create_table_as_select_with_joins():
     qry = """
-        create table xyz as 
-        select *
+        CREATE table xyz as 
+        SELECT *
         from table_a
         join table_b on (table_a.name = table_b.name)
         left join table_c on (table_a.age = table_c.age)
