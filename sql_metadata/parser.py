@@ -76,7 +76,9 @@ class Parser:  # pylint: disable=R0902
     @property
     def query_type(self) -> str:
         """
-        Returns type of the query
+        Returns type of the query.
+        Currently supported queries are:
+        select, insert, update, replace, create table, alter table, with + select
         """
         if self._query_type:
             return self._query_type
@@ -137,6 +139,10 @@ class Parser:  # pylint: disable=R0902
             tokens.append(token)
 
         self._tokens = tokens
+        # since tokens are used in all methods required parsing (so w/o generalization)
+        # we set the query type here (and not in init) to allow for generalization
+        # but disallow any other usage for not supported queries to avoid unexpected
+        # results which are not really an error
         _ = self.query_type
         return tokens
 
