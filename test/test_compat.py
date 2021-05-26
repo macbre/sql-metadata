@@ -43,7 +43,7 @@ def test_preprocess_query():
     assert "SELECT * FROM foo WHERE id = 123" == preprocess_query(
         "SELECT * FROM foo WHERE id = 123"
     )
-    assert "SELECT /* foo */ test FROM foo.bar" == preprocess_query(
+    assert "SELECT /* foo */ test FROM `foo`.`bar`" == preprocess_query(
         "SELECT /* foo */ test\nFROM `foo`.`bar`"
     )
 

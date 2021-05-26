@@ -15,7 +15,8 @@ def test_get_query_tokens():
 
 def test_preprocessing():
     # normalize database selector
-    assert Parser("SELECT foo FROM `db`.`test`").query == "SELECT foo FROM db.test"
+    assert Parser("SELECT foo FROM `db`.`test`").query == "SELECT foo FROM `db`.`test`"
+    assert Parser('SELECT foo FROM "db"."test"').query == "SELECT foo FROM `db`.`test`"
 
     assert (
         Parser(
@@ -24,16 +25,30 @@ def test_preprocessing():
         == "SELECT r1.wiki_id AS id FROM report_wiki_recent_pageviews AS r1 INNER JOIN dimension_wikis AS d ON r.wiki_id = d.wiki_id"
     )
 
-    # normalize newlines
-    assert (
-        Parser("SELECT foo,\nid\nFROM `db`.`test`").query
-        == "SELECT foo, id FROM db.test"
-    )
-
     # comments are kept
     assert (
         Parser("SELECT /*my random comment*/ foo, id FROM `db`.`test`").query
-        == "SELECT /*my random comment*/ foo, id FROM db.test"
+        == "SELECT /*my random comment*/ foo, id FROM `db`.`test`"
+    )
+
+    # check " in strings are kept
+    assert (
+        Parser("SELECT * from aa where name = 'test name with \" in string'").query
+        == "SELECT * from aa where name = 'test name with \" in string'"
+    )
+    assert (
+        Parser("SELECT * from aa where name = 'test name with \"aa\" in string'").query
+        == "SELECT * from aa where name = 'test name with \"aa\" in string'"
+    )
+    assert (
+        Parser("SELECT * from aa where name = 'test name with \"aa\" in string'").query
+        == "SELECT * from aa where name = 'test name with \"aa\" in string'"
+    )
+    assert (
+        Parser(
+            "SELECT * from aa where name = 'test name with \"aa\" in string' and aa =' as \"aa.oo\" '"
+        ).query
+        == "SELECT * from aa where name = 'test name with \"aa\" in string' and aa =' as \"aa.oo\" '"
     )
 
 
@@ -41,19 +56,19 @@ def test_case_insensitive():
     # case-insensitive handling
     # https://github.com/macbre/sql-metadata/issues/71
     assert ["abc.foo", "foo", "bar"] == Parser(
-        "create table abc.foo as SELECT pqr.foo1 , ab.foo2 FROM foo pqr, bar ab"
+        "CREATE table abc.foo as SELECT pqr.foo1 , ab.foo2 FROM foo pqr, bar ab"
     ).tables
 
     assert ["abc.foo", "foo", "bar"] == Parser(
-        "create table abc.foo as select pqr.foo1 , ab.foo2 FROM foo pqr, bar ab"
+        "CREATE table abc.foo as SELECT pqr.foo1 , ab.foo2 FROM foo pqr, bar ab"
     ).tables
 
     assert ["foo.foo1", "bar.foo2"] == Parser(
-        "create table abc.foo as SELECT pqr.foo1 , ab.foo2 FROM foo pqr, bar ab"
+        "CREATE table abc.foo as SELECT pqr.foo1 , ab.foo2 FROM foo pqr, bar ab"
     ).columns
 
     assert ["foo.foo1", "bar.foo2"] == Parser(
-        "create table abc.foo as select pqr.foo1 , ab.foo2 FROM foo pqr, bar ab"
+        "CREATE table abc.foo as SELECT pqr.foo1 , ab.foo2 FROM foo pqr, bar ab"
     ).columns
 
 
@@ -102,8 +117,8 @@ def test_insert_into_select():
 def test_case_syntax():
     # https://dev.mysql.com/doc/refman/8.0/en/case.html
     assert Parser(
-        "select case when p > 0 then 1 else 0 end as cs from c where g > f"
+        "SELECT case when p > 0 then 1 else 0 end as cs from c where g > f"
     ).columns == ["p", "g", "f"]
     assert Parser(
-        "select case when p > 0 then 1 else 0 end as cs from c where g > f"
+        "SELECT case when p > 0 then 1 else 0 end as cs from c where g > f"
     ).tables == ["c"]

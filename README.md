@@ -50,7 +50,7 @@ parser.columns
 # ['product_a.*', 'product_a.users.ip_address', 'product_b.users.ip_address']
 
 # note that you can also extract columns with their place in the query
-# which will return dict with lists divided into select, where, order_by, join, insert and update
+# which will return dict with lists divided into select, where, order_by, group_by, join, insert and update
 parser.columns_dict
 # {'select': ['product_a.users.*'], 'join': ['product_a.users.ip_address', 'product_b.users.ip_address']}
 ```
@@ -156,7 +156,7 @@ parser = Parser(
 WITH
     database1.tableFromWith AS (SELECT aa.* FROM table3 as aa 
                                 left join table4 on aa.col1=table4.col2),
-    test as (select * from table3)
+    test as (SELECT * from table3)
 SELECT
   "xxxxx"
 FROM

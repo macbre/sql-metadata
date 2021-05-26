@@ -11,10 +11,11 @@ from sqlparse.tokens import Name, Number, Whitespace
 from sql_metadata.generalizator import Generalizator
 from sql_metadata.keywords_lists import (
     COLUMNS_SECTIONS,
-    FUNCTIONS_IGNORED,
     KEYWORDS_BEFORE_COLUMNS,
-    KEYWORDS_IGNORED,
+    QueryType,
+    RELEVANT_KEYWORDS,
     SUBQUERY_PRECEDING_KEYWORDS,
+    SUPPORTED_QUERY_TYPES,
     TABLE_ADJUSTMENT_KEYWORDS,
     WITH_ENDING_KEYWORDS,
 )
@@ -30,6 +31,7 @@ class Parser:  # pylint: disable=R0902
     def __init__(self, sql: str = "") -> None:
         self._raw_query = sql
         self._query = self._preprocess_query()
+        self._query_type = None
 
         self._tokens = None
 
@@ -54,6 +56,7 @@ class Parser:  # pylint: disable=R0902
 
         self._subquery_level = 0
         self._nested_level = 0
+        self._parenthesis_level = 0
         self._open_parentheses = []
         self._aliases_to_check = None
         self._is_in_nested_function = False
@@ -68,7 +71,27 @@ class Parser:  # pylint: disable=R0902
         """
         Returns preprocessed query
         """
-        return self._query
+        return self._query.replace("\n", " ").replace("  ", " ")
+
+    @property
+    def query_type(self) -> str:
+        """
+        Returns type of the query.
+        Currently supported queries are:
+        select, insert, update, replace, create table, alter table, with + select
+        """
+        if self._query_type:
+            return self._query_type
+        if not self._tokens:
+            _ = self.tokens
+        if self._tokens[0].normalized in ["CREATE", "ALTER"]:
+            switch = self._tokens[0].normalized + self._tokens[1].normalized
+        else:
+            switch = self._tokens[0].normalized
+        self._query_type = SUPPORTED_QUERY_TYPES.get(switch, "UNSUPPORTED")
+        if self._query_type == "UNSUPPORTED":
+            raise ValueError("Not supported query type!")
+        return self._query_type
 
     @property
     def tokens(self) -> List[SQLToken]:
@@ -78,7 +101,7 @@ class Parser:  # pylint: disable=R0902
         if self._tokens is not None:
             return self._tokens
 
-        parsed = sqlparse.parse(self.query)
+        parsed = sqlparse.parse(self._query)
         tokens = []
         # handle empty queries (#12)
         if not parsed:
@@ -87,7 +110,9 @@ class Parser:  # pylint: disable=R0902
         self.sqlparse_tokens = parsed[0].tokens
         sqlparse_tokens = self._flatten_sqlparse()
         non_empty_tokens = [
-            token for token in sqlparse_tokens if token.ttype is not Whitespace
+            token
+            for token in sqlparse_tokens
+            if token.ttype is not Whitespace and token.ttype.parent is not Whitespace
         ]
         last_keyword = None
         for index, tok in enumerate(non_empty_tokens):
@@ -107,12 +132,18 @@ class Parser:  # pylint: disable=R0902
             elif token.is_right_parenthesis:
                 self._determine_closing_parenthesis_type(token=token)
 
-            if tok.is_keyword and tok.normalized not in KEYWORDS_IGNORED:
+            if tok.is_keyword and "".join(tok.normalized.split()) in RELEVANT_KEYWORDS:
                 last_keyword = tok.normalized
             token.is_in_nested_function = self._is_in_nested_function
+            token.parenthesis_level = self._parenthesis_level
             tokens.append(token)
 
         self._tokens = tokens
+        # since tokens are used in all methods required parsing (so w/o generalization)
+        # we set the query type here (and not in init) to allow for generalization
+        # but disallow any other usage for not supported queries to avoid unexpected
+        # results which are not really an error
+        _ = self.query_type
         return tokens
 
     @property
@@ -128,10 +159,14 @@ class Parser:  # pylint: disable=R0902
 
         for token in self.tokens:
             # handle CREATE TABLE queries (#35)
-            if token.is_name and self._is_create_table_query:
+            if token.is_name and self.query_type == QueryType.CREATE:
                 # previous token is either ( or , -> indicates the column name
-                if token.is_in_parenthesis and token.previous_token.is_punctuation:
-                    columns.append(str(token))
+                if (
+                    token.is_in_parenthesis
+                    and token.previous_token.is_punctuation
+                    and token.last_keyword_normalized == "TABLE"
+                ):
+                    columns.append(token.value)
                     continue
 
                 # we're in CREATE TABLE query with the columns
@@ -144,7 +179,9 @@ class Parser:  # pylint: disable=R0902
                 ):
                     continue
 
-            if token.is_name and not token.next_token.is_dot:
+            if (
+                token.is_name and not token.next_token.is_dot
+            ) or token.is_keyword_column_name:
                 # analyze the name tokens, column names and where condition values
                 if (
                     token.last_keyword_normalized in KEYWORDS_BEFORE_COLUMNS
@@ -159,9 +196,8 @@ class Parser:  # pylint: disable=R0902
                 ):
 
                     if (
-                        token.normalized not in FUNCTIONS_IGNORED
-                        and not (
-                            # aliases of sub-queries i.e.: select from (...) <alias>
+                        not (
+                            # aliases of sub-queries i.e.: SELECT from (...) <alias>
                             token.previous_token.is_right_parenthesis
                             and token.value in subqueries_names
                         )
@@ -192,7 +228,7 @@ class Parser:  # pylint: disable=R0902
                 and token.last_keyword_normalized == "SELECT"
                 and not token.previous_token.is_left_parenthesis
             ):
-                # handle * wildcard in SELECT part, but ignore count(*)
+                # handle * wildcard in select part, but ignore count(*)
                 column = token.table_prefixed_column(tables_aliases)
                 self._columns_with_tables_aliases[token.left_expanded] = column
                 self._add_to_columns_subsection(
@@ -218,7 +254,7 @@ class Parser:  # pylint: disable=R0902
         Returns dictionary of column names divided into section of the query in which
         given column is present.
 
-        Sections consist of: select, where, order_by, join, insert and update
+        Sections consist of: select, where, order_by, group_by, join, insert and update
         """
         if not self._columns_dict:
             _ = self.columns
@@ -308,7 +344,7 @@ class Parser:  # pylint: disable=R0902
         Returns dictionary of column names divided into section of the query in which
         given column is present.
 
-        Sections consist of: select, where, order_by, join, insert and update
+        Sections consist of: select, where, order_by, group_by, join, insert and update
         """
         if self._columns_aliases_dict:
             return self._columns_aliases_dict
@@ -370,7 +406,7 @@ class Parser:  # pylint: disable=R0902
             ):
                 # handle CREATE TABLE queries (#35)
                 # skip keyword that are withing parenthesis-wrapped list of column
-                if self._is_create_table_query and token.is_in_parenthesis:
+                if self.query_type == QueryType.CREATE and token.is_in_parenthesis:
                     continue
 
                 if token.next_token.is_dot:
@@ -494,7 +530,7 @@ class Parser:  # pylint: disable=R0902
                         else:
                             with_names.append(token.left_expanded)
                         # move to next with if exists, this with ends with
-                        #  ) + , if many withs or ) + select if one
+                        #  ) + , if many withs or ) + SELECT if one
                         # need to move to next as AS can be in
                         # sub-queries inside with definition
                         while token.next_token and not (
@@ -621,7 +657,7 @@ class Parser:  # pylint: disable=R0902
         """
         Removes comments from SQL query
         """
-        return Generalizator(self._raw_query).without_comments
+        return Generalizator(self.query).without_comments
 
     @property
     def generalize(self) -> str:
@@ -687,7 +723,7 @@ class Parser:  # pylint: disable=R0902
             token.is_subquery_start = True
             self._subquery_level += 1
             token.subquery_level = self._subquery_level
-        elif token.previous_token.normalized in KEYWORDS_BEFORE_COLUMNS + [","]:
+        elif token.previous_token.normalized in KEYWORDS_BEFORE_COLUMNS.union({","}):
             # we are in columns and in a column subquery definition
             token.is_column_definition_start = True
         elif token.previous_token.normalized == "AS":
@@ -698,6 +734,7 @@ class Parser:  # pylint: disable=R0902
             self._nested_level += 1
             self._is_in_nested_function = True
         self._open_parentheses.append(token)
+        self._parenthesis_level += 1
 
     def _determine_closing_parenthesis_type(self, token: SQLToken):
         """
@@ -716,6 +753,7 @@ class Parser:  # pylint: disable=R0902
             self._nested_level -= 1
             if self._nested_level == 0:
                 self._is_in_nested_function = False
+        self._parenthesis_level -= 1
 
     def _find_column_for_with_column_alias(self, token: SQLToken) -> str:
         start_token = token.find_nearest_token(
@@ -739,7 +777,7 @@ class Parser:  # pylint: disable=R0902
         self, start_token: SQLToken, end_token: SQLToken
     ) -> Union[str, List[str]]:
         """
-        Returns a list of columns between tw tokens
+        Returns a list of columns between two tokens
         """
         loop_token = start_token
         aliases = UniqueList()
@@ -757,13 +795,24 @@ class Parser:  # pylint: disable=R0902
         if self._raw_query == "":
             return ""
 
-        # 0. remove newlines
-        query = self._raw_query.replace("\n", " ")
-        # 1. remove quotes "
-        query = query.replace('"', "`")
+        # python re does not have variable length look back/forward
+        # so we need to replace all the " (double quote) for a
+        # temporary placeholder as we DO NOT want to replace those
+        # in the strings as this is something that user provided
+        def replace_quotes_in_string(match):
+            return re.sub('"', "<!!__QUOTE__!!>", match.group())
 
-        # 2. `database`.`table` notation -> database.table
-        query = re.sub(r"`([^`]+)`\.`([^`]+)`", r"\1.\2", query)
+        def replace_back_quotes_in_string(match):
+            return re.sub("<!!__QUOTE__!!>", '"', match.group())
+
+        # unify quoting in queries, replace double quotes to backticks
+        # it's best to keep the quotes as they can have keywords
+        # or digits at the beginning so we only strip them in SQLToken
+        # as double quotes are not properly handled in sqlparse
+        query = re.sub(r"'.*?'", replace_quotes_in_string, self._raw_query)
+        query = re.sub(r'"([^`]+?)"', r"`\1`", query)
+        query = re.sub(r'"([^`]+?)"\."([^`]+?)"', r"`\1`.`\2`", query)
+        query = re.sub(r"'.*?'", replace_back_quotes_in_string, query)
 
         return query
 
@@ -800,16 +849,3 @@ class Parser:  # pylint: disable=R0902
                             yield tok
             else:
                 yield token
-
-    @property
-    def _is_create_table_query(self) -> bool:
-        """
-        Return True if the query begins with "CREATE TABLE" statement
-        """
-        if (
-            self.tokens[0].normalized == "CREATE"
-            and self.tokens[1].normalized == "TABLE"
-        ):
-            return True
-
-        return False
