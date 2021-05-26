@@ -14,6 +14,7 @@ jobs:
 
     strategy:
       matrix:
+        # https://github.com/actions/python-versions/blob/main/versions-manifest.json
         python-version:
         - "3.6"
         - "3.7"
@@ -38,9 +39,12 @@ jobs:
     - name: Install Python wheel support to speed up things
       run: pip install wheel
 
+    - name: Pre-install black
+      run: pip install black
+
     # https://github.com/marketplace/actions/install-poetry-action
     - name: Install Poetry
-      uses: snok/install-poetry@v1.1.3
+      uses: snok/install-poetry@v1.1.6
       with:
         virtualenvs-create: true
         virtualenvs-in-project: true
@@ -52,7 +56,7 @@ jobs:
 
     - name: Install dependencies with poetry
       run: |
-        poetry install
+        poetry install --no-root
         poetry run python --version
         poetry show
 
