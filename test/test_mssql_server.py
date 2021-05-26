@@ -10,14 +10,14 @@ def test_sql_server_cte():
     assert (
         Parser(
             """
-        WITH x AS (
-            SELECT * FROM n
-        )
-        SELECT
-            *
-        FROM x
-        JOIN y ON x.a = y.a
-            """.strip()
+            WITH x AS (
+                SELECT * FROM n
+            )
+            SELECT
+                *
+            FROM x
+            JOIN y ON x.a = y.a
+                """.strip()
         ).tables
         == ["n", "y"]
     )
@@ -25,14 +25,14 @@ def test_sql_server_cte():
     assert (
         Parser(
             """
-        WITH x AS (
-            SELECT * FROM n
-        )
-        select
-            *
-        FROM x
-        JOIN y ON x.a = y.a
-            """.strip()
+            WITH x AS (
+                SELECT * FROM n
+            )
+            SELECT
+                *
+            FROM x
+            JOIN y ON x.a = y.a
+                """.strip()
         ).tables
         == ["n", "y"]
     )
@@ -40,11 +40,11 @@ def test_sql_server_cte():
     assert (
         Parser(
             """
-        WITH foo AS (
-            SELECT * FROM n
-        )
-        update z from foo set z.q = foo.y 
-            """.strip()
+            WITH foo AS (
+                SELECT * FROM n
+            )
+            UPDATE z from foo set z.q = foo.y 
+                """.strip()
         ).tables
         == ["n", "z"]
     )
@@ -52,11 +52,11 @@ def test_sql_server_cte():
     assert (
         Parser(
             """
-        WITH foo AS ( 
-             SELECT * FROM tab
-        ) 
-        DELETE FROM z JOIN foo ON z.a = foo.a  
-            """.strip()
+            WITH foo AS ( 
+                 SELECT * FROM tab
+            ) 
+            DELETE FROM z JOIN foo ON z.a = foo.a  
+                """.strip()
         ).tables
         == ["tab", "z"]
     )
@@ -92,4 +92,8 @@ FROM
         "staff_id",
         "order_date",
     ]
-    assert parser.columns_dict == {"select": ["staff_id", "*"], "where": ["order_date"]}
+    assert parser.columns_dict == {
+        "group_by": ["staff_id"],
+        "select": ["staff_id", "*"],
+        "where": ["order_date"],
+    }

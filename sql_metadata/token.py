@@ -6,7 +6,7 @@ from typing import Dict, List, Union
 import sqlparse.sql
 from sqlparse.tokens import Comment, Name, Number, Punctuation, Wildcard
 
-from sql_metadata.keywords_lists import FUNCTIONS_IGNORED
+from sql_metadata.keywords_lists import RELEVANT_KEYWORDS
 
 
 class SQLToken:  # pylint: disable=R0902
@@ -66,6 +66,7 @@ class SQLToken:  # pylint: disable=R0902
 
     def _set_default_parenthesis_status(self):
         self.is_in_nested_function = False
+        self.parenthesis_level = 0
         self.is_subquery_start = False
         self.is_subquery_end = False
         self.is_with_query_start = False
@@ -109,7 +110,8 @@ class SQLToken:  # pylint: disable=R0902
                 or self.previous_token.normalized in ["(", "."]
                 or (
                     self.is_left_parenthesis
-                    and self.previous_token.normalized in FUNCTIONS_IGNORED
+                    and self.previous_token.normalized
+                    not in RELEVANT_KEYWORDS.union({"*", ",", "IN", "NOTIN"})
                 )
             ):
                 return str(self)
@@ -144,15 +146,25 @@ class SQLToken:  # pylint: disable=R0902
         """
         Property checks if token is surrounded with brackets ()
         """
-        left_parenthesis = self.find_nearest_token("(")
-        right_parenthesis = self.find_nearest_token(")", direction="right")
-        return left_parenthesis.value != "" and right_parenthesis.value != ""
+        return self.parenthesis_level > 0
+
+    @property
+    def is_keyword_column_name(self) -> bool:
+        """
+        Checks if given keyword can be a column name in SELECT query
+        """
+        return (
+            self.is_keyword
+            and self.normalized not in RELEVANT_KEYWORDS
+            and self.previous_token.normalized in [",", "SELECT"]
+            and self.next_token.normalized in [",", "AS"]
+        )
 
     @property
     def is_alias_without_as(self) -> bool:
         """
         Checks if a given token is an alias without as keyword,
-        like: select col <alias1>, col2 <alias2> from table
+        like: SELECT col <alias1>, col2 <alias2> from table
         """
         return (
             self.next_token.normalized in [",", "FROM"]

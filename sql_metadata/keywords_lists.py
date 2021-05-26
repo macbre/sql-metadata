@@ -2,58 +2,14 @@
 Module provide lists of sql keywords that should trigger or skip
 checks for tables an columns
 """
-# these keywords should not change the state of a parser
-# and not "reset" previously found SELECT keyword
-KEYWORDS_IGNORED = [
-    "AS",
-    "AND",
-    "OR",
-    "IN",
-    "IS",
-    "NULL",
-    "NOT",
-    "NOT NULL",
-    "LIKE",
-    "CASE",
-    "WHEN",
-    "THEN",
-    "ELSE",
-    "END",
-    "DISTINCT",
-    "UNIQUE",
-]
 
-# these function should be ignored
-# and not "reset" previously found SELECT keyword
-FUNCTIONS_IGNORED = [
-    "COUNT",
-    "MIN",
-    "MAX",
-    "FROM_UNIXTIME",
-    "DATE_FORMAT",
-    "CAST",
-    "CONVERT",
-    "YEAR",
-    "MONTH",
-    "YEARWEEK",
-    "DAY",
-    "AVG",
-    "SUM",
-    "IFNULL",
-    "DATEDIFF",
-    "DIV",
-    "MID",
-    "WEEKDAY",
-    "NOW",
-    "LAST_DAY",
-    "DATE_ADD",
-    "COALESCE",
-]
 # these keywords are followed by columns reference
-KEYWORDS_BEFORE_COLUMNS = ["SELECT", "WHERE", "ORDERBY", "ON", "SET"]
+from enum import Enum
+
+KEYWORDS_BEFORE_COLUMNS = {"SELECT", "WHERE", "ORDERBY", "GROUPBY", "ON", "SET"}
 
 # normalized list of table preceding keywords
-TABLE_ADJUSTMENT_KEYWORDS = [
+TABLE_ADJUSTMENT_KEYWORDS = {
     "FROM",
     "JOIN",
     "INNERJOIN",
@@ -66,13 +22,13 @@ TABLE_ADJUSTMENT_KEYWORDS = [
     "INTO",
     "UPDATE",
     "TABLE",
-]
+}
 
 # next statement beginning after with statement
-WITH_ENDING_KEYWORDS = ["UPDATE", "SELECT", "DELETE", "REPLACE"]
+WITH_ENDING_KEYWORDS = {"UPDATE", "SELECT", "DELETE", "REPLACE"}
 
 # subquery preceding keywords
-SUBQUERY_PRECEDING_KEYWORDS = [
+SUBQUERY_PRECEDING_KEYWORDS = {
     "FROM",
     "JOIN",
     "INNERJOIN",
@@ -82,7 +38,7 @@ SUBQUERY_PRECEDING_KEYWORDS = [
     "RIGHTJOIN",
     "LEFTOUTERJOIN",
     "RIGHTOUTERJOIN",
-]
+}
 
 # section of a query in which column can exists
 # based on last normalized keyword
@@ -94,4 +50,45 @@ COLUMNS_SECTIONS = {
     "INTO": "insert",
     "SET": "update",
     "GROUPBY": "group_by",
+}
+
+
+class QueryType(str, Enum):
+    """
+    Types of supported queries
+    """
+
+    INSERT = "INSERT"
+    REPLACE = "REPLACE"
+    UPDATE = "UPDATE"
+    SELECT = "SELECT"
+    CREATE = "CREATE TABLE"
+    ALTER = "ALTER TABLE"
+
+
+# cannot fully replace with enum as with/select has the same key
+SUPPORTED_QUERY_TYPES = {
+    "INSERT": QueryType.INSERT,
+    "REPLACE": QueryType.REPLACE,
+    "UPDATE": QueryType.UPDATE,
+    "SELECT": QueryType.SELECT,
+    "WITH": QueryType.SELECT,
+    "CREATETABLE": QueryType.CREATE,
+    "ALTERTABLE": QueryType.ALTER,
+}
+
+# all the keywords we care for - rest is ignored in assigning
+# the last keyword
+RELEVANT_KEYWORDS = {
+    *KEYWORDS_BEFORE_COLUMNS,
+    *TABLE_ADJUSTMENT_KEYWORDS,
+    *WITH_ENDING_KEYWORDS,
+    *SUBQUERY_PRECEDING_KEYWORDS,
+    "LIMIT",
+    "OFFSET",
+    "USING",
+    "RETURNING",
+    "VALUES",
+    "INDEX",
+    "WITH",
 }

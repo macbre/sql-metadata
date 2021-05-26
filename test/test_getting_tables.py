@@ -68,7 +68,7 @@ def test_complex_query_tables():
     assert (
         ["tab", "tab2"]
         == Parser(
-            """select a,b,c from tab full  outer \r\n\t  join tab2  on (col1 = col2) group   
+            """SELECT a,b,c from tab full  outer \r\n\t  join tab2  on (col1 = col2) group   
 \r\n   \t   by  a, b, c """
         ).tables
     )
@@ -270,7 +270,7 @@ def test_table_names_with_dashes():
 def test_unions():
     # @see https://github.com/macbre/sql-metadata/issues/79
     assert ["tab1", "tab2"] == Parser(
-        "select col1, col2, col3 from tab1 union all select col4, col5, col6 from tab2"
+        "SELECT col1, col2, col3 from tab1 union all SELECT col4, col5, col6 from tab2"
     ).tables
 
     # @see https://github.com/macbre/sql-metadata/issues/94
@@ -309,7 +309,7 @@ WHERE bar = '1') t
 
 def test_db2_query():
     query = """
-    select ca.IDENTIFICATION_CODE identificationCode, 
+    SELECT ca.IDENTIFICATION_CODE identificationCode, 
 eo.KBO_NUMBER kboNumber, 
 eo.PARTY_NAME,
 ca.total_guaranteed totale_borgtocht, 

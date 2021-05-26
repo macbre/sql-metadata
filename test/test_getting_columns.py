@@ -1,3 +1,4 @@
+from sql_metadata.keywords_lists import QueryType
 from sql_metadata.parser import Parser
 
 
@@ -107,6 +108,7 @@ def test_update_and_replace():
     parser = Parser(
         "REPLACE INTO `page_props` (pp_page,pp_propname,pp_value) VALUES ('47','infoboxes','')"
     )
+    assert parser.query_type == QueryType.REPLACE
     assert parser.columns == ["pp_page", "pp_propname", "pp_value"]
     assert parser.columns_dict == {"insert": ["pp_page", "pp_propname", "pp_value"]}
 
@@ -200,12 +202,14 @@ def test_columns_with_comments():
     parser = Parser(
         "INSERT /* VoteHelper::addVote xxx */  INTO `page_vote` (article_id,user_id,`time`) VALUES ('442001','27574631','20180228130846')"
     )
+    assert parser.query_type == QueryType.INSERT
     assert parser.columns == ["article_id", "user_id", "time"]
 
     # REPLACE queries
     parser = Parser(
         "REPLACE INTO `page_props` (pp_page,pp_propname,pp_value) VALUES ('47','infoboxes','')"
     )
+    assert parser.query_type == QueryType.REPLACE
     assert parser.columns == ["pp_page", "pp_propname", "pp_value"]
     assert parser.columns_dict == {"insert": ["pp_page", "pp_propname", "pp_value"]}
 
@@ -241,14 +245,14 @@ def test_columns_and_sql_functions():
     """
     See https://github.com/macbre/sql-metadata/issues/125
     """
-    assert Parser("select max(col3)+avg(col)+1+sum(col2) from dual").columns == [
+    assert Parser("SELECT max(col3)+avg(col)+1+sum(col2) from dual").columns == [
         "col3",
         "col",
         "col2",
     ]
-    assert Parser("select avg(col)+sum(col2) from dual").columns == ["col", "col2"]
+    assert Parser("SELECT avg(col)+sum(col2) from dual").columns == ["col", "col2"]
     assert Parser(
-        "select count(col)+max(col2)+ min(col3)+ count(distinct  col4) + custom_func(col5) from dual"
+        "SELECT count(col)+max(col2)+ min(col3)+ count(distinct  col4) + custom_func(col5) from dual"
     ).columns == ["col", "col2", "col3", "col4", "col5"]
 
 
@@ -256,6 +260,25 @@ def test_columns_starting_with_keywords():
     query = """
     SELECT `schema_name`, full_table_name, `column_name`, `catalog_name`, 
     `table_name`, column_length, column_weight, annotation 
+    FROM corporate.all_tables
+    """
+    parser = Parser(query)
+    assert parser.columns == [
+        "schema_name",
+        "full_table_name",
+        "column_name",
+        "catalog_name",
+        "table_name",
+        "column_length",
+        "column_weight",
+        "annotation",
+    ]
+
+
+def test_columns_as_unquoted_keywords():
+    query = """
+    SELECT schema_name, full_table_name, column_name, catalog_name, 
+    table_name, column_length, column_weight, annotation 
     FROM corporate.all_tables
     """
     parser = Parser(query)
@@ -287,7 +310,7 @@ def test_columns_with_keywords_parts():
 
 def test_columns_with_complex_aliases_same_as_columns():
     query = """
-    select targetingtype, sellerid, sguid, 'd01' as datetype, adgroupname, targeting, 
+    SELECT targetingtype, sellerid, sguid, 'd01' as datetype, adgroupname, targeting, 
     customersearchterm, 
     'product_search_term' as `type`, 
     sum(impressions) as impr, 
@@ -327,9 +350,38 @@ def test_columns_with_complex_aliases_same_as_columns():
     ]
 
 
+def test_columns_aliases_as_unqoted_keywords():
+    query = """
+    SELECT
+    product_search_term as type, 
+    sum(clicks) as clicks, 
+    sum(seventotalunits) as schema_name, 
+    sum(sevenadvertisedskuunits) as advertisedskuunits
+    from amazon_pl.search_term_report_impala 
+    """
+    parser = Parser(query)
+    assert parser.columns == [
+        "product_search_term",
+        "clicks",
+        "seventotalunits",
+        "sevenadvertisedskuunits",
+    ]
+    assert parser.columns_aliases_names == [
+        "type",
+        "clicks",
+        "schema_name",
+        "advertisedskuunits",
+    ]
+    assert parser.columns_aliases == {
+        "advertisedskuunits": "sevenadvertisedskuunits",
+        "schema_name": "seventotalunits",
+        "type": "product_search_term",
+    }
+
+
 def test_columns_with_aliases_same_as_columns():
     query = """
-    select 
+    SELECT 
     round(sum(impressions),1) as impressions, 
     sum(clicks) as clicks
     from amazon_pl.search_term_report_impala 
@@ -339,7 +391,7 @@ def test_columns_with_aliases_same_as_columns():
     assert parser.columns_aliases == {}
 
     query = """
-    select
+    SELECT
     if(sum(clicks) > 0, round(sum(seventotalunits)/sum(clicks), 4), 0) as clicks, 
     if(sum(clicks) > 0, round(sum(spend)/sum(clicks), 2), 0) as cpc 
     from amazon_pl.search_term_report_impala 
