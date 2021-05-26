@@ -49,9 +49,9 @@ def test_generalization_of_sql():
 
     assert (
         Parser(
-            "delete /* DatabaseBase::sourceFile( /usr/wikia/slot1/3690/src/maintenance/cleanupStarter.sql ) CreateWiki scri... */ from text where old_id not in (SELECT rev_text_id from revision)"
+            "delete /* DatabaseBase::sourceFile( /usr/wikia/slot1/3690/src/maintenance/cleanupStarter.sql ) CreateWiki scri... */ from text where old_id not in (select rev_text_id from revision)"
         ).generalize
-        == "delete from text where old_id not in (SELECT rev_text_id from revision)"
+        == "delete from text where old_id not in (select rev_text_id from revision)"
     )
 
     assert (

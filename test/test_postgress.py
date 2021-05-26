@@ -8,7 +8,7 @@ def test_postgress_quoted_names():
     )
     assert ["test"] == parser.tables
     assert ["name"] == parser.columns
-    assert {"INSERT": ["name"]} == parser.columns_dict
+    assert {"insert": ["name"]} == parser.columns_dict
     assert "INSERT INTO test (name) VALUES (X) RETURNING test.id" == parser.generalize
     assert parser.values == ["foo"]
 
@@ -18,7 +18,7 @@ def test_postgress_quoted_names():
     assert ["test"] == parser.tables
     assert ["test.id", "test.name"] == parser.columns
     assert {
-        "SELECT": ["test.id", "test.name"],
+        "select": ["test.id", "test.name"],
         "where": ["test.name"],
     } == parser.columns_dict
     assert (
@@ -29,5 +29,5 @@ def test_postgress_quoted_names():
     parser = Parser('UPDATE "test" SET "name" = \'bar\' WHERE "test"."id" = 1')
     assert ["test"] == parser.tables
     assert ["name", "test.id"] == parser.columns
-    assert {"UPDATE": ["name"], "where": ["test.id"]} == parser.columns_dict
+    assert {"update": ["name"], "where": ["test.id"]} == parser.columns_dict
     assert "UPDATE test SET name = X WHERE test.id = N" == parser.generalize

@@ -94,6 +94,6 @@ FROM
     ]
     assert parser.columns_dict == {
         "group_by": ["staff_id"],
-        "SELECT": ["staff_id", "*"],
+        "select": ["staff_id", "*"],
         "where": ["order_date"],
     }

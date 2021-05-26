@@ -91,7 +91,7 @@ def test_handle_force_index():
         "cl_to",
     ]
     assert parser.columns_dict == {
-        "SELECT": ["page_title", "page_namespace"],
+        "select": ["page_title", "page_namespace"],
         "join": ["page_id", "cl_from"],
         "where": ["page_is_redirect", "page_random", "cl_to"],
         "order_by": ["page_random"],
@@ -111,7 +111,7 @@ def test_insert_into_select():
     query = "INSERT INTO foo SELECT id, price FROM bar WHERE qty > 200"
     assert Parser(query).tables == ["foo", "bar"]
     assert Parser(query).columns == ["id", "price", "qty"]
-    assert Parser(query).columns_dict == {"SELECT": ["id", "price"], "where": ["qty"]}
+    assert Parser(query).columns_dict == {"select": ["id", "price"], "where": ["qty"]}
 
 
 def test_case_syntax():

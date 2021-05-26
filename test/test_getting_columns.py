@@ -6,11 +6,11 @@ def test_cast_and_convert_functions():
     # https://dev.mysql.com/doc/refman/8.0/en/cast-functions.html
     parser = Parser("SELECT count(c) as test, id FROM foo where cast(d as bigint) > e")
     assert parser.columns == ["c", "id", "d", "e"]
-    assert parser.columns_dict == {"SELECT": ["c", "id"], "where": ["d", "e"]}
+    assert parser.columns_dict == {"select": ["c", "id"], "where": ["d", "e"]}
 
     parser = Parser("SELECT CONVERT(latin1_column USING utf8) FROM latin1_table;")
     assert parser.columns == ["latin1_column"]
-    assert parser.columns_dict == {"SELECT": ["latin1_column"]}
+    assert parser.columns_dict == {"select": ["latin1_column"]}
 
 
 def test_queries_with_null_conditions():
@@ -19,7 +19,7 @@ def test_queries_with_null_conditions():
     )
     assert parser.columns == ["id", "cm.status", "cm.OPERATIONDATE", "cm.OID"]
     assert parser.columns_dict == {
-        "SELECT": ["id"],
+        "select": ["id"],
         "where": ["cm.status", "cm.OPERATIONDATE", "cm.OID"],
     }
 
@@ -28,7 +28,7 @@ def test_queries_with_null_conditions():
     )
     assert parser.columns == ["id", "cm.status", "cm.OPERATIONDATE", "cm.OID"]
     assert parser.columns_dict == {
-        "SELECT": ["id"],
+        "select": ["id"],
         "where": ["cm.status", "cm.OPERATIONDATE", "cm.OID"],
     }
 
@@ -96,13 +96,13 @@ def test_update_and_replace():
     )
     assert parser.columns == ["page_touched", "other_column", "page_id"]
     assert parser.columns_dict == {
-        "UPDATE": ["page_touched", "other_column"],
+        "update": ["page_touched", "other_column"],
         "where": ["page_id"],
     }
 
     parser = Parser("UPDATE `page` SET page_touched = 'value' WHERE page_id = 'test'")
     assert parser.columns == ["page_touched", "page_id"]
-    assert parser.columns_dict == {"UPDATE": ["page_touched"], "where": ["page_id"]}
+    assert parser.columns_dict == {"update": ["page_touched"], "where": ["page_id"]}
 
     # REPLACE queries
     parser = Parser(
@@ -110,7 +110,7 @@ def test_update_and_replace():
     )
     assert parser.query_type == QueryType.REPLACE
     assert parser.columns == ["pp_page", "pp_propname", "pp_value"]
-    assert parser.columns_dict == {"INSERT": ["pp_page", "pp_propname", "pp_value"]}
+    assert parser.columns_dict == {"insert": ["pp_page", "pp_propname", "pp_value"]}
 
 
 def test_complex_queries_columns():
@@ -140,14 +140,14 @@ def test_complex_queries_columns():
     ]
     assert parser.columns_aliases_dict == {
         "order_by": ["pageviews"],
-        "SELECT": ["id", "pageviews"],
+        "select": ["id", "pageviews"],
     }
     assert parser.columns_aliases == {
         "id": "report_wiki_recent_pageviews.wiki_id",
         "pageviews": "pageviews_7day",
     }
     assert parser.columns_dict == {
-        "SELECT": ["report_wiki_recent_pageviews.wiki_id", "pageviews_7day"],
+        "select": ["report_wiki_recent_pageviews.wiki_id", "pageviews_7day"],
         "join": ["report_wiki_recent_pageviews.wiki_id", "dimension_wikis.wiki_id"],
         "where": [
             "dimension_wikis.is_public",
@@ -182,7 +182,7 @@ def test_complex_queries_columns():
         "fact_wam_scores.vertical_id",
     ]
     assert parser.columns_dict == {
-        "SELECT": ["fact_wam_scores.wiki_id"],
+        "select": ["fact_wam_scores.wiki_id"],
         "join": [
             "fact_wam_scores.wiki_id",
             "fact_wam_scores.time_id",
@@ -211,7 +211,7 @@ def test_columns_with_comments():
     )
     assert parser.query_type == QueryType.REPLACE
     assert parser.columns == ["pp_page", "pp_propname", "pp_value"]
-    assert parser.columns_dict == {"INSERT": ["pp_page", "pp_propname", "pp_value"]}
+    assert parser.columns_dict == {"insert": ["pp_page", "pp_propname", "pp_value"]}
 
     assert Parser(
         "SELECT /* CategoryPaginationViewer::processSection */  "
@@ -220,7 +220,7 @@ def test_columns_with_comments():
         "WHERE cl_type = 'page' AND cl_to = 'Spotify/Song'  "
         "ORDER BY cl_sortkey LIMIT 927600,200"
     ).columns_dict == {
-        "SELECT": [
+        "select": [
             "page_namespace",
             "page_title",
             "page_len",

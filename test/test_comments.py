@@ -125,7 +125,7 @@ def test_inline_comments_with_hash():
             "RESERVATION.CA4_ID",
             "RESERVATION.DECLARATION_ID",
         ],
-        "SELECT": [
+        "select": [
             "ACCOUNTING_ENTITY.VERSION",
             "ACCOUNTING_ENTITY.ACTIVE",
             "ACCOUNTING_ENTITY.CATEGORY",

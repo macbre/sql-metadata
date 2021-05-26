@@ -91,11 +91,11 @@ def test_column_aliases_with_redundant_brackets():
     assert parser.columns_aliases == {"alias1": ["b", "c", "u"], "alias2": "d"}
     assert parser.columns_aliases_dict == {
         "order_by": ["alias1"],
-        "SELECT": ["alias1", "alias2"],
+        "select": ["alias1", "alias2"],
     }
     assert parser.columns_dict == {
         "order_by": ["b", "c", "u"],
-        "SELECT": ["a", "b", "c", "u", "d"],
+        "select": ["a", "b", "c", "u", "d"],
     }
 
 

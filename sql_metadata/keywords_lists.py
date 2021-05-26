@@ -43,12 +43,12 @@ SUBQUERY_PRECEDING_KEYWORDS = {
 # section of a query in which column can exists
 # based on last normalized keyword
 COLUMNS_SECTIONS = {
-    "SELECT": "SELECT",
+    "SELECT": "select",
     "WHERE": "where",
     "ORDERBY": "order_by",
     "ON": "join",
-    "INTO": "INSERT",
-    "SET": "UPDATE",
+    "INTO": "insert",
+    "SET": "update",
     "GROUPBY": "group_by",
 }
 

@@ -255,7 +255,7 @@ task_type_id = 80
     ]
     assert parser.columns_dict == {
         "join": ["a.new_task_id", "b.task_id"],
-        "SELECT": ["some_task_detail.task_id", "some_task.task_id"],
+        "select": ["some_task_detail.task_id", "some_task.task_id"],
         "where": ["some_task_detail.STATUS", "task_type_id"],
     }
 
