@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "sql_metadata"
-version = "2.0.0"
+version = "2.1.0"
 license="MIT"
 description = "Uses tokenized query returned by python-sqlparse and generates query metadata"
 authors = ["Maciej Brencz <maciej.brencz@gmail.com>"]
