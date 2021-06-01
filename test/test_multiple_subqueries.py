@@ -259,3 +259,143 @@ task_type_id = 80
     parser2 = Parser(parser.subqueries["a"])
     assert parser2.tables == ["some_task_detail"]
     assert parser2.columns == ["some_task_detail.task_id", "some_task_detail.STATUS"]
+
+
+def test_resolving_columns_in_sub_queries_simple_select_with_order_by():
+    query = """
+    Select sub_alias, other_name from (
+    select aa as sub_alias, bb as other_name from tab1
+    ) sq order by other_name, sub_alias
+    """
+
+    parser = Parser(query)
+    assert parser.columns == ["aa", "bb"]
+    assert parser.columns_aliases == {"other_name": "bb", "sub_alias": "aa"}
+    assert parser.columns_dict == {"order_by": ["bb", "aa"], "select": ["aa", "bb"]}
+    assert parser.subqueries_names == ["sq"]
+
+
+def test_resolving_columns_in_sub_queries_nested_subquery():
+    query = """
+    Select sub_alias, other_name from (
+        select sub_alias, other_name from (
+            select cc as sub_alias , uaua as other_name from tab1) sq2
+    ) sq order by other_name
+    """
+
+    parser = Parser(query)
+    assert parser.columns == ["cc", "uaua"]
+    assert parser.columns_aliases == {"other_name": "uaua", "sub_alias": "cc"}
+    assert parser.columns_dict == {"order_by": ["uaua"], "select": ["cc", "uaua"]}
+    assert parser.subqueries_names == ["sq2", "sq"]
+
+
+def test_resolving_columns_in_sub_queries_join():
+    query = """
+    Select sq.sub_alias, sq.other_name from (
+        select tab1.aa sub_alias, tab2.us as other_name from tab1
+        left join tab2 on tab1.id = tab2.other_id
+    ) sq order by sq.other_name
+    """
+
+    parser = Parser(query)
+    assert parser.columns == ["tab1.aa", "tab2.us", "tab1.id", "tab2.other_id"]
+    assert parser.columns_aliases == {"other_name": "tab2.us", "sub_alias": "tab1.aa"}
+    assert parser.columns_dict == {
+        "join": ["tab1.id", "tab2.other_id"],
+        "order_by": ["tab2.us"],
+        "select": ["tab1.aa", "tab2.us"],
+    }
+    assert parser.subqueries_names == ["sq"]
+
+
+def test_resolving_columns_in_sub_queries_with_join_between_sub_queries():
+    query = """
+    Select sq.sub_alias, sq.other_name from (
+        select tab1.aa sub_alias, tab2.us as other_name from tab1
+        left join tab2 on tab1.id = tab2.other_id
+    ) sq 
+    left join (
+        select intern1 as col1, secret col2 from aa
+    ) sq3 on sq.sub_alias = sq3.col1 
+    order by sq.other_name, sq3.col2
+    """
+
+    parser = Parser(query)
+    assert parser.columns == [
+        "tab1.aa",
+        "tab2.us",
+        "tab1.id",
+        "tab2.other_id",
+        "intern1",
+        "secret",
+    ]
+    assert parser.columns_aliases == {
+        "col1": "intern1",
+        "col2": "secret",
+        "other_name": "tab2.us",
+        "sub_alias": "tab1.aa",
+    }
+    assert parser.columns_dict == {
+        "join": ["tab1.id", "tab2.other_id", "tab1.aa", "intern1"],
+        "order_by": ["tab2.us", "secret"],
+        "select": ["tab1.aa", "tab2.us", "intern1", "secret"],
+    }
+    assert parser.subqueries_names == ["sq", "sq3"]
+
+
+def test_resolving_columns_in_sub_queries_union():
+    query = """
+    Select sq.sub_alias, sq.other_name from (
+        select tab1.aa sub_alias, tab2.us as other_name from tab1
+        left join tab2 on tab1.id = tab2.other_id
+    ) sq 
+    union all 
+    select sq3.col1, sq3.col2 from 
+    (select tab12.col1, concat(tab23.ab, ' ', tab23.bc) as col2 
+    from tab12 left join tab23 on tab12.id = tab23.zorro) sq3
+    """
+
+    parser = Parser(query)
+    assert parser.columns_aliases == {
+        "col2": ["tab23.ab", "tab23.bc"],
+        "other_name": "tab2.us",
+        "sub_alias": "tab1.aa",
+    }
+    assert parser.columns == [
+        "tab1.aa",
+        "tab2.us",
+        "tab1.id",
+        "tab2.other_id",
+        "tab12.col1",
+        "tab23.ab",
+        "tab23.bc",
+        "tab12.id",
+        "tab23.zorro",
+    ]
+
+    assert parser.columns_dict == {
+        "join": ["tab1.id", "tab2.other_id", "tab12.id", "tab23.zorro"],
+        "select": ["tab1.aa", "tab2.us", "tab12.col1", "tab23.ab", "tab23.bc"],
+    }
+    assert parser.subqueries_names == ["sq", "sq3"]
+
+
+def test_resolving_columns_in_sub_queries_functions():
+    query = """
+    Select sub_alias, other_name from (
+    select concat(aa, ' ', uu, au) as sub_alias, bb * price as other_name from tab1
+    ) sq order by other_name
+    """
+
+    parser = Parser(query)
+    assert parser.columns == ["aa", "uu", "au", "bb", "price"]
+    assert parser.columns_aliases == {
+        "other_name": ["bb", "price"],
+        "sub_alias": ["aa", "uu", "au"],
+    }
+    assert parser.columns_dict == {
+        "order_by": ["bb", "price"],
+        "select": ["aa", "uu", "au", "bb", "price"],
+    }
+    assert parser.subqueries_names == ["sq"]
