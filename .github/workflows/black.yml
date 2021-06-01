@@ -18,7 +18,8 @@ jobs:
       with:
         python-version: 3.8
 
+    # https://pypi.org/project/black/
     - name: Check code formatting
       run: |
-        pip install black==21.4b1
+        pip install black==21.5b2
         black --check .
