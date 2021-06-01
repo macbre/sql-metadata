@@ -107,7 +107,7 @@ parser.columns
 # ["foo.test"]
 ```
 
-### Extracting values from query
+### Extracting values from insert query
 ```python
 from sql_metadata import Parser
 
@@ -198,16 +198,17 @@ parser.subqueries
 parser.subqueries_names
 # ["a", "b"]
 
-# note that you can also exclude columns coming from sub-queries
-# all columns
+# note that columns coming from sub-queries are resolved to real columns
 parser.columns
 #["some_task_detail.task_id", "some_task_detail.STATUS", "some_task.task_id", 
-# "task_type_id", "a.task_id", "b.task_id"]
-
-# without subqueries
-parser.columns_without_subqueries
-#["some_task_detail.task_id", "some_task_detail.STATUS", "some_task.task_id", 
 # "task_type_id"]
+
+# same applies for columns_dict, note the join columns are resolved
+parser.columns_dict
+#{'join': ['some_task_detail.task_id', 'some_task.task_id'],
+# 'select': ['some_task_detail.task_id', 'some_task.task_id'],
+# 'where': ['some_task_detail.STATUS', 'task_type_id']}
+
 ```
 
 See `tests` file for more examples of a bit more complex queries.

@@ -399,3 +399,30 @@ def test_resolving_columns_in_sub_queries_functions():
         "select": ["aa", "uu", "au", "bb", "price"],
     }
     assert parser.subqueries_names == ["sq"]
+
+
+def test_readme_query():
+    parser = Parser(
+        """
+        SELECT COUNT(1) FROM
+        (SELECT std.task_id FROM some_task_detail std WHERE std.STATUS = 1) a
+        JOIN (SELECT st.task_id FROM some_task st WHERE task_type_id = 80) b
+        ON a.task_id = b.task_id;
+        """
+    )
+    assert parser.subqueries == {
+        "a": "SELECT std.task_id FROM some_task_detail std WHERE std.STATUS = 1",
+        "b": "SELECT st.task_id FROM some_task st WHERE task_type_id = 80",
+    }
+    assert parser.subqueries_names == ["a", "b"]
+    assert parser.columns == [
+        "some_task_detail.task_id",
+        "some_task_detail.STATUS",
+        "some_task.task_id",
+        "task_type_id",
+    ]
+    assert parser.columns_dict == {
+        "join": ["some_task_detail.task_id", "some_task.task_id"],
+        "select": ["some_task_detail.task_id", "some_task.task_id"],
+        "where": ["some_task_detail.STATUS", "task_type_id"],
+    }
