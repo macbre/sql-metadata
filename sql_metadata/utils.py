@@ -13,5 +13,22 @@ class UniqueList(list):
         if item not in self:
             super().append(item)
 
+    def extend(self, items: Any) -> None:
+        for item in items:
+            self.append(item)
+
     def __sub__(self, other) -> List:
         return [x for x in self if x not in other]
+
+
+def flatten_list(input_list: List) -> List[str]:
+    """
+    Flattens list of string and lists if there are nested lists.
+    """
+    result = []
+    for item in input_list:
+        if isinstance(item, list):
+            result.extend(flatten_list(item))
+        else:
+            result.append(item)
+    return result

@@ -72,38 +72,32 @@ from (
         "days_final_qry",
         "subdays",
     ]
+
+    assert parser.columns_aliases == {
+        "DAYS_OFFER1": ["RowNo", "days_to_offer"],
+        "DAYS_OFFER2": ["RowNo", "days_to_offer"],
+        "DAYS_OFFER3": ["RowNo", "days_to_offer"],
+        "days_to_offer": [
+            "job_request_offer.first_presented_date",
+            "job_request.creation_date",
+        ],
+        "IS_INTERVIEW": "job_request_offer.first_interview_scheduled_date",
+        "IS_PRESENTATION": "job_request_offer.first_presented_date",
+        "InitialChangeDate": "job_request_offer.first_presented_date",
+        "LIFETIME": ["lifecycle.creation_date", "job_request.creation_date"],
+        "NUM_APPLICATIONS": [
+            "job_request_application.application_source",
+            "job_request_application.id",
+        ],
+        "NUM_CANDIDATES": "job_request_application.id",
+        "NUM_CONTRACTED": "job_request_offer.stage",
+        "NUM_INTERVIEWED": "IS_INTERVIEW",
+        "NUM_OFFERED": "IS_PRESENTATION",
+        "PROJECT_ID": "job_request.id",
+        "RowNo": "job_request_offer.job_request_application_id",
+    }
+
     assert parser.columns == [
-        "main_qry.*",
-        "subdays.DAYS_OFFER1",  # subquery nested resolve?
-        "subdays.DAYS_OFFER2",  # subquery nested resolve?
-        "subdays.DAYS_OFFER3",  # subquery nested resolve?
-        "job_request.id",
-        "lifecycle.creation_date",
-        "job_request.creation_date",
-        "job_request_application.application_source",
-        "job_request_application.id",
-        "job_request_offer.stage",
-        "job_request_application.job_request_id",
-        "job_request_offer.job_request_application_id",
-        "lifecycle.object_id",
-        "lifecycle.lifecycle_object_type",
-        "lifecycle.event",
-        "job_request_offer.first_interview_scheduled_date",
-        "job_request_offer.first_presented_date",
-        "jrah2.job_request_application_id",  # subquery nested resolve?
-        "job_request.client_id",
-        "client.id",
-        "job_request.from_point_break",
-        "client.name",
-        "presentation.id",
-        "presentation_job_request_offer.presentation_id",
-        "presentation_job_request_offer.job_request_offer_id",
-        "job_request_offer.id",
-        "presentation.job_request_id",
-        "subdays.PROJECT_ID",  # subquery nested resolve?
-        "main_qry.PROJECT_ID",  # subquery nested resolve?
-    ]
-    assert parser.columns_without_subqueries == [
         "job_request.id",
         "lifecycle.creation_date",
         "job_request.creation_date",
@@ -244,8 +238,6 @@ task_type_id = 80
         "some_task_detail.STATUS",
         "some_task.task_id",
         "task_type_id",
-        "a.new_task_id",
-        "b.task_id",
     ]
     assert parser.columns_without_subqueries == [
         "some_task_detail.task_id",
@@ -254,7 +246,7 @@ task_type_id = 80
         "task_type_id",
     ]
     assert parser.columns_dict == {
-        "join": ["a.new_task_id", "b.task_id"],
+        "join": ["some_task_detail.task_id", "some_task.task_id"],
         "select": ["some_task_detail.task_id", "some_task.task_id"],
         "where": ["some_task_detail.STATUS", "task_type_id"],
     }

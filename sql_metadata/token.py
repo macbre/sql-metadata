@@ -169,8 +169,24 @@ class SQLToken:  # pylint: disable=R0902
         return (
             self.next_token.normalized in [",", "FROM"]
             and self.previous_token.normalized not in [",", ".", "(", "SELECT"]
-            and self.last_keyword_normalized == "SELECT"
+            and (
+                self.last_keyword_normalized == "SELECT"
+                or self.previous_token.is_column_definition_end
+            )
             and not self.previous_token.is_comment
+        )
+
+    @property
+    def is_alias_definition(self):
+        """
+        Returns if current token is a definition of an alias.
+        Note that aliases can also be used in other queries and be a part
+        of other nested columns with aliases
+        """
+        return (
+            self.is_alias_without_as
+            or self.previous_token.normalized == "AS"
+            or self.is_in_with_columns
         )
 
     @property
@@ -199,6 +215,18 @@ class SQLToken:  # pylint: disable=R0902
             and self.find_nearest_token(")", direction="right").is_with_columns_end
         )
 
+    @property
+    def is_wildcard_not_operator(self):
+        """
+        Determines if * encountered in query is a wildcard like select <*> from aa
+        or is that an operator like Select aa <*> bb as cc from dd
+        """
+        return self.normalized == "*" and (
+            self.previous_token.value in [",", ".", "SELECT"]
+            or (self.previous_token.value == "(")
+            and self.next_token.value == ")"
+        )
+
     def token_is_alias_of_self_not_from_subquery(self, aliases_levels: Dict) -> bool:
         """
         Checks if token is also an alias, but is an alias of self that is not
@@ -217,7 +245,7 @@ class SQLToken:  # pylint: disable=R0902
         value = self.left_expanded
         if "." in value:
             parts = value.split(".")
-            if len(parts) > 3:  # pragma: no cover
+            if len(parts) > 2:  # pragma: no cover
                 raise ValueError(f"Wrong columns name: {value}")
             parts[0] = table_aliases.get(parts[0], parts[0])
             value = ".".join(parts)
