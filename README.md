@@ -7,13 +7,21 @@
 [![Downloads](https://pepy.tech/badge/sql-metadata/month)](https://pepy.tech/project/sql-metadata)
 
 Uses tokenized query returned by [`python-sqlparse`](https://github.com/andialbrecht/sqlparse) and generates query metadata.
-**Extracts column names and tables** used by the query. Provides a helper for **normalization of SQL queries** and **tables aliases resolving**.
+
+**Extracts column names and tables** used by the query. 
+Automatically conduct **column alias resolution**, **sub queries aliases resolution** as well as **tables aliases resolving**.
+
+Provides also a helper for **normalization of SQL queries**.
 
 Supported queries syntax:
 
 * MySQL
 * PostgreSQL
+* Sqlite
+* MSSQL
 * [Apache Hive](https://cwiki.apache.org/confluence/display/Hive/LanguageManual+DML)
+
+(note that listed backends can differ quite substantially but should work in regard of query types supported by `sql-metadata`)
 
 ## Usage
 
