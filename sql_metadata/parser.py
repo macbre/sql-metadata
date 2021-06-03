@@ -756,9 +756,7 @@ class Parser:  # pylint: disable=R0902
             return subparser.columns
         column_index = [x.split(".")[-1] for x in subparser.columns].index(column_name)
         resolved_column = subparser.columns[column_index]
-        return (
-            resolved_column if isinstance(resolved_column, list) else [resolved_column]
-        )
+        return [resolved_column]
 
     def _determine_opening_parenthesis_type(self, token: SQLToken):
         """
