@@ -736,10 +736,10 @@ class Parser:  # pylint: disable=R0902
         parts = subquery_alias.split(".")
         if len(parts) != 2 or parts[0] not in self.subqueries_names:
             return [subquery_alias]
-        sub_qry, column_name = parts[0], parts[-1]
-        sub_qry_definition = self.subqueries.get(sub_qry)
+        sub_query, column_name = parts[0], parts[-1]
+        sub_query_definition = self.subqueries.get(sub_query)
         subparser = self._subqueries_parsers.setdefault(
-            sub_qry, Parser(sub_qry_definition)
+            sub_query, Parser(sub_query_definition)
         )
         # in subquery you cannot have more than one column with given name
         # so it either has to have an alias or only one column with given name exists

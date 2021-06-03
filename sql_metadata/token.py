@@ -181,7 +181,12 @@ class SQLToken:  # pylint: disable=R0902
         """
         Returns if current token is a definition of an alias.
         Note that aliases can also be used in other queries and be a part
-        of other nested columns with aliases
+        of other nested columns with aliases.
+
+        Note that this function only check if alias token is a token with
+        alias definition, it's not suitable for determining IF token is an alias
+        as it's more complicated and this method would match
+        also i.e. sub-queries names
         """
         return (
             self.is_alias_without_as
