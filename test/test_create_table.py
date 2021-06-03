@@ -65,3 +65,29 @@ def test_create_table_as_select_with_joins():
         "table_c.age",
     ]
     assert parser.tables == ["xyz", "table_a", "table_b", "table_c"]
+
+
+def test_creating_table_as_select_with_with_clause():
+    qry = """
+        CREATE table xyz as 
+        with sub as (select it_id from internal_table)
+        SELECT *
+        from table_a
+        join table_b on (table_a.name = table_b.name)
+        left join table_c on (table_a.age = table_c.age)
+        left join sub on (table.it_id = sub.it_id)
+        order by table_a.name, table_a.age
+        """
+    parser = Parser(qry)
+    assert parser.with_names == ["sub"]
+    assert parser.columns == [
+        "it_id",
+        "*",
+        "table_a.name",
+        "table_b.name",
+        "table_a.age",
+        "table_c.age",
+        "table.it_id",
+        "sub.it_id",
+    ]
+    assert parser.tables == ["xyz", "internal_table", "table_a", "table_b", "table_c"]
