@@ -29,7 +29,7 @@ CREATE TABLE `new_table` (
 ) CHARACTER SET utf8;
     """
     )
-
+    assert parser.query_type == QueryType.CREATE
     assert parser.tables == ["new_table"]
     assert parser.columns == ["item_id", "foo"]
 
@@ -42,7 +42,7 @@ CREATE table abc.foo
     FROM foo pqr, bar ab;
     """
     )
-
+    assert parser.query_type == QueryType.CREATE
     assert parser.tables == ["abc.foo", "foo", "bar"]
     assert parser.columns == ["foo.foo1", "bar.foo2"]
 
@@ -57,6 +57,7 @@ def test_create_table_as_select_with_joins():
         order by table_a.name, table_a.age
         """
     parser = Parser(qry)
+    assert parser.query_type == QueryType.CREATE
     assert parser.columns == [
         "*",
         "table_a.name",
@@ -79,6 +80,7 @@ def test_creating_table_as_select_with_with_clause():
         order by table_a.name, table_a.age
         """
     parser = Parser(qry)
+    assert parser.query_type == QueryType.CREATE
     assert parser.with_names == ["sub"]
     assert parser.columns == [
         "it_id",
