@@ -63,11 +63,13 @@ jobs:
     - name: Test with pytest
       run: make coverage
 
-    # https://github.com/marketplace/actions/coveralls-python
+    # https://coveralls-python.readthedocs.io/en/latest/usage/index.html
     # upload coverage report for just one of Python version matrix runs
     - name: Upload coverage report to Coveralls
       if: matrix.python-version == '3.9'
-      uses: AndreMiras/coveralls-python-action@v20201129
+      env:
+        COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
+      run: poetry run coveralls
 
     - name: Lint with pylint
       run: make lint
