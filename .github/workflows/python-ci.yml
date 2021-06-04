@@ -63,6 +63,12 @@ jobs:
     - name: Test with pytest
       run: make coverage
 
+    # https://github.com/marketplace/actions/coveralls-python
+    # upload coverage report for just one of Python version matrix runs
+    - name: Upload coverage report to Coveralls
+      if: matrix.python-version == '3.9'
+      uses: AndreMiras/coveralls-python-action@v20201129
+
     - name: Lint with pylint
       run: make lint
 
