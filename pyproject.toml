@@ -15,15 +15,14 @@ packages = [
 [tool.poetry.dependencies]
 python = "^3.6.2"
 sqlparse = "^0.4.1"
-coverage = {extras = ["toml"], version = "^5.5"}
-coveralls = "^3.1.0"
 
 [tool.poetry.dev-dependencies]
 black = "^21.5b2"
-coverage = "^5.5"
+coverage = {extras = ["toml"], version = "^5.5"}
 pylint = "^2.8.3"
 pytest = "^6.2.4"
 pytest-cov = "^2.12.1"
+coveralls = "^3.1.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
