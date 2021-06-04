@@ -16,6 +16,7 @@ packages = [
 python = "^3.6.2"
 sqlparse = "^0.4.1"
 coverage = {extras = ["toml"], version = "^5.5"}
+coveralls = "^3.1.0"
 
 [tool.poetry.dev-dependencies]
 black = "^21.5b2"
