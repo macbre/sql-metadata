@@ -68,8 +68,8 @@ jobs:
     - name: Upload coverage report to Coveralls
       if: matrix.python-version == '3.9'
       env:
-        GITHUB_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
-      run: poetry run coveralls
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: poetry run coveralls --service=github
 
     - name: Lint with pylint
       run: make lint

@@ -93,3 +93,13 @@ def test_creating_table_as_select_with_with_clause():
         "sub.it_id",
     ]
     assert parser.tables == ["xyz", "internal_table", "table_a", "table_b", "table_c"]
+
+
+def test_create_table_as_select_in_parentheses():
+    qry = """
+        CREATE TABLE records AS 
+        (SELECT t.id, t.name, e.name as energy FROM t JOIN e ON t.e_id = e.id)
+        """
+    parser = Parser(qry)
+    assert parser.columns == ["t.id", "t.name", "e.name", "t.e_id", "e.id"]
+    assert parser.tables == ["records", "t", "e"]
