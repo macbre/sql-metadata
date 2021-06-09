@@ -410,7 +410,11 @@ class Parser:  # pylint: disable=R0902
             ):
                 # handle CREATE TABLE queries (#35)
                 # skip keyword that are withing parenthesis-wrapped list of column
-                if self.query_type == QueryType.CREATE and token.is_in_parenthesis:
+                if (
+                    self.query_type == QueryType.CREATE
+                    and token.is_in_parenthesis
+                    and token.is_create_table_columns_definition
+                ):
                     continue
 
                 if token.next_token.is_dot:
@@ -772,6 +776,11 @@ class Parser:  # pylint: disable=R0902
             token.is_column_definition_start = True
         elif token.previous_token.normalized == "AS":
             token.is_with_query_start = True
+        elif (
+            token.get_nth_previous(2).normalized == "TABLE"
+            and token.get_nth_previous(3).normalized == "CREATE"
+        ):
+            token.is_create_table_columns_declaration_start = True
         else:
             # nested function
             token.is_nested_function_start = True
@@ -792,6 +801,8 @@ class Parser:  # pylint: disable=R0902
             token.is_column_definition_end = True
         elif last_open_parenthesis.is_with_query_start:
             token.is_with_query_end = True
+        elif last_open_parenthesis.is_create_table_columns_declaration_start:
+            token.is_create_table_columns_declaration_end = True
         else:
             token.is_nested_function_end = True
             self._nested_level -= 1

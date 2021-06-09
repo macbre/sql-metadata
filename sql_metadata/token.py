@@ -77,6 +77,8 @@ class SQLToken:  # pylint: disable=R0902
         self.is_nested_function_end = False
         self.is_column_definition_start = False
         self.is_column_definition_end = False
+        self.is_create_table_columns_declaration_start = False
+        self.is_create_table_columns_declaration_end = False
 
     def __str__(self):
         """
@@ -147,6 +149,26 @@ class SQLToken:  # pylint: disable=R0902
         Property checks if token is surrounded with brackets ()
         """
         return self.parenthesis_level > 0
+
+    @property
+    def is_create_table_columns_definition(self) -> bool:
+        """
+        Checks if given token is inside columns definition in
+        create table query like: create table name (<columns def>)
+        """
+        open_parenthesis = self.find_nearest_token(
+            True, value_attribute="is_create_table_columns_declaration_start"
+        )
+        if open_parenthesis is EmptyToken:
+            return False
+        close_parenthesis = self.find_nearest_token(
+            True,
+            direction="right",
+            value_attribute="is_create_table_columns_declaration_end",
+        )
+        return (
+            open_parenthesis is not EmptyToken and close_parenthesis is not EmptyToken
+        )
 
     @property
     def is_keyword_column_name(self) -> bool:

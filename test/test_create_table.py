@@ -29,7 +29,7 @@ CREATE TABLE `new_table` (
 ) CHARACTER SET utf8;
     """
     )
-
+    assert parser.query_type == QueryType.CREATE
     assert parser.tables == ["new_table"]
     assert parser.columns == ["item_id", "foo"]
 
@@ -42,7 +42,7 @@ CREATE table abc.foo
     FROM foo pqr, bar ab;
     """
     )
-
+    assert parser.query_type == QueryType.CREATE
     assert parser.tables == ["abc.foo", "foo", "bar"]
     assert parser.columns == ["foo.foo1", "bar.foo2"]
 
@@ -57,6 +57,7 @@ def test_create_table_as_select_with_joins():
         order by table_a.name, table_a.age
         """
     parser = Parser(qry)
+    assert parser.query_type == QueryType.CREATE
     assert parser.columns == [
         "*",
         "table_a.name",
@@ -65,3 +66,41 @@ def test_create_table_as_select_with_joins():
         "table_c.age",
     ]
     assert parser.tables == ["xyz", "table_a", "table_b", "table_c"]
+
+
+def test_creating_table_as_select_with_with_clause():
+    qry = """
+        CREATE table xyz as 
+        with sub as (select it_id from internal_table)
+        SELECT *
+        from table_a
+        join table_b on (table_a.name = table_b.name)
+        left join table_c on (table_a.age = table_c.age)
+        left join sub on (table.it_id = sub.it_id)
+        order by table_a.name, table_a.age
+        """
+    parser = Parser(qry)
+    assert parser.query_type == QueryType.CREATE
+    assert parser.with_names == ["sub"]
+    assert parser.columns == [
+        "it_id",
+        "*",
+        "table_a.name",
+        "table_b.name",
+        "table_a.age",
+        "table_c.age",
+        "table.it_id",
+        "sub.it_id",
+    ]
+    assert parser.tables == ["xyz", "internal_table", "table_a", "table_b", "table_c"]
+
+
+def test_create_table_as_select_in_parentheses():
+    qry = """
+        CREATE TABLE records AS 
+        (SELECT t.id, t.name, e.name as energy FROM t JOIN e ON t.e_id = e.id)
+        """
+    parser = Parser(qry)
+    assert parser.query_type == QueryType.CREATE
+    assert parser.columns == ["t.id", "t.name", "e.name", "t.e_id", "e.id"]
+    assert parser.tables == ["records", "t", "e"]
