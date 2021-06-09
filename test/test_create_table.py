@@ -101,5 +101,6 @@ def test_create_table_as_select_in_parentheses():
         (SELECT t.id, t.name, e.name as energy FROM t JOIN e ON t.e_id = e.id)
         """
     parser = Parser(qry)
+    assert parser.query_type == QueryType.CREATE
     assert parser.columns == ["t.id", "t.name", "e.name", "t.e_id", "e.id"]
     assert parser.tables == ["records", "t", "e"]
