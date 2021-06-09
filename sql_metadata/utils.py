@@ -1,7 +1,7 @@
 """
 Module with various utils
 """
-from typing import Any, List
+from typing import Any, List, Sequence
 
 
 class UniqueList(list):
