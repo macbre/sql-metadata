@@ -37,7 +37,6 @@ order by 1, 2;
         "ContractID",
         "StartDate",
         "EndDate",
-        "sq.BusinessSource",
         "data_contracts_report.BusinessSource",
     ]
     assert parser.columns_aliases_names == [
