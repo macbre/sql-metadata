@@ -13,7 +13,7 @@ class UniqueList(list):
         if item not in self:
             super().append(item)
 
-    def extend(self, items: Any) -> None:
+    def extend(self, items: Sequence[Any]) -> None:
         for item in items:
             self.append(item)
 
