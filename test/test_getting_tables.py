@@ -447,18 +447,15 @@ def test_get_tables_with_leading_digits():
 
 
 def test_insert_ignore_with_comments():
-    assert ["bar"] == Parser(
-        "INSERT IGNORE /* foo */ INTO bar VALUES (1, '123', '2017-01-01');"
-    ).tables
-
-    assert ["bar"] == Parser(
+    queries = [
+        "INSERT IGNORE /* foo */ INTO bar VALUES (1, '123', '2017-01-01');",
         "/* foo */ INSERT IGNORE INTO bar VALUES (1, '123', '2017-01-01');"
-    ).tables
-
-    assert ["bar"] == Parser(
         "-- foo\nINSERT IGNORE INTO bar VALUES (1, '123', '2017-01-01');"
-    ).tables
+        "# foo\nINSERT IGNORE INTO bar VALUES (1, '123', '2017-01-01');",
+    ]
 
-    assert ["bar"] == Parser(
-        "# foo\nINSERT IGNORE INTO bar VALUES (1, '123', '2017-01-01');"
-    ).tables
+    for query in queries:
+        parsed = Parser(query)
+
+        assert "INSERT" == parsed.query_type
+        assert ["bar"] == parsed.tables
