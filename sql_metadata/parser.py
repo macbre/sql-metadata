@@ -85,10 +85,16 @@ class Parser:  # pylint: disable=R0902
             return self._query_type
         if not self._tokens:
             _ = self.tokens
-        if self._tokens[0].normalized in ["CREATE", "ALTER"]:
-            switch = self._tokens[0].normalized + self._tokens[1].normalized
+
+        # remove comment tokens to not confuse the logic below (see #163)
+        tokens: List[SQLToken] = list(
+            filter(lambda token: not token.is_comment, self._tokens)
+        )
+
+        if tokens[0].normalized in ["CREATE", "ALTER"]:
+            switch = tokens[0].normalized + tokens[1].normalized
         else:
-            switch = self._tokens[0].normalized
+            switch = tokens[0].normalized
         self._query_type = SUPPORTED_QUERY_TYPES.get(switch, "UNSUPPORTED")
         if self._query_type == "UNSUPPORTED":
             raise ValueError("Not supported query type!")

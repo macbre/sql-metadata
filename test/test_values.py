@@ -24,8 +24,9 @@ def test_getting_values():
     }
 
     parser = Parser(
-        "INSERT IGNORE INTO `0070_insert_ignore_table` VALUES (9, 2.15, '123', '2017-01-01');"
+        "/* method */ INSERT IGNORE INTO `0070_insert_ignore_table` VALUES (9, 2.15, '123', '2017-01-01');"
     )
+    assert parser.query_type == "INSERT"
     assert parser.values == [9, 2.15, "123", "2017-01-01"]
     assert parser.values_dict == {
         "column_1": 9,
