@@ -550,19 +550,11 @@ class Parser:  # pylint: disable=R0902
                             with_names.append(prev_token.left_expanded)
                         else:
                             with_names.append(token.left_expanded)
-                        # move to next with if exists, this with ends with
-                        #  ) + , if many withs or ) + SELECT if one
-                        # need to move to next as AS can be in
-                        # sub-queries inside with definition
-                        while token.next_token and not (
-                            token.is_right_parenthesis
-                            and (
-                                token.next_token.is_punctuation
-                                or token.next_token.normalized in WITH_ENDING_KEYWORDS
-                            )
-                        ):
+                        # move to next with query end
+                        while token.next_token and not token.is_with_query_end:
                             token = token.next_token
                         if token.next_token.normalized in WITH_ENDING_KEYWORDS:
+                            # end of with block
                             self._is_in_with_block = False
                     else:
                         token = token.next_token
