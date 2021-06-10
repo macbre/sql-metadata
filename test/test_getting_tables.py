@@ -454,3 +454,11 @@ def test_insert_ignore_with_comments():
     assert ["bar"] == Parser(
         "/* foo */ INSERT IGNORE INTO bar VALUES (1, '123', '2017-01-01');"
     ).tables
+
+    assert ["bar"] == Parser(
+        "-- foo\nINSERT IGNORE INTO bar VALUES (1, '123', '2017-01-01');"
+    ).tables
+
+    assert ["bar"] == Parser(
+        "# foo\nINSERT IGNORE INTO bar VALUES (1, '123', '2017-01-01');"
+    ).tables
