@@ -1,6 +1,7 @@
 """
 This module provides SQL query parsing functions
 """
+import logging
 import re
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -29,6 +30,8 @@ class Parser:  # pylint: disable=R0902
     """
 
     def __init__(self, sql: str = "") -> None:
+        self._logger = logging.getLogger(self.__class__.__name__)
+
         self._raw_query = sql
         self._query = self._preprocess_query()
         self._query_type = None
@@ -85,12 +88,22 @@ class Parser:  # pylint: disable=R0902
             return self._query_type
         if not self._tokens:
             _ = self.tokens
-        if self._tokens[0].normalized in ["CREATE", "ALTER"]:
-            switch = self._tokens[0].normalized + self._tokens[1].normalized
+
+        # remove comment tokens to not confuse the logic below (see #163)
+        tokens: List[SQLToken] = list(
+            filter(lambda token: not token.is_comment, self._tokens or [])
+        )
+
+        if not tokens:
+            raise ValueError("Empty queries are not supported!")
+
+        if tokens[0].normalized in ["CREATE", "ALTER"]:
+            switch = tokens[0].normalized + tokens[1].normalized
         else:
-            switch = self._tokens[0].normalized
+            switch = tokens[0].normalized
         self._query_type = SUPPORTED_QUERY_TYPES.get(switch, "UNSUPPORTED")
         if self._query_type == "UNSUPPORTED":
+            self._logger.error("Not supported query type: %s", self._raw_query)
             raise ValueError("Not supported query type!")
         return self._query_type
 
