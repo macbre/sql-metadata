@@ -90,3 +90,55 @@ def test_multiple_with_statements_with_with_columns():
     assert parser.columns_aliases_names == ["c1", "c2", "c3", "c4"]
     assert parser.columns_aliases == {"c1": "*", "c2": "*", "c3": "c5", "c4": "c6"}
     assert parser.query_type == QueryType.SELECT
+
+
+def test_complicated_with():
+    query = """
+    WITH uisd_filter_table as (
+        select
+            session_id,
+            srch_id,
+            srch_ci,
+            srch_co,
+            srch_los,
+            srch_sort_type,
+            impr_list
+        from
+            uisd
+        where
+            datem <= date_sub(date_add(current_date(), 92), 7 * 52)
+            and lower(srch_sort_type) in ('expertpicks', 'recommended')
+            and srch_ci <= date_sub(date_add(current_date(), 92), 7 * 52)
+            and srch_co >= date_sub(date_add(current_date(), 1), 7 * 52)
+    )
+    select
+        DISTINCT session_id,
+        srch_id,
+        srch_ci,
+        srch_co,
+        srch_los,
+        srch_sort_type,
+        l.impr_property_id as expe_property_id,
+        l.impr_position_across_pages
+    from
+        uisd_filter_table lateral view explode(impr_list) table as l
+    """
+    parser = Parser(query)
+    assert parser.query_type == QueryType.SELECT
+    assert parser.with_names == ["uisd_filter_table"]
+    assert parser.tables == [
+        "uisd",
+        "impr_list",
+    ]  # this one is wrong too should be table
+    assert parser.columns == [
+        "session_id",
+        "srch_id",
+        "srch_ci",
+        "srch_co",
+        "srch_los",
+        "srch_sort_type",
+        "impr_list",
+        "datem",
+        "l.impr_property_id",
+        "l.impr_position_across_pages",
+    ]
