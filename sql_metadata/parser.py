@@ -538,7 +538,7 @@ class Parser:  # pylint: disable=R0902
                         else:
                             with_names.append(token.left_expanded)
                         # move to next with query end
-                        while token.next_token and not (token.is_with_query_end):
+                        while token.next_token and not token.is_with_query_end:
                             token = token.next_token
                         if token.next_token.normalized in WITH_ENDING_KEYWORDS:
                             # end of with block
