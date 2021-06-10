@@ -455,7 +455,4 @@ def test_insert_ignore_with_comments():
     ]
 
     for query in queries:
-        parsed = Parser(query)
-
-        assert "INSERT" == parsed.query_type
-        assert ["bar"] == parsed.tables
+        assert ["bar"] == Parser(query).tables
