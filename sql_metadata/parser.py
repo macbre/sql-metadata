@@ -91,8 +91,11 @@ class Parser:  # pylint: disable=R0902
 
         # remove comment tokens to not confuse the logic below (see #163)
         tokens: List[SQLToken] = list(
-            filter(lambda token: not token.is_comment, self._tokens)
+            filter(lambda token: not token.is_comment, self._tokens or [])
         )
+
+        if not tokens:
+            raise ValueError("Empty queries are not supported!")
 
         if tokens[0].normalized in ["CREATE", "ALTER"]:
             switch = tokens[0].normalized + tokens[1].normalized

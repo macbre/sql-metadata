@@ -27,11 +27,6 @@ def test_select_query():
         assert "SELECT" == Parser(query).query_type
 
 
-# def test_empty_query():
-#     assert '' == Parser("").query_type
-#     assert '' == Parser("/* empty query */").query_type
-
-
 def test_unsupported_query():
     queries = [
         "FOO BAR",
@@ -43,3 +38,13 @@ def test_unsupported_query():
             _ = Parser(query).query_type
 
         assert "Not supported query type!" in str(ex.value)
+
+
+def test_empty_query():
+    queries = ["", "/* empty query */"]
+
+    for query in queries:
+        with pytest.raises(ValueError) as ex:
+            _ = Parser(query).query_type
+
+        assert "Empty queries are not supported!" in str(ex.value)
