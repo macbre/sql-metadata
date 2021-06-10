@@ -444,3 +444,13 @@ def test_get_tables_with_leading_digits():
     assert ["0020_big_table"] == Parser(
         "SELECT t.val as value, count(*) FROM 0020_big_table"
     ).tables
+
+
+def test_insert_ignore_with_comments():
+    assert ["bar"] == Parser(
+        "INSERT IGNORE /* foo */ INTO bar VALUES (1, '123', '2017-01-01');"
+    ).tables
+
+    assert ["bar"] == Parser(
+        "/* foo */ INSERT IGNORE INTO bar VALUES (1, '123', '2017-01-01');"
+    ).tables
