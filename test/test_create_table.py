@@ -82,6 +82,7 @@ def test_creating_table_as_select_with_with_clause():
     parser = Parser(qry)
     assert parser.query_type == QueryType.CREATE
     assert parser.with_names == ["sub"]
+    assert parser.with_queries == {"sub": "select it_id from internal_table"}
     assert parser.columns == [
         "it_id",
         "*",
@@ -90,8 +91,19 @@ def test_creating_table_as_select_with_with_clause():
         "table_a.age",
         "table_c.age",
         "table.it_id",
-        "sub.it_id",
     ]
+    assert parser.columns_dict == {
+        "join": [
+            "table_a.name",
+            "table_b.name",
+            "table_a.age",
+            "table_c.age",
+            "table.it_id",
+            "it_id",
+        ],
+        "order_by": ["table_a.name", "table_a.age"],
+        "select": ["it_id", "*"],
+    }
     assert parser.tables == ["xyz", "internal_table", "table_a", "table_b", "table_c"]
 
 
