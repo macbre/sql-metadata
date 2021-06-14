@@ -223,32 +223,18 @@ class Parser:  # pylint: disable=R0902
                         and not token.next_token.is_left_parenthesis
                     ):
                         column = token.table_prefixed_column(tables_aliases)
-                        column = self._resolve_nested_query(
-                            subquery_alias=column,
-                            nested_queries_names=self.subqueries_names,
-                            nested_queries=self.subqueries,
-                            already_parsed=self._subqueries_parsers,
-                        )
-                        if isinstance(column, str):
-                            if self._is_with_query_already_resolved(column):
-                                self._add_to_columns_aliases_subsection(
-                                    token=token, left_expand=False
-                                )
-                                continue
-                            column = self._resolve_nested_query(
-                                subquery_alias=column,
-                                nested_queries_names=self.with_names,
-                                nested_queries=self.with_queries,
-                                already_parsed=self._with_parsers,
+                        if self._is_with_query_already_resolved(column):
+                            self._add_to_columns_aliases_subsection(
+                                token=token, left_expand=False
                             )
+                            continue
+                        column = self._resolve_sub_queries(column)
                         self._add_to_columns_with_tables(token, column)
                         self._add_to_columns_subsection(
                             keyword=token.last_keyword_normalized, column=column
                         )
-                        if isinstance(column, list):
-                            columns.extend(column)
-                        else:
-                            columns.append(column)
+                        columns.extend(column)
+
                 elif (
                     token.last_keyword_normalized == "INTO"
                     and token.previous_token.is_punctuation
@@ -268,27 +254,12 @@ class Parser:  # pylint: disable=R0902
             ):
                 # handle * wildcard in select part, but ignore count(*)
                 column = token.table_prefixed_column(tables_aliases)
-                column = self._resolve_nested_query(
-                    subquery_alias=column,
-                    nested_queries_names=self.subqueries_names,
-                    nested_queries=self.subqueries,
-                    already_parsed=self._subqueries_parsers,
-                )
-                if isinstance(column, str):
-                    column = self._resolve_nested_query(
-                        subquery_alias=column,
-                        nested_queries_names=self.with_names,
-                        nested_queries=self.with_queries,
-                        already_parsed=self._with_parsers,
-                    )
+                column = self._resolve_sub_queries(column)
                 self._add_to_columns_with_tables(token, column)
                 self._add_to_columns_subsection(
                     keyword=token.last_keyword_normalized, column=column
                 )
-                if isinstance(column, list):
-                    columns.extend(column)
-                else:
-                    columns.append(column)
+                columns.extend(column)
 
         self._columns = columns
         return self._columns
@@ -807,6 +778,22 @@ class Parser:  # pylint: disable=R0902
         else:
             alias_of = alias_token.left_expanded
         return alias_of
+
+    def _resolve_sub_queries(self, column: str) -> List[str]:
+        column = self._resolve_nested_query(
+            subquery_alias=column,
+            nested_queries_names=self.subqueries_names,
+            nested_queries=self.subqueries,
+            already_parsed=self._subqueries_parsers,
+        )
+        if isinstance(column, str):
+            column = self._resolve_nested_query(
+                subquery_alias=column,
+                nested_queries_names=self.with_names,
+                nested_queries=self.with_queries,
+                already_parsed=self._with_parsers,
+            )
+        return column if isinstance(column, list) else [column]
 
     @staticmethod
     def _resolve_nested_query(
