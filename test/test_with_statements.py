@@ -258,3 +258,51 @@ def test_resolving_with_columns_with_wildcard():
         "select": ["c1", "c2", "c4", "c3", "c7"],
     }
     assert parser.query_type == QueryType.SELECT
+
+
+def test_resolving_with_columns_with_nested_tables_prefixes():
+    query = """
+    WITH 
+    query1 AS (SELECT t5.c1, t5.c2, t6.c4 FROM t5 left join t6 on t5.link1=t6.link2),
+    query2 AS (SELECT c3, c7 FROM t7 union all select c4, c12 from t8) 
+    SELECT query1.*, query2.c7, query2.c3 
+    FROM query1 left join query2 on query1.c4 = query2.c3
+    order by query2.c7;
+    """
+    parser = Parser(query)
+    assert parser.with_names == ["query1", "query2"]
+    assert parser.with_queries == {
+        "query1": "SELECT t5.c1, t5.c2, t6.c4 FROM t5 left join t6 on t5.link1 = "
+        "t6.link2",
+        "query2": "SELECT c3, c7 FROM t7 union all select c4, c12 from t8",
+    }
+    assert parser.tables == ["t5", "t6", "t7", "t8"]
+    assert parser.columns_aliases == {}
+    assert parser.columns_aliases_names == []
+    assert parser.columns == [
+        "t5.c1",
+        "t5.c2",
+        "t6.c4",
+        "t5.link1",
+        "t6.link2",
+        "c3",
+        "c7",
+        "c4",
+        "c12",
+    ]
+    assert parser.columns_dict == {
+        "join": ["t5.link1", "t6.link2", "t6.c4", "c3"],
+        "order_by": ["c7"],
+        "select": [
+            "t5.c1",
+            "t5.c2",
+            "t6.c4",
+            "c3",
+            "c7",
+            "c4",
+            "c12",
+            "t5.link1",
+            "t6.link2",
+        ],
+    }
+    assert parser.query_type == QueryType.SELECT

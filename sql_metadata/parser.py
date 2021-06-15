@@ -173,6 +173,7 @@ class Parser:  # pylint: disable=R0902
         columns = UniqueList()
         tables_aliases = self.tables_aliases
         subqueries_names = self.subqueries_names
+        with_names = self.with_names
 
         for token in self.tokens:
             # handle CREATE TABLE queries (#35)
@@ -217,6 +218,11 @@ class Parser:  # pylint: disable=R0902
                             # aliases of sub-queries i.e.: SELECT from (...) <alias>
                             token.previous_token.is_right_parenthesis
                             and token.value in subqueries_names
+                        )
+                        and not (
+                            # names of the with queries <name> as (subquery)
+                            token.next_token.normalized == "AS"
+                            and token.value in with_names
                         )
                         # custom functions - they are followed by the parenthesis
                         # e.g. custom_func(...
