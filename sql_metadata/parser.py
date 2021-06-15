@@ -1,3 +1,4 @@
+# pylint: disable=C0302
 """
 This module provides SQL query parsing functions
 """
@@ -786,6 +787,10 @@ class Parser:  # pylint: disable=R0902
         return alias_of
 
     def _resolve_sub_queries(self, column: str) -> List[str]:
+        """
+        Resolve column names coming from sub queries and with queries to actual
+        column names as they appear in the query
+        """
         column = self._resolve_nested_query(
             subquery_alias=column,
             nested_queries_names=self.subqueries_names,
@@ -830,7 +835,15 @@ class Parser:  # pylint: disable=R0902
 
         if column_name == "*":
             return subparser.columns
-        column_index = [x.split(".")[-1] for x in subparser.columns].index(column_name)
+        try:
+            column_index = [x.split(".")[-1] for x in subparser.columns].index(
+                column_name
+            )
+        except ValueError as exc:
+            # handle case when column name is used but subquery select all by wildcard
+            if "*" in subparser.columns:
+                return column_name
+            raise exc  # pragma: no cover
         resolved_column = subparser.columns[column_index]
         return [resolved_column]
 
