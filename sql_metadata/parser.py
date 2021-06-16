@@ -572,7 +572,7 @@ class Parser:  # pylint: disable=R0902
     @property
     def with_queries(self) -> Dict[str, str]:
         """
-        Returns with subqueries with names
+        Returns "WITH" subqueries with names
 
         E.g. WITH tableFromWith AS (SELECT * FROM table3)
              SELECT "xxxxx" FROM database1.tableFromWith alias
