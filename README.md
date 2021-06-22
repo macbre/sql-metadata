@@ -178,6 +178,11 @@ LEFT JOIN database2.table2 ON ("tt"."ttt"."fff" = "xx"."xxx")
 parser.with_names
 # ["database1.tableFromWith", "test"]
 
+# get definition of with queries
+parser.with_queries
+# {"database1.tableFromWith": "SELECT aa.* FROM table3 as aa left join table4 on aa.col1=table4.col2"
+#  "test": "SELECT * from table3"}
+
 # note that names of with statements do not appear in tables
 parser.tables
 # ["table3", "table4", "database2.table2"]

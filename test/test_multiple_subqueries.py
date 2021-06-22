@@ -239,12 +239,6 @@ task_type_id = 80
         "some_task.task_id",
         "task_type_id",
     ]
-    assert parser.columns_without_subqueries == [
-        "some_task_detail.task_id",
-        "some_task_detail.STATUS",
-        "some_task.task_id",
-        "task_type_id",
-    ]
     assert parser.columns_dict == {
         "join": ["some_task_detail.task_id", "some_task.task_id"],
         "select": ["some_task_detail.task_id", "some_task.task_id"],
