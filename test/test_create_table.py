@@ -37,7 +37,7 @@ CREATE TABLE `new_table` (
 def test_simple_create_table_as_select():
     parser = Parser(
         """
-CREATE table abc.foo
+    CREATE table abc.foo
     as SELECT pqr.foo1 , ab.foo2
     FROM foo pqr, bar ab;
     """
@@ -116,3 +116,27 @@ def test_create_table_as_select_in_parentheses():
     assert parser.query_type == QueryType.CREATE
     assert parser.columns == ["t.id", "t.name", "e.name", "t.e_id", "e.id"]
     assert parser.tables == ["records", "t", "e"]
+
+
+def test_create_table_with_schema_name():
+    query = """
+    CREATE TABLE myschema.mytable (
+    code INTEGER NOT NULL,
+    short_name CHAR(9)
+    );
+    """
+    parser = Parser(query)
+    assert parser.query_type == QueryType.CREATE
+    assert parser.columns == ["code", "short_name"]
+    assert parser.tables == ["myschema.mytable"]
+
+
+def test_create_table_as_select_in_parentheses_with_schema():
+    qry = """
+        CREATE TABLE mysuper_secret_schema.records AS 
+        (SELECT t.id, t.name, e.name as energy FROM t JOIN e ON t.e_id = e.id)
+        """
+    parser = Parser(qry)
+    assert parser.query_type == QueryType.CREATE
+    assert parser.columns == ["t.id", "t.name", "e.name", "t.e_id", "e.id"]
+    assert parser.tables == ["mysuper_secret_schema.records", "t", "e"]
