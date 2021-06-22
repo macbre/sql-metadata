@@ -2,18 +2,27 @@
 
 [![PyPI](https://img.shields.io/pypi/v/sql_metadata.svg)](https://pypi.python.org/pypi/sql_metadata)
 [![Tests](https://github.com/macbre/sql-metadata/actions/workflows/python-ci.yml/badge.svg)](https://github.com/macbre/sql-metadata/actions/workflows/python-ci.yml)
+[![Coverage Status](https://coveralls.io/repos/github/macbre/sql-metadata/badge.svg?branch=master&1)](https://coveralls.io/github/macbre/sql-metadata?branch=master)
 <a href="https://github.com/psf/black"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
 [![Maintenance](https://img.shields.io/badge/maintained%3F-yes-green.svg)](https://github.com/macbre/sql-metadata/graphs/commit-activity)
 [![Downloads](https://pepy.tech/badge/sql-metadata/month)](https://pepy.tech/project/sql-metadata)
 
 Uses tokenized query returned by [`python-sqlparse`](https://github.com/andialbrecht/sqlparse) and generates query metadata.
-**Extracts column names and tables** used by the query. Provides a helper for **normalization of SQL queries** and **tables aliases resolving**.
+
+**Extracts column names and tables** used by the query. 
+Automatically conduct **column alias resolution**, **sub queries aliases resolution** as well as **tables aliases resolving**.
+
+Provides also a helper for **normalization of SQL queries**.
 
 Supported queries syntax:
 
 * MySQL
 * PostgreSQL
+* Sqlite
+* MSSQL
 * [Apache Hive](https://cwiki.apache.org/confluence/display/Hive/LanguageManual+DML)
+
+(note that listed backends can differ quite substantially but should work in regard of query types supported by `sql-metadata`)
 
 ## Usage
 
@@ -107,7 +116,7 @@ parser.columns
 # ["foo.test"]
 ```
 
-### Extracting values from query
+### Extracting values from insert query
 ```python
 from sql_metadata import Parser
 
@@ -169,6 +178,11 @@ LEFT JOIN database2.table2 ON ("tt"."ttt"."fff" = "xx"."xxx")
 parser.with_names
 # ["database1.tableFromWith", "test"]
 
+# get definition of with queries
+parser.with_queries
+# {"database1.tableFromWith": "SELECT aa.* FROM table3 as aa left join table4 on aa.col1=table4.col2"
+#  "test": "SELECT * from table3"}
+
 # note that names of with statements do not appear in tables
 parser.tables
 # ["table3", "table4", "database2.table2"]
@@ -198,16 +212,17 @@ parser.subqueries
 parser.subqueries_names
 # ["a", "b"]
 
-# note that you can also exclude columns coming from sub-queries
-# all columns
+# note that columns coming from sub-queries are resolved to real columns
 parser.columns
 #["some_task_detail.task_id", "some_task_detail.STATUS", "some_task.task_id", 
-# "task_type_id", "a.task_id", "b.task_id"]
-
-# without subqueries
-parser.columns_without_subqueries
-#["some_task_detail.task_id", "some_task_detail.STATUS", "some_task.task_id", 
 # "task_type_id"]
+
+# same applies for columns_dict, note the join columns are resolved
+parser.columns_dict
+#{'join': ['some_task_detail.task_id', 'some_task.task_id'],
+# 'select': ['some_task_detail.task_id', 'some_task.task_id'],
+# 'where': ['some_task_detail.STATUS', 'task_type_id']}
+
 ```
 
 See `tests` file for more examples of a bit more complex queries.

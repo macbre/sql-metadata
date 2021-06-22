@@ -1,9 +1,9 @@
 [tool.poetry]
 name = "sql_metadata"
-version = "2.1.0"
+version = "2.2.1"
 license="MIT"
 description = "Uses tokenized query returned by python-sqlparse and generates query metadata"
-authors = ["Maciej Brencz <maciej.brencz@gmail.com>"]
+authors = ["Maciej Brencz <maciej.brencz@gmail.com>", "Radosław Drążkiewicz <collerek@gmail.com>"]
 readme = "README.md"
 homepage = "https://github.com/macbre/sql-metadata"
 repository = "https://github.com/macbre/sql-metadata"
@@ -17,15 +17,19 @@ python = "^3.6.2"
 sqlparse = "^0.4.1"
 
 [tool.poetry.dev-dependencies]
-black = "^21.5b2"
-coverage = "^5.5"
+black = "^21.6b0"
+coverage = {extras = ["toml"], version = "^5.5"}
 pylint = "^2.8.3"
 pytest = "^6.2.4"
-pytest-cov = "^2.12.0"
+pytest-cov = "^2.12.1"
+coveralls = "^3.1.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.coverage.run]
+relative_files = true
 
 [tool.coverage.report]
 show_missing = true

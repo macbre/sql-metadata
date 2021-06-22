@@ -77,6 +77,8 @@ class SQLToken:  # pylint: disable=R0902
         self.is_nested_function_end = False
         self.is_column_definition_start = False
         self.is_column_definition_end = False
+        self.is_create_table_columns_declaration_start = False
+        self.is_create_table_columns_declaration_end = False
 
     def __str__(self):
         """
@@ -149,6 +151,26 @@ class SQLToken:  # pylint: disable=R0902
         return self.parenthesis_level > 0
 
     @property
+    def is_create_table_columns_definition(self) -> bool:
+        """
+        Checks if given token is inside columns definition in
+        create table query like: create table name (<columns def>)
+        """
+        open_parenthesis = self.find_nearest_token(
+            True, value_attribute="is_create_table_columns_declaration_start"
+        )
+        if open_parenthesis is EmptyToken:
+            return False
+        close_parenthesis = self.find_nearest_token(
+            True,
+            direction="right",
+            value_attribute="is_create_table_columns_declaration_end",
+        )
+        return (
+            open_parenthesis is not EmptyToken and close_parenthesis is not EmptyToken
+        )
+
+    @property
     def is_keyword_column_name(self) -> bool:
         """
         Checks if given keyword can be a column name in SELECT query
@@ -169,8 +191,29 @@ class SQLToken:  # pylint: disable=R0902
         return (
             self.next_token.normalized in [",", "FROM"]
             and self.previous_token.normalized not in [",", ".", "(", "SELECT"]
-            and self.last_keyword_normalized == "SELECT"
+            and (
+                self.last_keyword_normalized == "SELECT"
+                or self.previous_token.is_column_definition_end
+            )
             and not self.previous_token.is_comment
+        )
+
+    @property
+    def is_alias_definition(self):
+        """
+        Returns if current token is a definition of an alias.
+        Note that aliases can also be used in other queries and be a part
+        of other nested columns with aliases.
+
+        Note that this function only check if alias token is a token with
+        alias definition, it's not suitable for determining IF token is an alias
+        as it's more complicated and this method would match
+        also i.e. sub-queries names
+        """
+        return (
+            self.is_alias_without_as
+            or self.previous_token.normalized == "AS"
+            or self.is_in_with_columns
         )
 
     @property
@@ -199,6 +242,18 @@ class SQLToken:  # pylint: disable=R0902
             and self.find_nearest_token(")", direction="right").is_with_columns_end
         )
 
+    @property
+    def is_wildcard_not_operator(self):
+        """
+        Determines if * encountered in query is a wildcard like select <*> from aa
+        or is that an operator like Select aa <*> bb as cc from dd
+        """
+        return self.normalized == "*" and (
+            self.previous_token.value in [",", ".", "SELECT"]
+            or (self.previous_token.value == "(")
+            and self.next_token.value == ")"
+        )
+
     def token_is_alias_of_self_not_from_subquery(self, aliases_levels: Dict) -> bool:
         """
         Checks if token is also an alias, but is an alias of self that is not
@@ -217,7 +272,7 @@ class SQLToken:  # pylint: disable=R0902
         value = self.left_expanded
         if "." in value:
             parts = value.split(".")
-            if len(parts) > 3:  # pragma: no cover
+            if len(parts) > 2:  # pragma: no cover
                 raise ValueError(f"Wrong columns name: {value}")
             parts[0] = table_aliases.get(parts[0], parts[0])
             value = ".".join(parts)
