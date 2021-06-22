@@ -364,3 +364,5 @@ def test_nested_with_statement_in_create_table():
         "table_a": "with abc as(select * from other_table) select name, age, it_id "
         "from table_z join abc on (table_z.it_id = abc.it_id)"
     }
+
+    assert parser.query_type == QueryType.CREATE
