@@ -306,3 +306,63 @@ def test_resolving_with_columns_with_nested_tables_prefixes():
         ],
     }
     assert parser.query_type == QueryType.SELECT
+
+
+def test_nested_with_statement_in_create_table():
+    qry = """
+            CREATE table xyz as 
+            with sub as (select it_id from internal_table)
+            SELECT *
+            from (
+                with abc as (select * from other_table)
+                select name, age, it_id
+                from table_z
+                join abc on (table_z.it_id = abc.it_id)
+            ) as table_a
+            join table_b on (table_a.name = table_b.name)
+            left join table_c on (table_a.age = table_c.age)
+            left join sub on (table_a.it_id = sub.it_id)
+            order by table_a.name, table_a.age
+            """
+    parser = Parser(qry)
+    assert parser.tables == [
+        "xyz",
+        "internal_table",
+        "other_table",
+        "table_z",
+        "table_b",
+        "table_c",
+    ]
+    assert parser.columns == [
+        "it_id",
+        "*",
+        "name",
+        "age",
+        "table_z.it_id",
+        "table_b.name",
+        "table_c.age",
+    ]
+    assert parser.columns_dict == {
+        "select": ["it_id", "*", "name", "age"],
+        "join": [
+            "table_z.it_id",
+            "it_id",
+            "name",
+            "table_b.name",
+            "age",
+            "table_c.age",
+        ],
+        "order_by": ["name", "age"],
+    }
+    assert parser.with_names == ["sub", "abc"]
+    assert parser.subqueries_names == ["table_a"]
+    assert parser.with_queries == {
+        "abc": "select * from other_table",
+        "sub": "select it_id from internal_table",
+    }
+    assert parser.subqueries == {
+        "table_a": "with abc as(select * from other_table) select name, age, it_id "
+        "from table_z join abc on (table_z.it_id = abc.it_id)"
+    }
+
+    assert parser.query_type == QueryType.CREATE

@@ -436,6 +436,12 @@ class Parser:  # pylint: disable=R0902
                     and token.is_create_table_columns_definition
                 ):
                     continue
+                if (
+                    token.normalized == "WITH"
+                    and token.previous_token.is_left_parenthesis
+                    and token.get_nth_previous(2).normalized == "FROM"
+                ):
+                    continue
 
                 if token.next_token.is_dot:
                     pass  # part of the qualified name
