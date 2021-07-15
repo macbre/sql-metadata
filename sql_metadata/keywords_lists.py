@@ -66,14 +66,15 @@ class QueryType(str, Enum):
     ALTER = "ALTER TABLE"
 
 
-class TokenTypes(str, Enum):
+class TokenType(str, Enum):
     """
     Types of SQLTokens
     """
 
     COLUMN = "COLUMN"
     TABLE = "TABLE"
-    ALIAS = "ALIAS"
+    COLUMN_ALIAS = "COLUMN_ALIAS"
+    TABLE_ALIAS = "TABLE_ALIAS"
     WITH_NAME = "WITH_NAME"
     SUB_QUERY_NAME = "SUB_QUERY_NAME"
 

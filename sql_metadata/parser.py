@@ -15,6 +15,7 @@ from sql_metadata.keywords_lists import (
     COLUMNS_SECTIONS,
     KEYWORDS_BEFORE_COLUMNS,
     QueryType,
+    TokenType,
     RELEVANT_KEYWORDS,
     SUBQUERY_PRECEDING_KEYWORDS,
     SUPPORTED_QUERY_TYPES,
@@ -112,6 +113,10 @@ class Parser:  # pylint: disable=R0902
         return self._query_type
 
     @property
+    def _not_parsed_tokens(self):
+        return [x for x in self.tokens if x.token_type is None]
+
+    @property
     def tokens(self) -> List[SQLToken]:
         """
         Tokenizes the query
@@ -169,7 +174,11 @@ class Parser:  # pylint: disable=R0902
                 self._determine_closing_parenthesis_type(token=token)
 
             if tok.is_keyword and "".join(tok.normalized.split()) in RELEVANT_KEYWORDS:
-                last_keyword = tok.normalized
+                if not (
+                    tok.normalized == "FROM"
+                    and token.get_nth_previous(3).normalized == "EXTRACT"
+                ):
+                    last_keyword = tok.normalized
             token.is_in_nested_function = self._is_in_nested_function
             token.parenthesis_level = self._parenthesis_level
             tokens.append(token)
@@ -194,7 +203,7 @@ class Parser:  # pylint: disable=R0902
         subqueries_names = self.subqueries_names
         with_names = self.with_names
 
-        for token in self.tokens:
+        for token in self._not_parsed_tokens:
             # handle CREATE TABLE queries (#35)
             if token.is_name and self.query_type == QueryType.CREATE:
                 # previous token is either ( or , -> indicates the column name
@@ -203,6 +212,7 @@ class Parser:  # pylint: disable=R0902
                     and token.previous_token.is_punctuation
                     and token.last_keyword_normalized == "TABLE"
                 ):
+                    token.token_type = TokenType.COLUMN
                     columns.append(token.value)
                     continue
 
@@ -216,9 +226,7 @@ class Parser:  # pylint: disable=R0902
                 ):
                     continue
 
-            if (
-                token.is_name and not token.next_token.is_dot
-            ) or token.is_keyword_column_name:
+            if token.is_name or token.is_keyword_column_name:
                 # analyze the name tokens, column names and where condition values
                 if (
                     token.last_keyword_normalized in KEYWORDS_BEFORE_COLUMNS
@@ -258,6 +266,7 @@ class Parser:  # pylint: disable=R0902
                         self._add_to_columns_subsection(
                             keyword=token.last_keyword_normalized, column=column
                         )
+                        token.token_type = TokenType.COLUMN
                         columns.extend(column)
 
                 elif (
@@ -269,9 +278,10 @@ class Parser:  # pylint: disable=R0902
                     self._add_to_columns_subsection(
                         keyword=token.last_keyword_normalized, column=column
                     )
+                    token.token_type = TokenType.COLUMN
                     columns.append(column)
-                elif token.value in self.columns_aliases_names:
-                    self._add_to_columns_aliases_subsection(token=token)
+                # elif token.value in self.columns_aliases_names:
+                #     self._add_to_columns_aliases_subsection(token=token)
             elif (
                 token.is_wildcard
                 and token.last_keyword_normalized == "SELECT"
@@ -284,6 +294,7 @@ class Parser:  # pylint: disable=R0902
                 self._add_to_columns_subsection(
                     keyword=token.last_keyword_normalized, column=column
                 )
+                token.token_type = TokenType.COLUMN
                 columns.extend(column)
 
         self._columns = columns
@@ -405,11 +416,23 @@ class Parser:  # pylint: disable=R0902
         column_aliases_names = UniqueList()
         with_names = self.with_names
         subqueries_names = self.subqueries_names
-        for token in self.tokens:
-            if (
-                token.is_name
-                or (token.is_keyword and token.previous_token.normalized == "AS")
-            ) and not token.next_token.is_dot:
+        for token in self._not_parsed_tokens:
+            if token.is_name or (
+                token.is_keyword
+                and token.previous_token.normalized == "AS"
+                and token.last_keyword_normalized == "SELECT"
+            ):
+                if token.value in column_aliases_names:
+                    token.token_type = TokenType.COLUMN_ALIAS
+                    self._add_to_columns_aliases_subsection(token=token)
+                    current_level = self._column_aliases_max_subquery_level.get(
+                        token.value
+                    )
+                    if token.subquery_level > current_level:
+                        self._column_aliases_max_subquery_level[
+                            token.value
+                        ] = token.subquery_level
+                    continue
                 if (
                     token.last_keyword_normalized in KEYWORDS_BEFORE_COLUMNS
                     and token.normalized not in ["DIV"]
@@ -417,6 +440,8 @@ class Parser:  # pylint: disable=R0902
                     or token.is_in_with_columns
                 ) and token.value not in with_names + subqueries_names:
                     alias = token.value
+                    token.token_type = TokenType.COLUMN_ALIAS
+                    self._add_to_columns_aliases_subsection(token=token)
                     column_aliases_names.append(alias)
                     current_level = self._column_aliases_max_subquery_level.setdefault(
                         alias, 0
@@ -439,7 +464,7 @@ class Parser:  # pylint: disable=R0902
         tables = UniqueList()
         with_names = self.with_names
 
-        for token in self.tokens:
+        for token in self._not_parsed_tokens:
             if (
                 (token.is_name or token.is_keyword)
                 and token.last_keyword_normalized in TABLE_ADJUSTMENT_KEYWORDS
@@ -461,17 +486,13 @@ class Parser:  # pylint: disable=R0902
                 ):
                     continue
 
-                if token.next_token.is_dot:
-                    pass  # part of the qualified name
-                elif token.is_in_parenthesis and (
+                if token.is_in_parenthesis and (
                     token.find_nearest_token("(").previous_token.value in with_names
                     or token.last_keyword_normalized == "INTO"
                 ):
                     # we are in <columns> of INSERT INTO <TABLE> (<columns>)
                     # or columns of with statement: with (<columns>) as ...
                     pass
-                elif token.previous_token.is_dot:
-                    tables.append(token.value)  # full qualified name
                 elif (
                     token.previous_token.normalized != token.last_keyword_normalized
                     and not token.previous_token.is_punctuation
@@ -483,6 +504,7 @@ class Parser:  # pylint: disable=R0902
                     pass
                 else:
                     table_name = str(token.value.strip("`"))
+                    token.token_type = TokenType.TABLE
                     tables.append(table_name)
 
         self._tables = tables - with_names
@@ -498,7 +520,7 @@ class Parser:  # pylint: disable=R0902
         limit = None
         offset = None
 
-        for token in self.tokens:
+        for token in self._not_parsed_tokens:
             if token.is_integer:
                 if token.last_keyword_normalized == "LIMIT" and not limit:
                     # LIMIT <limit>
@@ -530,12 +552,11 @@ class Parser:  # pylint: disable=R0902
         aliases = dict()
         tables = self.tables
 
-        for token in self.tokens:
+        for token in self._not_parsed_tokens:
             if (
                 token.last_keyword_normalized in TABLE_ADJUSTMENT_KEYWORDS
                 and token.is_name
                 and token.next_token.normalized != "AS"
-                and not token.next_token.is_dot
             ):
                 if token.previous_token.normalized == "AS":
                     # potential <DB.<SCHEMA>.<TABLE> as <ALIAS>
@@ -545,6 +566,7 @@ class Parser:  # pylint: disable=R0902
                     potential_table_name = token.previous_token.value
 
                 if potential_table_name in tables:
+                    token.token_type = TokenType.TABLE_ALIAS
                     aliases[token.value] = potential_table_name
 
         self._table_aliases = aliases
@@ -563,7 +585,7 @@ class Parser:  # pylint: disable=R0902
         if self._with_names is not None:
             return self._with_names
         with_names = UniqueList()
-        for token in self.tokens:
+        for token in self._not_parsed_tokens:
             if token.previous_token.normalized == "WITH":
                 self._is_in_with_block = True
                 while self._is_in_with_block and token.next_token:
@@ -578,8 +600,10 @@ class Parser:  # pylint: disable=R0902
                             start_token.is_with_columns_start = True
                             start_token.is_nested_function_start = False
                             prev_token = start_token.previous_token
+                            prev_token.token_type = TokenType.WITH_NAME
                             with_names.append(prev_token.value)
                         else:
+                            token.token_type = TokenType.WITH_NAME
                             with_names.append(token.value)
                         # move to next with query end
                         while token.next_token and not token.is_with_query_end:
@@ -696,7 +720,7 @@ class Parser:  # pylint: disable=R0902
         if self._values:
             return self._values
         values = []
-        for token in self.tokens:
+        for token in self._not_parsed_tokens:
             if (
                 token.last_keyword_normalized == "VALUES"
                 and token.is_in_parenthesis
@@ -880,7 +904,7 @@ class Parser:  # pylint: disable=R0902
         parts = col_alias.split(".")
         if len(parts) != 2 or parts[0] not in self.with_names:
             return False
-        if self._with_queries_columns[parts[0]]:
+        if self._with_queries_columns.get(parts[0]):
             return True
         return False
 
