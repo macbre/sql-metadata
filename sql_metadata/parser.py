@@ -260,6 +260,7 @@ class Parser:  # pylint: disable=R0902
                             self._add_to_columns_aliases_subsection(
                                 token=token, left_expand=False
                             )
+                            token.token_type = TokenType.COLUMN_ALIAS
                             continue
                         column = self._resolve_sub_queries(column)
                         self._add_to_columns_with_tables(token, column)
@@ -280,8 +281,6 @@ class Parser:  # pylint: disable=R0902
                     )
                     token.token_type = TokenType.COLUMN
                     columns.append(column)
-                # elif token.value in self.columns_aliases_names:
-                #     self._add_to_columns_aliases_subsection(token=token)
             elif (
                 token.is_wildcard
                 and token.last_keyword_normalized == "SELECT"
@@ -707,6 +706,7 @@ class Parser:  # pylint: disable=R0902
                 token.previous_token.normalized == "AS"
                 and token.get_nth_previous(2).is_subquery_end
             ):
+                token.token_type = TokenType.SUB_QUERY_NAME
                 subqueries_names.append(str(token))
 
         self._subqueries_names = subqueries_names
