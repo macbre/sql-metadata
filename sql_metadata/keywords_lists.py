@@ -66,6 +66,18 @@ class QueryType(str, Enum):
     ALTER = "ALTER TABLE"
 
 
+class TokenTypes(str, Enum):
+    """
+    Types of SQLTokens
+    """
+
+    COLUMN = "COLUMN"
+    TABLE = "TABLE"
+    ALIAS = "ALIAS"
+    WITH_NAME = "WITH_NAME"
+    SUB_QUERY_NAME = "SUB_QUERY_NAME"
+
+
 # cannot fully replace with enum as with/select has the same key
 SUPPORTED_QUERY_TYPES = {
     "INSERT": QueryType.INSERT,

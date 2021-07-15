@@ -234,9 +234,9 @@ def test_table_name_with_group_by():
     assert (
         Parser(
             """
-                    SELECT s.cust_id,count(s.cust_id) FROM SH.sales s
-                    GROUP BY s.cust_id HAVING s.cust_id != '1660' AND s.cust_id != '2'
-                        """.strip()
+                        SELECT s.cust_id,count(s.cust_id) FROM SH.sales s
+                        GROUP BY s.cust_id HAVING s.cust_id != '1660' AND s.cust_id != '2'
+                            """.strip()
         ).tables
         == expected_tables
     )
@@ -456,3 +456,32 @@ def test_insert_ignore_with_comments():
 
     for query in queries:
         assert ["bar"] == Parser(query).tables
+
+
+def test_mutli_from_aliases_without_as():
+    query = """
+    select distinct e1.eid as eid from uw_emp "e1", uw_emp "e2", uw_payroll p 
+    where e1.eid = e2.eid and e1.eid = p.eid
+    """
+    parser = Parser(query)
+    assert parser.tables == ["uw_emp", "uw_payroll"]
+    assert parser.tables_aliases == {"p": "uw_payroll", "e1": "uw_emp", "e2": "uw_emp"}
+
+
+def test_tables_with_aggregation():
+    query = """
+    SELECT
+    tc.col2
+    , max(tc.col3) col3_mx
+    , trunc(max(tc.col4)) col4_mx
+    , extract (week from (max(tc.col5))) col5_week
+    , sum(NVL(tc.amt,0)) tot_amt
+    FROM
+    my_sc.tab1 tc
+    WHERE
+    tc.col1 = 'AAA'
+    group by
+    tc.col2
+    """
+    parser = Parser(query)
+    assert parser.tables == ["my_sc.tab1"]

@@ -133,17 +133,35 @@ class Parser:  # pylint: disable=R0902
             if token.ttype is not Whitespace and token.ttype.parent is not Whitespace
         ]
         last_keyword = None
+        tokens_length = len(non_empty_tokens)
+        combine_flag = False
         for index, tok in enumerate(non_empty_tokens):
+            # combine dot separated identifiers
+            if str(tok) == "." or (
+                index + 1 < tokens_length and str(non_empty_tokens[index + 1]) == "."
+            ):
+                combine_flag = True
+                continue
             token = SQLToken(
                 tok=tok,
                 index=index,
                 subquery_level=self._subquery_level,
                 last_keyword=last_keyword,
             )
+            if combine_flag:
+                value = token.value
+                prev_value = non_empty_tokens[index - 2].value.strip("`").strip('"')
+                value = f"{prev_value}.{value}"
+                if index >= 3 and str(non_empty_tokens[index - 3]) == ".":
+                    prev_value = non_empty_tokens[index - 4].value.strip("`").strip('"')
+                    value = f"{prev_value}.{value}"
+                token.value = value
+                combine_flag = False
+
             if index > 0:
                 # create links between consecutive tokens
-                token.previous_token = tokens[index - 1]
-                tokens[index - 1].next_token = token
+                token.previous_token = tokens[-1]
+                tokens[-1].next_token = token
 
             if token.is_left_parenthesis:
                 self._determine_opening_parenthesis_type(token=token)
@@ -207,7 +225,7 @@ class Parser:  # pylint: disable=R0902
                     and token.previous_token.normalized not in ["AS", ")"]
                     and not token.is_alias_without_as
                     and (
-                        token.left_expanded not in self.columns_aliases_names
+                        token.value not in self.columns_aliases_names
                         or token.token_is_alias_of_self_not_from_subquery(
                             aliases_levels=self._column_aliases_max_subquery_level
                         )
@@ -252,7 +270,7 @@ class Parser:  # pylint: disable=R0902
                         keyword=token.last_keyword_normalized, column=column
                     )
                     columns.append(column)
-                elif token.left_expanded in self.columns_aliases_names:
+                elif token.value in self.columns_aliases_names:
                     self._add_to_columns_aliases_subsection(token=token)
             elif (
                 token.is_wildcard
@@ -331,7 +349,7 @@ class Parser:  # pylint: disable=R0902
                         alias_token = start_token.next_token.find_nearest_token(
                             self._aliases_to_check,
                             direction="right",
-                            value_attribute="left_expanded",
+                            value_attribute="value",
                         )
                         alias_of = self._resolve_alias_to_column(alias_token)
                     else:
@@ -359,7 +377,7 @@ class Parser:  # pylint: disable=R0902
                     )
                 if token.value != alias_of:
                     # skip aliases of self, like sum(column) as column
-                    column_aliases[token.left_expanded] = alias_of
+                    column_aliases[token.value] = alias_of
 
         self._columns_aliases = column_aliases
         return self._columns_aliases
@@ -398,7 +416,7 @@ class Parser:  # pylint: disable=R0902
                     and token.is_alias_definition
                     or token.is_in_with_columns
                 ) and token.value not in with_names + subqueries_names:
-                    alias = token.left_expanded
+                    alias = token.value
                     column_aliases_names.append(alias)
                     current_level = self._column_aliases_max_subquery_level.setdefault(
                         alias, 0
@@ -453,7 +471,7 @@ class Parser:  # pylint: disable=R0902
                     # or columns of with statement: with (<columns>) as ...
                     pass
                 elif token.previous_token.is_dot:
-                    tables.append(token.left_expanded)  # full qualified name
+                    tables.append(token.value)  # full qualified name
                 elif (
                     token.previous_token.normalized != token.last_keyword_normalized
                     and not token.previous_token.is_punctuation
@@ -521,10 +539,10 @@ class Parser:  # pylint: disable=R0902
             ):
                 if token.previous_token.normalized == "AS":
                     # potential <DB.<SCHEMA>.<TABLE> as <ALIAS>
-                    potential_table_name = token.get_nth_previous(2).left_expanded
+                    potential_table_name = token.get_nth_previous(2).value
                 else:
                     # potential <DB.<SCHEMA>.<TABLE> <ALIAS>
-                    potential_table_name = token.previous_token.left_expanded
+                    potential_table_name = token.previous_token.value
 
                 if potential_table_name in tables:
                     aliases[token.value] = potential_table_name
@@ -560,9 +578,9 @@ class Parser:  # pylint: disable=R0902
                             start_token.is_with_columns_start = True
                             start_token.is_nested_function_start = False
                             prev_token = start_token.previous_token
-                            with_names.append(prev_token.left_expanded)
+                            with_names.append(prev_token.value)
                         else:
-                            with_names.append(token.left_expanded)
+                            with_names.append(token.value)
                         # move to next with query end
                         while token.next_token and not token.is_with_query_end:
                             token = token.next_token
@@ -591,7 +609,7 @@ class Parser:  # pylint: disable=R0902
         with_queries_columns = dict()
         for name in self.with_names:
             token = self.tokens[0].find_nearest_token(
-                name, value_attribute="left_expanded", direction="right"
+                name, value_attribute="value", direction="right"
             )
             if token.next_token.is_with_columns_start:
                 with_queries_columns[name] = True
@@ -753,7 +771,7 @@ class Parser:  # pylint: disable=R0902
         Add alias to the section in which it appears in query
         """
         keyword = token.last_keyword_normalized
-        alias = token.left_expanded if left_expand else token.value
+        alias = token.value if left_expand else token.value.split(".")[-1]
         if (
             token.last_keyword_normalized in ["FROM", "WITH"]
             and token.find_nearest_token("(").is_with_columns_start
@@ -768,7 +786,7 @@ class Parser:  # pylint: disable=R0902
     ) -> None:
         if isinstance(column, list) and len(column) == 1:
             column = column[0]
-        self._columns_with_tables_aliases[token.left_expanded] = column
+        self._columns_with_tables_aliases[token.value] = column
 
     def _resolve_column_alias(self, alias: Union[str, List[str]]) -> Union[str, List]:
         """
@@ -786,10 +804,10 @@ class Parser:  # pylint: disable=R0902
         """
         Resolves aliases of tables to already resolved columns
         """
-        if alias_token.left_expanded in self._columns_with_tables_aliases:
-            alias_of = self._columns_with_tables_aliases[alias_token.left_expanded]
+        if alias_token.value in self._columns_with_tables_aliases:
+            alias_of = self._columns_with_tables_aliases[alias_token.value]
         else:
-            alias_of = alias_token.left_expanded
+            alias_of = alias_token.value
         return alias_of
 
     def _resolve_sub_queries(self, column: str) -> List[str]:
@@ -941,7 +959,7 @@ class Parser:  # pylint: disable=R0902
         loop_token = start_token
         aliases = UniqueList()
         while loop_token.next_token != end_token:
-            if loop_token.next_token.left_expanded in self._aliases_to_check:
+            if loop_token.next_token.value in self._aliases_to_check:
                 alias_token = loop_token.next_token
                 if (
                     alias_token.normalized != "*"
