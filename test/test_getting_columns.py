@@ -402,3 +402,9 @@ def test_columns_with_aliases_same_as_columns():
         "clicks": ["clicks", "seventotalunits"],
         "cpc": ["clicks", "spend"],
     }
+
+
+def test_columns_with_distinct():
+    query = "SELECT DISTINCT customer_id FROM table"
+    parsed = Parser(query)
+    assert parsed.columns == ["customer_id"]

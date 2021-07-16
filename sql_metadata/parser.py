@@ -154,13 +154,9 @@ class Parser:  # pylint: disable=R0902
                 last_keyword=last_keyword,
             )
             if combine_flag:
-                value = token.value
-                prev_value = non_empty_tokens[index - 2].value.strip("`").strip('"')
-                value = f"{prev_value}.{value}"
-                if index >= 3 and str(non_empty_tokens[index - 3]) == ".":
-                    prev_value = non_empty_tokens[index - 4].value.strip("`").strip('"')
-                    value = f"{prev_value}.{value}"
-                token.value = value
+                self._combine_qualified_names(
+                    index=index, token=token, non_empty_tokens=non_empty_tokens
+                )
                 combine_flag = False
 
             if index > 0:
@@ -169,8 +165,10 @@ class Parser:  # pylint: disable=R0902
                 tokens[-1].next_token = token
 
             if token.is_left_parenthesis:
+                token.token_type = TokenType.PARENTHESIS
                 self._determine_opening_parenthesis_type(token=token)
             elif token.is_right_parenthesis:
+                token.token_type = TokenType.PARENTHESIS
                 self._determine_closing_parenthesis_type(token=token)
 
             if tok.is_keyword and "".join(tok.normalized.split()) in RELEVANT_KEYWORDS:
@@ -190,6 +188,21 @@ class Parser:  # pylint: disable=R0902
         # results which are not really an error
         _ = self.query_type
         return tokens
+
+    @staticmethod
+    def _combine_qualified_names(
+        index: int, token: SQLToken, non_empty_tokens: List
+    ) -> None:
+        """
+        Combines names like <schema>.<table>.<column> or <table/sub_query>.<column>
+        """
+        value = token.value
+        prev_value = non_empty_tokens[index - 2].value.strip("`").strip('"')
+        value = f"{prev_value}.{value}"
+        if index >= 3 and str(non_empty_tokens[index - 3]) == ".":
+            prev_value = non_empty_tokens[index - 4].value.strip("`").strip('"')
+            value = f"{prev_value}.{value}"
+        token.value = value
 
     @property
     def columns(self) -> List[str]:

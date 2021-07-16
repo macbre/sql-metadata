@@ -77,6 +77,7 @@ class TokenType(str, Enum):
     TABLE_ALIAS = "TABLE_ALIAS"
     WITH_NAME = "WITH_NAME"
     SUB_QUERY_NAME = "SUB_QUERY_NAME"
+    PARENTHESIS = "PARENTHESIS"
 
 
 # cannot fully replace with enum as with/select has the same key
