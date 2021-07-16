@@ -493,7 +493,7 @@ def test_get_tables_with_leading_digits():
         "SELECT t.val as value, count(*) FROM `0020_big_table`"
     ).tables
     assert ["0020_big_table"] == Parser(
-        'SELECT t.val as value, count(*) '
+        "SELECT t.val as value, count(*) "
         'FROM "0020_big_table" as t WHERE id BETWEEN 10 AND 20 GROUP BY val'
     ).tables
     assert ["0020_big_table"] == Parser(

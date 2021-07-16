@@ -65,8 +65,10 @@ def test_getting_values():
         "test comment",
         0,
         "0",
-        ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv: 78.0) "
-         "Gecko/20100101 Firefox/78.0"),
+        (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv: 78.0) "
+            "Gecko/20100101 Firefox/78.0"
+        ),
         "comment",
         0,
         0,
@@ -83,8 +85,10 @@ def test_getting_values():
         "comment_content": "test comment",
         "comment_karma": 0,
         "comment_approved": "0",
-        "comment_agent": ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv: 78.0) "
-                          "Gecko/20100101 Firefox/78.0"),
+        "comment_agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv: 78.0) "
+            "Gecko/20100101 Firefox/78.0"
+        ),
         "comment_type": "comment",
         "comment_parent": 0,
         "user_id": 0,

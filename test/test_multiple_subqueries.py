@@ -260,7 +260,7 @@ task_type_id = 80
 
     assert parser.subqueries == {
         "a": "SELECT std.task_id as new_task_id "
-             "FROM some_task_detail std WHERE std.STATUS = 1",
+        "FROM some_task_detail std WHERE std.STATUS = 1",
         "b": "SELECT st.task_id FROM some_task st WHERE task_type_id = 80",
     }
 

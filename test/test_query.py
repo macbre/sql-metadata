@@ -24,7 +24,7 @@ def test_preprocessing():
             "INNER JOIN dimension_wikis AS d ON r.wiki_id = d.wiki_id"
         ).query
         == "SELECT r1.wiki_id AS id FROM report_wiki_recent_pageviews AS r1 "
-           "INNER JOIN dimension_wikis AS d ON r.wiki_id = d.wiki_id"
+        "INNER JOIN dimension_wikis AS d ON r.wiki_id = d.wiki_id"
     )
 
     # comments are kept
@@ -52,7 +52,7 @@ def test_preprocessing():
             "and aa =' as \"aa.oo\" '"
         ).query
         == "SELECT * from aa where name = 'test name with \"aa\" in string' "
-           "and aa =' as \"aa.oo\" '"
+        "and aa =' as \"aa.oo\" '"
     )
 
 

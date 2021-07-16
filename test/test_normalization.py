@@ -18,7 +18,7 @@ def test_generalization_of_sql():
             " WHERE cat_title = 'foo'"
         ).generalize
         == "UPDATE `category` SET cat_pages = cat_pages + N,cat_files = cat_files + N"
-           " WHERE cat_title = X"
+        " WHERE cat_title = X"
     )
 
     assert (
@@ -27,7 +27,7 @@ def test_generalization_of_sql():
             "AND (event_date > '20150105141012')"
         ).generalize
         == "SELECT entity_key FROM `wall_notification_queue` WHERE (wiki_id = ) "
-           "AND (event_date > X)"
+        "AND (event_date > X)"
     )
 
     assert (
@@ -47,8 +47,8 @@ def test_generalization_of_sql():
             "AND (page_namespace NOT IN(500,6,14))  ORDER BY page_title"
         ).generalize
         == "SELECT page_id,cl_to FROM `page` "
-           "INNER JOIN `categorylinks` ON ((cl_from = page_id)) "
-           "WHERE cl_to = X AND (page_namespace NOT IN (XYZ)) ORDER BY page_title"
+        "INNER JOIN `categorylinks` ON ((cl_from = page_id)) "
+        "WHERE cl_to = X AND (page_namespace NOT IN (XYZ)) ORDER BY page_title"
     )
 
     assert (
@@ -59,7 +59,7 @@ def test_generalization_of_sql():
             "AND page_namespace = '1'  ORDER BY page_id DESC"
         ).generalize
         == "SELECT page_id,page_title FROM `page` "
-           "WHERE (page_title LIKE X ) AND page_namespace = X ORDER BY page_id DESC"
+        "WHERE (page_title LIKE X ) AND page_namespace = X ORDER BY page_id DESC"
     )
 
     assert (
@@ -83,8 +83,8 @@ def test_generalization_of_sql():
             "AND is_hidden = '0'  ORDER BY id"
         ).generalize
         == "SELECT id,is_read,is_reply,unique_id,entity_key,author_id,notifyeveryone "
-           "FROM `wall_notification` WHERE user_id = X AND wiki_id = X "
-           "AND unique_id IN (XYZ) AND is_hidden = X ORDER BY id"
+        "FROM `wall_notification` WHERE user_id = X AND wiki_id = X "
+        "AND unique_id IN (XYZ) AND is_hidden = X ORDER BY id"
     )
 
     # comments with * inside
@@ -96,8 +96,8 @@ def test_generalization_of_sql():
             "AND page_namespace = '1201'  ORDER BY page_id DESC"
         ).generalize
         == "SELECT page_id,page_title FROM `page` "
-           "WHERE (page_title LIKE X ) "
-           "AND page_namespace = X ORDER BY page_id DESC"
+        "WHERE (page_title LIKE X ) "
+        "AND page_namespace = X ORDER BY page_id DESC"
     )
 
     # comments with * inside
@@ -147,10 +147,10 @@ def test_generalization_of_sql():
             "or  all_groups  LIKE '%vstf;%' ) AND ( edits >= 5)  LIMIT 1  "
         ).generalize
         == "SELECT count(N) as cnt FROM `events_local_users` "
-           "WHERE wiki_id = X AND (user_name != X) "
-           "AND user_is_closed = X "
-           "AND ( single_group = X or all_groups = X or all_groups LIKE X ... ) "
-           "AND ( edits >= N) LIMIT N"
+        "WHERE wiki_id = X AND (user_name != X) "
+        "AND user_is_closed = X "
+        "AND ( single_group = X or all_groups = X or all_groups LIKE X ... ) "
+        "AND ( edits >= N) LIMIT N"
     )
 
     # multiline query
@@ -164,7 +164,7 @@ def test_generalization_of_sql():
     assert (
         Parser(sql).generalize
         == "SELECT page_title FROM page WHERE page_namespace = X "
-           "AND page_title COLLATE LATINN_GENERAL_CI LIKE X"
+        "AND page_title COLLATE LATINN_GENERAL_CI LIKE X"
     )
 
     # queries with IN + brackets (#21)
@@ -197,7 +197,7 @@ def test_generalization_of_sql():
             "in ( 55, 15, 3, 48, 43, 24, 47, 45, 10, 50, 39, 36, 8, 34, 25, 13, 6, 4 )"
         ).generalize
         == "SELECT curation_cms.topics.slug "
-           "from curation_cms.topics where curation_cms.topics.id in (XYZ)"
+        "from curation_cms.topics where curation_cms.topics.id in (XYZ)"
     )
 
 
@@ -229,5 +229,5 @@ def test_generalize_insert():
             "'Cool','null' )"
         ).generalize
         == "INSERT into notification_stats.request_info "
-           "( type, request_id, title, message, details ) values (XYZ)"
+        "( type, request_id, title, message, details ) values (XYZ)"
     )
