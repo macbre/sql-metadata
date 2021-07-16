@@ -6,7 +6,7 @@ def test_with_statements():
     parser = Parser(
         """
 WITH
-database1.tableFromWith AS (SELECT aa.* FROM table3 as aa 
+database1.tableFromWith AS (SELECT aa.* FROM table3 as aa
                             left join table4 on aa.col1=table4.col2),
 test as (SELECT * from table3)
 SELECT
@@ -94,9 +94,9 @@ def test_multiple_with_statements_with_with_columns():
     # fix for setting columns in with
     # https://github.com/macbre/sql-metadata/issues/128
     query = """
-    WITH 
+    WITH
     t1 (c1, c2) AS (SELECT * FROM t2),
-    t3 (c3, c4) AS (SELECT c5, c6 FROM t4) 
+    t3 (c3, c4) AS (SELECT c5, c6 FROM t4)
     SELECT * FROM t1, t3;
     """
     parser = Parser(query)
@@ -175,10 +175,10 @@ def test_complicated_with():
 
 def test_resolving_with_clauses_with_columns():
     query = """
-    WITH 
+    WITH
     query1 (c1, c2) AS (SELECT * FROM t2),
-    query2 (c3, c4) AS (SELECT c5, c6 FROM t4) 
-    SELECT query1.c2, query2.c4 
+    query2 (c3, c4) AS (SELECT c5, c6 FROM t4)
+    SELECT query1.c2, query2.c4
     FROM query1 left join query2 on query1.c1 = query2.c3
     order by query1.c2;
     """
@@ -207,10 +207,10 @@ def test_resolving_with_clauses_with_columns():
 
 def test_resolving_with_columns():
     query = """
-    WITH 
+    WITH
     query1 AS (SELECT c1, c2 FROM t5),
-    query2 AS (SELECT c3, c4 FROM t6) 
-    SELECT query1.c2, query2.c4 
+    query2 AS (SELECT c3, c4 FROM t6)
+    SELECT query1.c2, query2.c4
     FROM query1 left join query2 on query1.c1 = query2.c3
     order by query1.c2;
     """
@@ -223,7 +223,7 @@ def test_resolving_with_columns():
     assert parser.tables == ["t5", "t6"]
     assert parser.columns_aliases == {}
     assert parser.columns_aliases_names == []
-    assert parser.columns_aliases_dict == None
+    assert parser.columns_aliases_dict is None
     assert parser.columns == ["c1", "c2", "c3", "c4"]
     assert parser.columns_dict == {
         "join": ["c1", "c3"],
@@ -235,10 +235,10 @@ def test_resolving_with_columns():
 
 def test_resolving_with_columns_with_wildcard():
     query = """
-    WITH 
+    WITH
     query1 AS (SELECT c1, c2, c4 FROM t5),
-    query2 AS (SELECT c3, c7 FROM t6) 
-    SELECT query1.*, query2.c7 
+    query2 AS (SELECT c3, c7 FROM t6)
+    SELECT query1.*, query2.c7
     FROM query1 left join query2 on query1.c4 = query2.c3
     order by query2.c7;
     """
@@ -262,10 +262,10 @@ def test_resolving_with_columns_with_wildcard():
 
 def test_resolving_with_columns_with_nested_tables_prefixes():
     query = """
-    WITH 
+    WITH
     query1 AS (SELECT t5.c1, t5.c2, t6.c4 FROM t5 left join t6 on t5.link1=t6.link2),
-    query2 AS (SELECT c3, c7 FROM t7 union all select c4, c12 from t8) 
-    SELECT query1.*, query2.c7, query2.c3 
+    query2 AS (SELECT c3, c7 FROM t7 union all select c4, c12 from t8)
+    SELECT query1.*, query2.c7, query2.c3
     FROM query1 left join query2 on query1.c4 = query2.c3
     order by query2.c7;
     """
@@ -310,7 +310,7 @@ def test_resolving_with_columns_with_nested_tables_prefixes():
 
 def test_nested_with_statement_in_create_table():
     qry = """
-            CREATE table xyz as 
+            CREATE table xyz as
             with sub as (select it_id from internal_table)
             SELECT *
             from (

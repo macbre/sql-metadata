@@ -6,9 +6,11 @@ def test_column_aliases_with_subquery():
     SELECT yearweek(SignDate) as                         Aggregation,
        BusinessSource,
        (SELECT sum(C2Count)
-        from (SELECT count(C2) as C2Count, BusinessSource, yearweek(Start1) Start1, yearweek(End1) End1
+        from (SELECT count(C2) as C2Count, BusinessSource,
+        yearweek(Start1) Start1, yearweek(End1) End1
               from (
-                       SELECT ContractID as C2, BusinessSource, StartDate as Start1, EndDate as End1
+                       SELECT ContractID as C2, BusinessSource, StartDate as Start1,
+                       EndDate as End1
                        from data_contracts_report
                    ) sq2
               group by 2, 3, 4) sq

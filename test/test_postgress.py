@@ -13,7 +13,8 @@ def test_postgress_quoted_names():
     assert parser.values == ["foo"]
 
     parser = Parser(
-        'SELECT "test"."id", "test"."name" FROM "test" WHERE "test"."name" = \'foo\' LIMIT 21 FOR UPDATE'
+        'SELECT "test"."id", "test"."name" FROM "test" '
+        'WHERE "test"."name" = \'foo\' LIMIT 21 FOR UPDATE'
     )
     assert ["test"] == parser.tables
     assert ["test.id", "test.name"] == parser.columns

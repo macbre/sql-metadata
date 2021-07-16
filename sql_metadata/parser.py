@@ -230,7 +230,7 @@ class Parser:  # pylint: disable=R0902
                     continue
 
                 # we're in CREATE TABLE query with the columns
-                # ignore any annotations outside the parenthesis with the list of columns
+                # ignore annotations outside the parenthesis with the list of columns
                 # e.g. ) CHARACTER SET utf8;
                 if (
                     not token.is_in_parenthesis

@@ -15,7 +15,8 @@ def test_cast_and_convert_functions():
 
 def test_queries_with_null_conditions():
     parser = Parser(
-        "SELECT id FROM cm WHERE cm.status = 1 AND cm.OPERATIONDATE IS NULL AND cm.OID IN(123123);"
+        "SELECT id FROM cm WHERE cm.status = 1 AND cm.OPERATIONDATE IS NULL "
+        "AND cm.OID IN(123123);"
     )
     assert parser.columns == ["id", "cm.status", "cm.OPERATIONDATE", "cm.OID"]
     assert parser.columns_dict == {
@@ -24,7 +25,8 @@ def test_queries_with_null_conditions():
     }
 
     parser = Parser(
-        "SELECT id FROM cm WHERE cm.status = 1 AND cm.OPERATIONDATE IS NOT NULL AND cm.OID IN(123123);"
+        "SELECT id FROM cm WHERE cm.status = 1 AND cm.OPERATIONDATE IS NOT NULL "
+        "AND cm.OID IN(123123);"
     )
     assert parser.columns == ["id", "cm.status", "cm.OPERATIONDATE", "cm.OID"]
     assert parser.columns_dict == {
@@ -40,7 +42,7 @@ def test_queries_with_distinct():
 
 
 def test_joins():
-    assert ["page_title", "rd_title", "rd_namespace", "page_id", "rd_from",] == Parser(
+    assert ["page_title", "rd_title", "rd_namespace", "page_id", "rd_from"] == Parser(
         "SELECT  page_title  FROM `redirect` INNER JOIN `page` "
         "ON (rd_title = 'foo' AND rd_namespace = '100' AND (page_id = rd_from))"
     ).columns
@@ -106,7 +108,8 @@ def test_update_and_replace():
 
     # REPLACE queries
     parser = Parser(
-        "REPLACE INTO `page_props` (pp_page,pp_propname,pp_value) VALUES ('47','infoboxes','')"
+        "REPLACE INTO `page_props` (pp_page,pp_propname,pp_value) "
+        "VALUES ('47','infoboxes','')"
     )
     assert parser.query_type == QueryType.REPLACE
     assert parser.columns == ["pp_page", "pp_propname", "pp_value"]
@@ -116,14 +119,18 @@ def test_update_and_replace():
 def test_complex_queries_columns():
     # @see https://github.com/macbre/sql-metadata/issues/6
     assert Parser(
-        "SELECT 1 as c    FROM foo_pageviews WHERE time_id = '2018-01-07 00:00:00' AND period_id = '2' LIMIT 1"
+        "SELECT 1 as c    FROM foo_pageviews WHERE time_id = '2018-01-07 00:00:00' "
+        "AND period_id = '2' LIMIT 1"
     ).columns == ["time_id", "period_id"]
 
     # table aliases
     parser = Parser(
-        "SELECT r.wiki_id AS id, pageviews_7day AS pageviews FROM report_wiki_recent_pageviews AS r "
-        "INNER JOIN dimension_wikis AS d ON r.wiki_id = d.wiki_id WHERE d.is_public = '1' "
-        "AND r.lang IN ( 'en', 'ru' ) AND r.hub_name = 'gaming' ORDER BY pageviews DESC LIMIT 300"
+        "SELECT r.wiki_id AS id, pageviews_7day AS pageviews "
+        "FROM report_wiki_recent_pageviews AS r "
+        "INNER JOIN dimension_wikis AS d ON r.wiki_id = d.wiki_id "
+        "WHERE d.is_public = '1' "
+        "AND r.lang IN ( 'en', 'ru' ) AND r.hub_name = 'gaming' "
+        "ORDER BY pageviews DESC LIMIT 300"
     )
     assert parser.columns_aliases_names == ["id", "pageviews"]
     assert parser.columns_aliases == {
@@ -162,7 +169,8 @@ def test_complex_queries_columns():
         "SELECT  count(fw1.wiki_id) as wam_results_total  FROM `fact_wam_scores` `fw1` "
         "left join `fact_wam_scores` `fw2` ON ((fw1.wiki_id = fw2.wiki_id) AND "
         "(fw2.time_id = FROM_UNIXTIME(1466380800))) left join `dimension_wikis` `dw` "
-        "ON ((fw1.wiki_id = dw.wiki_id))  WHERE (fw1.time_id = FROM_UNIXTIME(1466467200)) "
+        "ON ((fw1.wiki_id = dw.wiki_id))  "
+        "WHERE (fw1.time_id = FROM_UNIXTIME(1466467200)) "
         "AND (dw.url like '%%' OR dw.title like '%%') AND fw1.vertical_id IN "
         "('0','1','2','3','4','5','6','7')  AND (fw1.wiki_id NOT "
         "IN ('23312','70256','168929','463633','381622','1089624')) "
@@ -200,14 +208,17 @@ def test_complex_queries_columns():
 
 def test_columns_with_comments():
     parser = Parser(
-        "INSERT /* VoteHelper::addVote xxx */  INTO `page_vote` (article_id,user_id,`time`) VALUES ('442001','27574631','20180228130846')"
+        "INSERT /* VoteHelper::addVote xxx */  "
+        "INTO `page_vote` (article_id,user_id,`time`) "
+        "VALUES ('442001','27574631','20180228130846')"
     )
     assert parser.query_type == QueryType.INSERT
     assert parser.columns == ["article_id", "user_id", "time"]
 
     # REPLACE queries
     parser = Parser(
-        "REPLACE INTO `page_props` (pp_page,pp_propname,pp_value) VALUES ('47','infoboxes','')"
+        "REPLACE INTO `page_props` (pp_page,pp_propname,pp_value) "
+        "VALUES ('47','infoboxes','')"
     )
     assert parser.query_type == QueryType.REPLACE
     assert parser.columns == ["pp_page", "pp_propname", "pp_value"]
@@ -215,7 +226,8 @@ def test_columns_with_comments():
 
     assert Parser(
         "SELECT /* CategoryPaginationViewer::processSection */  "
-        "page_namespace,page_title,page_len,page_is_redirect,cl_sortkey_prefix  FROM `page` "
+        "page_namespace,page_title,page_len,page_is_redirect,cl_sortkey_prefix  "
+        "FROM `page` "
         "INNER JOIN `categorylinks` FORCE INDEX (cl_sortkey) ON ((cl_from = page_id))  "
         "WHERE cl_type = 'page' AND cl_to = 'Spotify/Song'  "
         "ORDER BY cl_sortkey LIMIT 927600,200"
@@ -235,7 +247,12 @@ def test_columns_with_comments():
 
 def test_columns_with_keyword_aliases():
     parser = Parser(
-        "SELECT date_format(time_id,'%Y-%m-%d') AS date, pageviews AS cnt         FROM rollup_wiki_pageviews      WHERE period_id = '2'   AND wiki_id = '1676379'         AND time_id BETWEEN '2018-01-08'        AND '2018-01-01'"
+        "SELECT date_format(time_id,'%Y-%m-%d') AS date, pageviews AS cnt         "
+        "FROM rollup_wiki_pageviews      "
+        "WHERE period_id = '2'   "
+        "AND wiki_id = '1676379'         "
+        "AND time_id BETWEEN '2018-01-08'        "
+        "AND '2018-01-01'"
     )
     assert parser.columns == ["time_id", "pageviews", "period_id", "wiki_id"]
     assert parser.columns_aliases_names == ["date", "cnt"]
@@ -252,14 +269,15 @@ def test_columns_and_sql_functions():
     ]
     assert Parser("SELECT avg(col)+sum(col2) from dual").columns == ["col", "col2"]
     assert Parser(
-        "SELECT count(col)+max(col2)+ min(col3)+ count(distinct  col4) + custom_func(col5) from dual"
+        "SELECT count(col)+max(col2)+ min(col3)+ count(distinct  col4) + "
+        "custom_func(col5) from dual"
     ).columns == ["col", "col2", "col3", "col4", "col5"]
 
 
 def test_columns_starting_with_keywords():
     query = """
-    SELECT `schema_name`, full_table_name, `column_name`, `catalog_name`, 
-    `table_name`, column_length, column_weight, annotation 
+    SELECT `schema_name`, full_table_name, `column_name`, `catalog_name`,
+    `table_name`, column_length, column_weight, annotation
     FROM corporate.all_tables
     """
     parser = Parser(query)
@@ -277,8 +295,8 @@ def test_columns_starting_with_keywords():
 
 def test_columns_as_unquoted_keywords():
     query = """
-    SELECT schema_name, full_table_name, column_name, catalog_name, 
-    table_name, column_length, column_weight, annotation 
+    SELECT schema_name, full_table_name, column_name, catalog_name,
+    table_name, column_length, column_weight, annotation
     FROM corporate.all_tables
     """
     parser = Parser(query)
@@ -310,25 +328,25 @@ def test_columns_with_keywords_parts():
 
 def test_columns_with_complex_aliases_same_as_columns():
     query = """
-    SELECT targetingtype, sellerid, sguid, 'd01' as datetype, adgroupname, targeting, 
-    customersearchterm, 
-    'product_search_term' as `type`, 
-    sum(impressions) as impr, 
-    sum(clicks) as clicks, 
-    sum(seventotalunits) as sold, 
-    sum(sevenadvertisedskuunits) as advertisedskuunits, 
-    sum(sevenotherskuunits) as otherskuunits, 
-    sum(sevendaytotalsales) as totalsales, 
-    round(sum(spend), 4) as spend, if(sum(impressions) > 0, 
-    round(sum(clicks)/sum(impressions), 4), 0) as ctr, 
-    if(sum(clicks) > 0, round(sum(seventotalunits)/sum(clicks), 4), 0) as cr, 
-    if(sum(clicks) > 0, round(sum(spend)/sum(clicks), 2), 0) as cpc 
-    from amazon_pl.search_term_report_impala 
-    where reportday >= to_date('2021-05-16 00:00:00.0') 
-    and reportday <= to_date('2021-05-16 00:00:00.0') 
-    and targetingtype in ('auto','manual') 
-    and sguid is not null and sguid != '' 
-    group by targetingtype,sellerid,sguid,adgroupname,targeting,customersearchterm 
+    SELECT targetingtype, sellerid, sguid, 'd01' as datetype, adgroupname, targeting,
+    customersearchterm,
+    'product_search_term' as `type`,
+    sum(impressions) as impr,
+    sum(clicks) as clicks,
+    sum(seventotalunits) as sold,
+    sum(sevenadvertisedskuunits) as advertisedskuunits,
+    sum(sevenotherskuunits) as otherskuunits,
+    sum(sevendaytotalsales) as totalsales,
+    round(sum(spend), 4) as spend, if(sum(impressions) > 0,
+    round(sum(clicks)/sum(impressions), 4), 0) as ctr,
+    if(sum(clicks) > 0, round(sum(seventotalunits)/sum(clicks), 4), 0) as cr,
+    if(sum(clicks) > 0, round(sum(spend)/sum(clicks), 2), 0) as cpc
+    from amazon_pl.search_term_report_impala
+    where reportday >= to_date('2021-05-16 00:00:00.0')
+    and reportday <= to_date('2021-05-16 00:00:00.0')
+    and targetingtype in ('auto','manual')
+    and sguid is not null and sguid != ''
+    group by targetingtype,sellerid,sguid,adgroupname,targeting,customersearchterm
     order by impr desc
     """
     parser = Parser(query)
@@ -353,11 +371,11 @@ def test_columns_with_complex_aliases_same_as_columns():
 def test_columns_aliases_as_unqoted_keywords():
     query = """
     SELECT
-    product_search_term as type, 
-    sum(clicks) as clicks, 
-    sum(seventotalunits) as schema_name, 
+    product_search_term as type,
+    sum(clicks) as clicks,
+    sum(seventotalunits) as schema_name,
     sum(sevenadvertisedskuunits) as advertisedskuunits
-    from amazon_pl.search_term_report_impala 
+    from amazon_pl.search_term_report_impala
     """
     parser = Parser(query)
     assert parser.columns == [
@@ -381,10 +399,10 @@ def test_columns_aliases_as_unqoted_keywords():
 
 def test_columns_with_aliases_same_as_columns():
     query = """
-    SELECT 
-    round(sum(impressions),1) as impressions, 
+    SELECT
+    round(sum(impressions),1) as impressions,
     sum(clicks) as clicks
-    from amazon_pl.search_term_report_impala 
+    from amazon_pl.search_term_report_impala
     """
     parser = Parser(query)
     assert parser.columns == ["impressions", "clicks"]
@@ -392,9 +410,9 @@ def test_columns_with_aliases_same_as_columns():
 
     query = """
     SELECT
-    if(sum(clicks) > 0, round(sum(seventotalunits)/sum(clicks), 4), 0) as clicks, 
-    if(sum(clicks) > 0, round(sum(spend)/sum(clicks), 2), 0) as cpc 
-    from amazon_pl.search_term_report_impala 
+    if(sum(clicks) > 0, round(sum(seventotalunits)/sum(clicks), 4), 0) as clicks,
+    if(sum(clicks) > 0, round(sum(spend)/sum(clicks), 2), 0) as cpc
+    from amazon_pl.search_term_report_impala
     """
     parser = Parser(query)
     assert parser.columns == ["clicks", "seventotalunits", "spend"]

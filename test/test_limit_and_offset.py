@@ -39,7 +39,8 @@ def test_comma_separated():
 
     assert Parser(
         "SELECT /* CategoryPaginationViewer::processSection */  "
-        "page_namespace,page_title,page_len,page_is_redirect,cl_sortkey_prefix  FROM `page` "
+        "page_namespace,page_title,page_len,page_is_redirect,cl_sortkey_prefix  "
+        "FROM `page` "
         "INNER JOIN `categorylinks` FORCE INDEX (cl_sortkey) ON ((cl_from = page_id))  "
         "WHERE cl_type = 'page' AND cl_to = 'Spotify/Song'  "
         "ORDER BY cl_sortkey LIMIT 927600,200"
