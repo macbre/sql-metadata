@@ -18,8 +18,15 @@ jobs:
       with:
         python-version: 3.8
 
+    - name: Install black
+      run: |
+        # black = "^21.7b0"
+        export BLACK_VERSION=$(grep black pyproject.toml | egrep -o '\^[0-9a-z.]+' | sed 's/\^//g')
+
+        set -x
+        pip install black==${BLACK_VERSION}
+
     # https://pypi.org/project/black/
     - name: Check code formatting
       run: |
-        pip install black==21.5b2
         black --check .

@@ -74,6 +74,8 @@ class Parser:  # pylint: disable=R0902
         self._column_aliases_max_subquery_level = dict()
 
         self.sqlparse_tokens = None
+        self.non_empty_tokens = None
+        self.tokens_length = None
 
     @property
     def query(self) -> str:
@@ -113,10 +115,6 @@ class Parser:  # pylint: disable=R0902
         return self._query_type
 
     @property
-    def _not_parsed_tokens(self):
-        return [x for x in self.tokens if x.token_type is None]
-
-    @property
     def tokens(self) -> List[SQLToken]:
         """
         Tokenizes the query
@@ -129,22 +127,12 @@ class Parser:  # pylint: disable=R0902
         # handle empty queries (#12)
         if not parsed:
             return tokens
-
-        self.sqlparse_tokens = parsed[0].tokens
-        sqlparse_tokens = self._flatten_sqlparse()
-        non_empty_tokens = [
-            token
-            for token in sqlparse_tokens
-            if token.ttype is not Whitespace and token.ttype.parent is not Whitespace
-        ]
+        self._get_sqlparse_tokens(parsed)
         last_keyword = None
-        tokens_length = len(non_empty_tokens)
         combine_flag = False
-        for index, tok in enumerate(non_empty_tokens):
+        for index, tok in enumerate(self.non_empty_tokens):
             # combine dot separated identifiers
-            if str(tok) == "." or (
-                index + 1 < tokens_length and str(non_empty_tokens[index + 1]) == "."
-            ):
+            if self._is_token_part_of_complex_identifier(token=tok, index=index):
                 combine_flag = True
                 continue
             token = SQLToken(
@@ -154,15 +142,12 @@ class Parser:  # pylint: disable=R0902
                 last_keyword=last_keyword,
             )
             if combine_flag:
-                self._combine_qualified_names(
-                    index=index, token=token, non_empty_tokens=non_empty_tokens
-                )
+                self._combine_qualified_names(index=index, token=token)
                 combine_flag = False
 
-            if index > 0:
-                # create links between consecutive tokens
-                token.previous_token = tokens[-1]
-                tokens[-1].next_token = token
+            previous_token = tokens[-1] if index > 0 else EmptyToken
+            token.previous_token = previous_token
+            previous_token.next_token = token if index > 0 else None
 
             if token.is_left_parenthesis:
                 token.token_type = TokenType.PARENTHESIS
@@ -171,12 +156,9 @@ class Parser:  # pylint: disable=R0902
                 token.token_type = TokenType.PARENTHESIS
                 self._determine_closing_parenthesis_type(token=token)
 
-            if tok.is_keyword and "".join(tok.normalized.split()) in RELEVANT_KEYWORDS:
-                if not (
-                    tok.normalized == "FROM"
-                    and token.get_nth_previous(3).normalized == "EXTRACT"
-                ):
-                    last_keyword = tok.normalized
+            last_keyword = self._determine_last_relevant_keyword(
+                token=token, last_keyword=last_keyword
+            )
             token.is_in_nested_function = self._is_in_nested_function
             token.parenthesis_level = self._parenthesis_level
             tokens.append(token)
@@ -188,21 +170,6 @@ class Parser:  # pylint: disable=R0902
         # results which are not really an error
         _ = self.query_type
         return tokens
-
-    @staticmethod
-    def _combine_qualified_names(
-        index: int, token: SQLToken, non_empty_tokens: List
-    ) -> None:
-        """
-        Combines names like <schema>.<table>.<column> or <table/sub_query>.<column>
-        """
-        value = token.value
-        prev_value = non_empty_tokens[index - 2].value.strip("`").strip('"')
-        value = f"{prev_value}.{value}"
-        if index >= 3 and str(non_empty_tokens[index - 3]) == ".":
-            prev_value = non_empty_tokens[index - 4].value.strip("`").strip('"')
-            value = f"{prev_value}.{value}"
-        token.value = value
 
     @property
     def columns(self) -> List[str]:
@@ -789,6 +756,13 @@ class Parser:  # pylint: disable=R0902
         """
         return Generalizator(self._raw_query).generalize
 
+    @property
+    def _not_parsed_tokens(self):
+        """
+        Returns only tokens that have no type assigned yet
+        """
+        return [x for x in self.tokens if x.token_type is None]
+
     def _add_to_columns_subsection(self, keyword: str, column: Union[str, List[str]]):
         """
         Add columns to the section in which it appears in query
@@ -1033,6 +1007,53 @@ class Parser:  # pylint: disable=R0902
         query = re.sub(r"'.*?'", replace_back_quotes_in_string, query)
 
         return query
+
+    @staticmethod
+    def _determine_last_relevant_keyword(token: SQLToken, last_keyword: str):
+        if token.is_keyword and "".join(token.normalized.split()) in RELEVANT_KEYWORDS:
+            if not (
+                token.normalized == "FROM"
+                and token.get_nth_previous(3).normalized == "EXTRACT"
+            ):
+                last_keyword = token.normalized
+        return last_keyword
+
+    def _is_token_part_of_complex_identifier(
+        self, token: sqlparse.tokens.Token, index: int
+    ) -> bool:
+        """
+        Checks if token is a part of complex identifier like
+        <schema>.<table>.<column> or <table/sub_query>.<column>
+        """
+        return str(token) == "." or (
+            index + 1 < self.tokens_length
+            and str(self.non_empty_tokens[index + 1]) == "."
+        )
+
+    def _combine_qualified_names(self, index: int, token: SQLToken) -> None:
+        """
+        Combines names like <schema>.<table>.<column> or <table/sub_query>.<column>
+        """
+        value = token.value
+        prev_value = self.non_empty_tokens[index - 2].value.strip("`").strip('"')
+        value = f"{prev_value}.{value}"
+        if index >= 3 and str(self.non_empty_tokens[index - 3]) == ".":
+            prev_value = self.non_empty_tokens[index - 4].value.strip("`").strip('"')
+            value = f"{prev_value}.{value}"
+        token.value = value
+
+    def _get_sqlparse_tokens(self, parsed) -> None:
+        """
+        Flattens the tokens and removes whitespace
+        """
+        self.sqlparse_tokens = parsed[0].tokens
+        sqlparse_tokens = self._flatten_sqlparse()
+        self.non_empty_tokens = [
+            token
+            for token in sqlparse_tokens
+            if token.ttype is not Whitespace and token.ttype.parent is not Whitespace
+        ]
+        self.tokens_length = len(self.non_empty_tokens)
 
     def _flatten_sqlparse(self):
         for token in self.sqlparse_tokens:
