@@ -53,7 +53,8 @@ class Generalizator:
     @property
     def generalize(self) -> str:
         """
-        Removes most variables from an SQL query and replaces them with X or N for numbers.
+        Removes most variables from an SQL query
+        and replaces them with X or N for numbers.
 
         Based on Mediawiki's DatabaseBase::generalizeSQL
         """

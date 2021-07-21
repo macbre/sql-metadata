@@ -13,7 +13,8 @@ def test_get_query_table_aliases():
         Parser("SELECT e.foo FROM (SELECT * FROM bar) AS e").tables_aliases == {}
     ), "Sub-query aliases are ignored"
     assert Parser(
-        "SELECT a.* FROM product_a AS a JOIN product_b AS b ON a.ip_address = b.ip_address"
+        "SELECT a.* FROM product_a AS a "
+        "JOIN product_b AS b ON a.ip_address = b.ip_address"
     ).tables_aliases == {"a": "product_a", "b": "product_b"}
 
 

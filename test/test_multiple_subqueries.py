@@ -8,28 +8,36 @@ SELECT main_qry.*,
        subdays.DAYS_OFFER2,
        subdays.DAYS_OFFER3
 from (
-         SELECT jr.id                                                                                   as PROJECT_ID,
+         SELECT jr.id  as PROJECT_ID,
                 5 * (DATEDIFF(ifnull(lc.creation_date, now()), jr.creation_date) DIV 7)
                     + MID('0123444401233334012222340111123400001234000123440',
-                          7 * WEEKDAY(jr.creation_date) + WEEKDAY(ifnull(lc.creation_date, now())) + 1, 1) as LIFETIME,
+                          7 * WEEKDAY(jr.creation_date)
+                          + WEEKDAY(ifnull(lc.creation_date, now())) + 1, 1)
+                          as LIFETIME,
                 count(distinct
-                      case when jra.application_source = 'VERAMA' then jra.id else null end)                 NUM_APPLICATIONS,
-                count(distinct jra.id)                                                                   NUM_CANDIDATES,
-                sum(case when jro.stage = 'DEAL' then 1 else 0 end)                                 as NUM_CONTRACTED,
-                sum(ifnull(IS_INTERVIEW, 0))                                                            as NUM_INTERVIEWED,
-                sum(ifnull(IS_PRESENTATION, 0))                                                         as NUM_OFFERED
+                      case when jra.application_source = 'VERAMA'
+                        then jra.id else null end)        NUM_APPLICATIONS,
+                count(distinct jra.id) NUM_CANDIDATES,
+                sum(case when jro.stage = 'DEAL' then 1 else 0 end) as NUM_CONTRACTED,
+                sum(ifnull(IS_INTERVIEW, 0)) as NUM_INTERVIEWED,
+                sum(ifnull(IS_PRESENTATION, 0)) as NUM_OFFERED
          from job_request jr
                   left join job_request_application jra on jr.id = jra.job_request_id
-                  left join job_request_offer jro on jro.job_request_application_id = jra.id
-                  left join lifecycle lc on lc.object_id=jr.id and lc.lifecycle_object_type='JOB_REQUEST' 
+                  left join job_request_offer jro
+                  on jro.job_request_application_id = jra.id
+                  left join lifecycle lc on lc.object_id=jr.id
+                  and lc.lifecycle_object_type='JOB_REQUEST'
                   and lc.event = 'JOB_REQUEST_CLOSED'
                   left join (SELECT jro2.job_request_application_id,
                                     max(case
-                                            when jro2.first_interview_scheduled_date is not null then 1
-                                            else 0 end)                                                    as IS_INTERVIEW,
-                                    max(case when jro2.first_presented_date is not null then 1 else 0 end) as IS_PRESENTATION
+                                            when jro2.first_interview_scheduled_date
+                                            is not null then 1
+                                            else 0 end) as IS_INTERVIEW,
+                                    max(case when jro2.first_presented_date is not null
+                                    then 1 else 0 end) as IS_PRESENTATION
                              from job_request_offer jro2
-                             group by 1) jrah2 on jra.id = jrah2.job_request_application_id
+                             group by 1) jrah2
+                             on jra.id = jrah2.job_request_application_id
                   left join client u on jr.client_id = u.id
          where jr.from_point_break = 0
            and u.name not in ('Test', 'Demo Client')
@@ -43,22 +51,27 @@ from (
                  days_to_offer,
                  (SELECT count(distinct jro.job_request_application_id)
                   from job_request_offer jro
-                           left join job_request_application jra2 on jro.job_request_application_id = jra2.id
+                           left join job_request_application jra2
+                           on jro.job_request_application_id = jra2.id
                   where jra2.job_request_id = PROJECT_ID
                     and jro.first_presented_date is not null
                     and jro.first_presented_date <= InitialChangeDate
                  ) as RowNo
           from (
                    SELECT jr.id                    as PROJECT_ID,
-                          5 * (DATEDIFF(jro.first_presented_date, jr.creation_date) DIV 7) +
+                          5 * (
+                          DATEDIFF(jro.first_presented_date, jr.creation_date) DIV 7) +
                           MID('0123444401233334012222340111123400001234000123440',
-                              7 * WEEKDAY(jr.creation_date) + WEEKDAY(jro.first_presented_date) + 1,
+                              7 * WEEKDAY(jr.creation_date)
+                              + WEEKDAY(jro.first_presented_date) + 1,
                               1)                   as days_to_offer,
                           jro.job_request_application_id,
                           jro.first_presented_date as InitialChangeDate
                    from presentation pr
-                            left join presentation_job_request_offer pjro on pr.id = pjro.presentation_id
-                            left join job_request_offer jro on pjro.job_request_offer_id = jro.id
+                            left join presentation_job_request_offer pjro
+                            on pr.id = pjro.presentation_id
+                            left join job_request_offer jro
+                            on pjro.job_request_offer_id = jro.id
                             left join job_request jr on pr.job_request_id = jr.id
                    where jro.first_presented_date is not null) days_sqry) days_final_qry
     group by PROJECT_ID) subdays
@@ -246,7 +259,8 @@ task_type_id = 80
     }
 
     assert parser.subqueries == {
-        "a": "SELECT std.task_id as new_task_id FROM some_task_detail std WHERE std.STATUS = 1",
+        "a": "SELECT std.task_id as new_task_id "
+        "FROM some_task_detail std WHERE std.STATUS = 1",
         "b": "SELECT st.task_id FROM some_task st WHERE task_type_id = 80",
     }
 
@@ -308,10 +322,10 @@ def test_resolving_columns_in_sub_queries_with_join_between_sub_queries():
     Select sq.sub_alias, sq.other_name from (
         select tab1.aa sub_alias, tab2.us as other_name from tab1
         left join tab2 on tab1.id = tab2.other_id
-    ) sq 
+    ) sq
     left join (
         select intern1 as col1, secret col2 from aa
-    ) sq3 on sq.sub_alias = sq3.col1 
+    ) sq3 on sq.sub_alias = sq3.col1
     order by sq.other_name, sq3.col2
     """
 
@@ -343,10 +357,10 @@ def test_resolving_columns_in_sub_queries_union():
     Select sq.sub_alias, sq.other_name from (
         select tab1.aa sub_alias, tab2.us as other_name from tab1
         left join tab2 on tab1.id = tab2.other_id
-    ) sq 
-    union all 
-    select sq3.col1, sq3.col2 from 
-    (select tab12.col1, concat(tab23.ab, ' ', tab23.bc) as col2 
+    ) sq
+    union all
+    select sq3.col1, sq3.col2 from
+    (select tab12.col1, concat(tab23.ab, ' ', tab23.bc) as col2
     from tab12 left join tab23 on tab12.id = tab23.zorro) sq3
     """
 
