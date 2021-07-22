@@ -219,7 +219,8 @@ class Parser:  # pylint: disable=R0902
                         )
                     )
                 ):
-
+                    if token.get_nth_previous(4).normalized in ["CAST", "CONVERT"]:
+                        continue
                     if (
                         not (
                             # aliases of sub-queries i.e.: SELECT from (...) <alias>
@@ -396,11 +397,14 @@ class Parser:  # pylint: disable=R0902
         with_names = self.with_names
         subqueries_names = self.subqueries_names
         for token in self._not_parsed_tokens:
-            if token.is_name or (
-                token.is_keyword
-                and token.previous_token.normalized == "AS"
-                and token.last_keyword_normalized == "SELECT"
-            ):
+            if (
+                token.is_name
+                or (
+                    token.is_keyword
+                    and token.previous_token.normalized == "AS"
+                    and token.last_keyword_normalized in ["SELECT", "USING"]
+                )
+            ) and token.get_nth_previous(4).normalized not in ["CAST", "CONVERT"]:
                 if token.value in column_aliases_names:
                     token.token_type = TokenType.COLUMN_ALIAS
                     self._add_to_columns_aliases_subsection(token=token)
