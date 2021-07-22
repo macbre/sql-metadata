@@ -760,12 +760,10 @@ class Parser:  # pylint: disable=R0902
         token.token_type = TokenType.COLUMN_ALIAS
         self._add_to_columns_aliases_subsection(token=token)
         current_level = self._column_aliases_max_subquery_level.setdefault(
-                        token.value, 0
-                    )
+            token.value, 0
+        )
         if token.subquery_level > current_level:
-            self._column_aliases_max_subquery_level[
-                token.value
-            ] = token.subquery_level
+            self._column_aliases_max_subquery_level[token.value] = token.subquery_level
 
     def _add_to_columns_subsection(self, keyword: str, column: Union[str, List[str]]):
         """
