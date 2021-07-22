@@ -406,15 +406,7 @@ class Parser:  # pylint: disable=R0902
                 )
             ) and token.get_nth_previous(4).normalized not in ["CAST", "CONVERT"]:
                 if token.value in column_aliases_names:
-                    token.token_type = TokenType.COLUMN_ALIAS
-                    self._add_to_columns_aliases_subsection(token=token)
-                    current_level = self._column_aliases_max_subquery_level.get(
-                        token.value
-                    )
-                    if token.subquery_level > current_level:
-                        self._column_aliases_max_subquery_level[
-                            token.value
-                        ] = token.subquery_level
+                    self._handle_column_alias_token(token)
                     continue
                 if (
                     token.last_keyword_normalized in KEYWORDS_BEFORE_COLUMNS
@@ -422,17 +414,8 @@ class Parser:  # pylint: disable=R0902
                     and token.is_alias_definition
                     or token.is_in_with_columns
                 ) and token.value not in with_names + subqueries_names:
-                    alias = token.value
-                    token.token_type = TokenType.COLUMN_ALIAS
-                    self._add_to_columns_aliases_subsection(token=token)
-                    column_aliases_names.append(alias)
-                    current_level = self._column_aliases_max_subquery_level.setdefault(
-                        alias, 0
-                    )
-                    if token.subquery_level > current_level:
-                        self._column_aliases_max_subquery_level[
-                            alias
-                        ] = token.subquery_level
+                    column_aliases_names.append(token.value)
+                    self._handle_column_alias_token(token)
 
         self._columns_aliases_names = column_aliases_names
         return self._columns_aliases_names
@@ -766,6 +749,23 @@ class Parser:  # pylint: disable=R0902
         Returns only tokens that have no type assigned yet
         """
         return [x for x in self.tokens if x.token_type is None]
+
+    def _handle_column_alias_token(self, token: SQLToken) -> None:
+        """
+        Sets proper token type on token if it's a column alias,
+        Adds token to appropriate query section,
+        Sets the query subquery level, later used to determine
+        if given occurrence is the definition of the alias, or alais of self etc.
+        """
+        token.token_type = TokenType.COLUMN_ALIAS
+        self._add_to_columns_aliases_subsection(token=token)
+        current_level = self._column_aliases_max_subquery_level.setdefault(
+                        token.value, 0
+                    )
+        if token.subquery_level > current_level:
+            self._column_aliases_max_subquery_level[
+                token.value
+            ] = token.subquery_level
 
     def _add_to_columns_subsection(self, keyword: str, column: Union[str, List[str]]):
         """
