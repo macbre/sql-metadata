@@ -49,7 +49,7 @@ def test_simple_create_table_as_select():
 
 def test_create_table_as_select_with_joins():
     qry = """
-        CREATE table xyz as 
+        CREATE table xyz as
         SELECT *
         from table_a
         join table_b on (table_a.name = table_b.name)
@@ -70,7 +70,7 @@ def test_create_table_as_select_with_joins():
 
 def test_creating_table_as_select_with_with_clause():
     qry = """
-        CREATE table xyz as 
+        CREATE table xyz as
         with sub as (select it_id from internal_table)
         SELECT *
         from table_a
@@ -109,7 +109,7 @@ def test_creating_table_as_select_with_with_clause():
 
 def test_create_table_as_select_in_parentheses():
     qry = """
-        CREATE TABLE records AS 
+        CREATE TABLE records AS
         (SELECT t.id, t.name, e.name as energy FROM t JOIN e ON t.e_id = e.id)
         """
     parser = Parser(qry)
@@ -133,7 +133,7 @@ def test_create_table_with_schema_name():
 
 def test_create_table_as_select_in_parentheses_with_schema():
     qry = """
-        CREATE TABLE mysuper_secret_schema.records AS 
+        CREATE TABLE mysuper_secret_schema.records AS
         (SELECT t.id, t.name, e.name as energy FROM t JOIN e ON t.e_id = e.id)
         """
     parser = Parser(qry)

@@ -43,6 +43,7 @@ class SQLToken:  # pylint: disable=R0902
             self.next_token = EmptyToken
             self.previous_token = EmptyToken
             self.subquery_level = subquery_level
+        self.token_type = None
 
         self._set_default_parenthesis_status()
 
@@ -130,20 +131,6 @@ class SQLToken:  # pylint: disable=R0902
         return ""
 
     @property
-    def left_expanded(self) -> str:
-        """
-        Property tries to expand value with dot notation if left token is a dot
-        to capture whole groups like <SCHEMA>.<TABLE> or <DATABASE>.<SCHEMA>.<TABLE>
-        """
-        value = str(self)
-        token = self
-        while token.previous_token and token.previous_token.is_dot:
-            if token.get_nth_previous(2) and token.get_nth_previous(2).is_name:
-                value = f"{token.get_nth_previous(2)}." + value
-            token = token.get_nth_previous(2)
-        return value.strip("`")
-
-    @property
     def is_in_parenthesis(self) -> bool:
         """
         Property checks if token is surrounded with brackets ()
@@ -191,6 +178,7 @@ class SQLToken:  # pylint: disable=R0902
         return (
             self.next_token.normalized in [",", "FROM"]
             and self.previous_token.normalized not in [",", ".", "(", "SELECT"]
+            and not self.previous_token.is_keyword
             and (
                 self.last_keyword_normalized == "SELECT"
                 or self.previous_token.is_column_definition_end
@@ -269,7 +257,7 @@ class SQLToken:  # pylint: disable=R0902
         """
         Substitutes table alias with actual table name
         """
-        value = self.left_expanded
+        value = self.value
         if "." in value:
             parts = value.split(".")
             if len(parts) > 2:  # pragma: no cover

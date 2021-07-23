@@ -45,7 +45,7 @@ def test_sql_server_cte():
                 WITH foo AS (
                     SELECT * FROM n
                 )
-                UPDATE z from foo set z.q = foo.y 
+                UPDATE z from foo set z.q = foo.y
                     """
         ).tables
         == ["n", "z"]
@@ -54,10 +54,10 @@ def test_sql_server_cte():
     assert (
         Parser(
             """
-                WITH foo AS ( 
+                WITH foo AS (
                      SELECT * FROM tab
-                ) 
-                DELETE FROM z JOIN foo ON z.a = foo.a  
+                )
+                DELETE FROM z JOIN foo ON z.a = foo.a
                     """.strip()
         ).tables
         == ["tab", "z"]
@@ -67,20 +67,20 @@ def test_sql_server_cte():
 def test_sql_server_cte_sales_by_year():
     sales_query = """
 WITH cte_sales AS (
-    SELECT 
-        staff_id, 
-        COUNT(*) order_count  
+    SELECT
+        staff_id,
+        COUNT(*) order_count
     FROM
         sales.orders
-    WHERE 
+    WHERE
         YEAR(order_date) = 2018
     GROUP BY
         staff_id
 )
 SELECT
     AVG(order_count) average_orders_by_staff
-FROM 
-    cte_sales;  
+FROM
+    cte_sales;
     """.strip()
 
     parser = Parser(sales_query)

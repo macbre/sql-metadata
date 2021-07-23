@@ -1,5 +1,6 @@
 """
-This module provides a temporary compatibility layer for legacy API dating back to 1.x version.
+This module provides a temporary compatibility layer
+for legacy API dating back to 1.x version.
 
 Change your old imports:
 

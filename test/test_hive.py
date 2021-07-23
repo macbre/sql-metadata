@@ -29,11 +29,13 @@ FROM
      (
        year > '{{ beginYear28 }}' OR
        (year = '{{ beginYear28 }}' AND month > '{{ beginMonth28 }}') OR
-       (year = '{{ beginYear28 }}' AND month = '{{ beginMonth28 }}' AND day > '{{ beginDay28 }}')
+       (year = '{{ beginYear28 }}' AND month = '{{ beginMonth28 }}'
+       AND day > '{{ beginDay28 }}')
      ) AND (
        year < '{{ beginYear }}' OR
        (year = '{{ beginYear }}' AND month < '{{ beginMonth }}') OR
-       (year = '{{ beginYear }}' AND month = '{{ beginMonth }}' AND day <= '{{ beginDay }}')
+       (year = '{{ beginYear }}' AND month = '{{ beginMonth }}'
+       AND day <= '{{ beginDay }}')
      )
    GROUP BY wiki_id, beacon) r
 JOIN statsdb.dimension_wikis d ON r.wiki_id = d.wiki_id;

@@ -19,11 +19,19 @@ def test_simple_queries_tables():
     ).tables
 
     assert ["revision", "page", "wikicities_user"] == Parser(
-        "SELECT rev_id,rev_page,rev_text_id,rev_timestamp,rev_comment,rev_user_text,rev_user,rev_minor_edit,rev_deleted,rev_len,rev_parent_id,rev_shaN,page_namespace,page_title,page_id,page_latest,user_name FROM `revision` INNER JOIN `page` ON ((page_id = rev_page)) LEFT JOIN `wikicities_user` ON ((rev_user != N) AND (user_id = rev_user)) WHERE rev_id = X LIMIT N"
+        "SELECT rev_id,rev_page,rev_text_id,rev_timestamp,rev_comment,rev_user_text,"
+        "rev_user,rev_minor_edit,rev_deleted,rev_len,rev_parent_id,rev_shaN,"
+        "page_namespace,page_title,page_id,page_latest,user_name "
+        "FROM `revision` INNER JOIN `page` ON ((page_id = rev_page)) "
+        "LEFT JOIN `wikicities_user` ON ((rev_user != N) AND (user_id = rev_user)) "
+        "WHERE rev_id = X LIMIT N"
     ).tables
 
     assert ["events"] == Parser(
-        "SELECT COUNT( 0 ) AS cnt, date_format(event_date, '%Y-%m-%d') AS date 	 FROM events 	 WHERE event_date BETWEEN '2017-10-18 00:00:00' 	 AND '2017-10-24 23:59:59'  	 AND wiki_id = '1289985' GROUP BY date WITH ROLLUP"
+        "SELECT COUNT( 0 ) AS cnt, date_format(event_date, '%Y-%m-%d') AS date 	 "
+        "FROM events 	 WHERE event_date BETWEEN '2017-10-18 00:00:00' 	 "
+        "AND '2017-10-24 23:59:59'  	 "
+        "AND wiki_id = '1289985' GROUP BY date WITH ROLLUP"
     ).tables
 
 
@@ -31,36 +39,59 @@ def test_complex_query_tables():
     # complex queries
     # @see https://github.com/macbre/query-digest/issues/16
     assert ["report_wiki_recent_pageviews", "dimension_wikis"] == Parser(
-        "SELECT r.wiki_id AS id, pageviews_Nday AS pageviews FROM report_wiki_recent_pageviews AS r INNER JOIN dimension_wikis AS d ON r.wiki_id = d.wiki_id WHERE d.public = X AND r.lang = X AND r.hub_name = X ORDER BY pageviews DESC LIMIT N"
+        "SELECT r.wiki_id AS id, pageviews_Nday AS pageviews "
+        "FROM report_wiki_recent_pageviews AS r "
+        "INNER JOIN dimension_wikis AS d ON r.wiki_id = d.wiki_id "
+        "WHERE d.public = X AND r.lang = X AND r.hub_name = X "
+        "ORDER BY pageviews DESC LIMIT N"
     ).tables
 
     assert ["dimension_wikis", "fact_wam_scores"] == Parser(
-        "SELECT DISTINCT dw.lang FROM `dimension_wikis` `dw` INNER JOIN `fact_wam_scores` `fwN` ON ((dw.wiki_id = fwN.wiki_id)) WHERE fwN.time_id = FROM_UNIXTIME(N) ORDER BY dw.lang ASC"
+        "SELECT DISTINCT dw.lang FROM `dimension_wikis` `dw` "
+        "INNER JOIN `fact_wam_scores` `fwN` ON ((dw.wiki_id = fwN.wiki_id)) "
+        "WHERE fwN.time_id = FROM_UNIXTIME(N) ORDER BY dw.lang ASC"
     ).tables
 
     assert ["fact_wam_scores", "dimension_wikis"] == Parser(
-        "SELECT count(fwN.wiki_id) as wam_results_total FROM `fact_wam_scores` `fwN` left join `fact_wam_scores` `fwN` ON ((fwN.wiki_id = fwN.wiki_id) AND (fwN.time_id = FROM_UNIXTIME(N))) left join `dimension_wikis` `dw` ON ((fwN.wiki_id = dw.wiki_id)) WHERE (fwN.time_id = FROM_UNIXTIME(N)) AND (dw.url like X OR dw.title like X) AND fwN.vertical_id IN (XYZ) AND dw.lang = X AND (fwN.wiki_id NOT IN (XYZ)) AND ((dw.url IS NOT NULL AND dw.title IS NOT NULL))"
+        "SELECT count(fwN.wiki_id) as wam_results_total FROM `fact_wam_scores` `fwN` "
+        "left join `fact_wam_scores` `fwN` ON ((fwN.wiki_id = fwN.wiki_id) "
+        "AND (fwN.time_id = FROM_UNIXTIME(N))) "
+        "left join `dimension_wikis` `dw` ON ((fwN.wiki_id = dw.wiki_id)) "
+        "WHERE (fwN.time_id = FROM_UNIXTIME(N)) AND (dw.url like X OR dw.title like X) "
+        "AND fwN.vertical_id IN (XYZ) AND dw.lang = X AND (fwN.wiki_id NOT IN (XYZ)) "
+        "AND ((dw.url IS NOT NULL AND dw.title IS NOT NULL))"
     ).tables
 
     assert ["revision", "page", "wikicities_cN.user"] == Parser(
-        "SELECT rev_id,rev_page,rev_text_id,rev_timestamp,rev_comment,rev_user_text,rev_user,rev_minor_edit,rev_deleted,rev_len,rev_parent_id,rev_shaN,page_namespace,page_title,page_id,page_latest,user_name FROM `revision` INNER JOIN `page` ON ((page_id = rev_page)) LEFT JOIN `wikicities_cN`.`user` ON ((rev_user != N) AND (user_id = rev_user)) WHERE rev_id = X LIMIT N"
+        "SELECT rev_id,rev_page,rev_text_id,rev_timestamp,rev_comment,rev_user_text,"
+        "rev_user,rev_minor_edit,rev_deleted,rev_len,rev_parent_id,rev_shaN,"
+        "page_namespace,page_title,page_id,page_latest,user_name "
+        "FROM `revision` INNER JOIN `page` ON ((page_id = rev_page)) "
+        "LEFT JOIN `wikicities_cN`.`user` ON ((rev_user != N) "
+        "AND (user_id = rev_user)) WHERE rev_id = X LIMIT N"
     ).tables
 
     # complex queries, take two
     # @see https://github.com/macbre/sql-metadata/issues/6
     assert ["foo_pageviews"] == Parser(
-        "SELECT 1 as c    FROM foo_pageviews      WHERE time_id = '2018-01-07 00:00:00'   AND period_id = '2' LIMIT 1"
+        "SELECT 1 as c    FROM foo_pageviews      "
+        "WHERE time_id = '2018-01-07 00:00:00'   AND period_id = '2' LIMIT 1"
     ).tables
 
     # table aliases
     assert ["report_wiki_recent_pageviews", "dimension_wikis"] == Parser(
-        "SELECT r.wiki_id AS id, pageviews_7day AS pageviews FROM report_wiki_recent_pageviews AS r INNER JOIN dimension_wikis AS d ON r.wiki_id = d.wiki_id WHERE d.public = '1' AND r.lang IN ( 'en', 'ru' ) AND r.hub_name = 'gaming' ORDER BY pageviews DESC LIMIT 300"
+        "SELECT r.wiki_id AS id, pageviews_7day AS pageviews "
+        "FROM report_wiki_recent_pageviews AS r "
+        "INNER JOIN dimension_wikis AS d ON r.wiki_id = d.wiki_id "
+        "WHERE d.public = '1' AND r.lang IN ( 'en', 'ru' ) "
+        "AND r.hub_name = 'gaming' ORDER BY pageviews DESC LIMIT 300"
     ).tables
 
     # include multiple FROM tables when they prefixed
     # @see https://github.com/macbre/sql-metadata/issues/38
     assert ["MYDB1.TABLE1", "MYDB2.TABLE2"] == Parser(
-        "SELECT A.FIELD1, B.FIELD1, (A.FIELD1 * B.FIELD1) AS QTY FROM MYDB1.TABLE1 AS A, MYDB2.TABLE2 AS B"
+        "SELECT A.FIELD1, B.FIELD1, (A.FIELD1 * B.FIELD1) AS QTY "
+        "FROM MYDB1.TABLE1 AS A, MYDB2.TABLE2 AS B"
     ).tables
 
     # test whitespaces in keywords
@@ -68,7 +99,8 @@ def test_complex_query_tables():
     assert (
         ["tab", "tab2"]
         == Parser(
-            """SELECT a,b,c from tab full  outer \r\n\t  join tab2  on (col1 = col2) group   
+            """SELECT a,b,c from tab
+            full  outer \r\n\t  join tab2  on (col1 = col2) group
 \r\n   \t   by  a, b, c """
         ).tables
     )
@@ -77,16 +109,34 @@ def test_complex_query_tables():
 def test_joins():
     # self joins
     assert ["fact_wam_scores", "dimension_wikis"] == Parser(
-        "SELECT  count(fw1.wiki_id) as wam_results_total  FROM `fact_wam_scores` `fw1` left join `fact_wam_scores` `fw2` ON ((fw1.wiki_id = fw2.wiki_id) AND (fw2.time_id = FROM_UNIXTIME(1466380800))) left join `dimension_wikis` `dw` ON ((fw1.wiki_id = dw.wiki_id))  WHERE (fw1.time_id = FROM_UNIXTIME(1466467200)) AND (dw.url like '%%' OR dw.title like '%%') AND fw1.vertical_id IN ('0','1','2','3','4','5','6','7')  AND (fw1.wiki_id NOT IN ('23312','70256','168929','463633','381622','524772','476782','9764','214934','170145','529622','52149','96420','390','468156','690804','197434','29197','88043','37317','466775','402313','169142','746246','119847','57268','1089624')) AND ((dw.url IS NOT NULL AND dw.title IS NOT NULL))"
+        "SELECT  count(fw1.wiki_id) as wam_results_total  "
+        "FROM `fact_wam_scores` `fw1` left join `fact_wam_scores` `fw2` "
+        "ON ((fw1.wiki_id = fw2.wiki_id) "
+        "AND (fw2.time_id = FROM_UNIXTIME(1466380800))) "
+        "left join `dimension_wikis` `dw` ON ((fw1.wiki_id = dw.wiki_id))  "
+        "WHERE (fw1.time_id = FROM_UNIXTIME(1466467200)) "
+        "AND (dw.url like '%%' OR dw.title like '%%') "
+        "AND fw1.vertical_id IN ('0','1','2','3','4','5','6','7')  "
+        "AND (fw1.wiki_id NOT IN ('23312','70256','168929','463633','381622','524772',"
+        "'476782','9764','214934','170145','529622','52149','96420','390','468156',"
+        "'690804','197434','29197','88043','37317','466775','402313','169142','746246',"
+        "'119847','57268','1089624')) "
+        "AND ((dw.url IS NOT NULL AND dw.title IS NOT NULL))"
     ).tables
 
     assert ["rollup_wiki_pageviews"] == Parser(
-        "SELECT date_format(time_id,'%Y-%m-%d') AS date, pageviews AS cnt         FROM rollup_wiki_pageviews      WHERE period_id = '2'   AND wiki_id = '1676379'         AND time_id BETWEEN '2018-01-08'        AND '2018-01-01'"
+        "SELECT date_format(time_id,'%Y-%m-%d') AS date, pageviews AS cnt         "
+        "FROM rollup_wiki_pageviews      "
+        "WHERE period_id = '2'   "
+        "AND wiki_id = '1676379'         "
+        "AND time_id BETWEEN '2018-01-08'        "
+        "AND '2018-01-01'"
     ).tables
 
     # JOINs
     assert ["product_a.users", "product_b.users"] == Parser(
-        "SELECT a.* FROM product_a.users AS a JOIN product_b.users AS b ON a.ip_address = b.ip_address"
+        "SELECT a.* FROM product_a.users AS a "
+        "JOIN product_b.users AS b ON a.ip_address = b.ip_address"
     ).tables
 
     assert ["redirect", "page"] == Parser(
@@ -154,7 +204,8 @@ def test_update_and_replace():
 
     # REPLACE queries
     assert ["page_props"] == Parser(
-        "REPLACE INTO `page_props` (pp_page,pp_propname,pp_value) VALUES ('47','infoboxes','')"
+        "REPLACE INTO `page_props` (pp_page,pp_propname,pp_value) "
+        "VALUES ('47','infoboxes','')"
     ).tables
 
 
@@ -184,7 +235,8 @@ def test_three_part_qualified_names():
     ).tables
 
     assert ["MYDB1.MYSCHEMA1.MYTABLE1", "MYDB2.MYSCHEMA2.MYTABLE2"] == Parser(
-        "SELECT * FROM MYDB1.MYSCHEMA1.MYTABLE1 A LEFT JOIN MYDB2.MYSCHEMA2.MYTABLE2 B ON A.COL = B.COL"
+        "SELECT * FROM MYDB1.MYSCHEMA1.MYTABLE1 A "
+        "LEFT JOIN MYDB2.MYSCHEMA2.MYTABLE2 B ON A.COL = B.COL"
     ).tables
 
     assert ["MYDB1.MYSCHEMA1.MYTABLE1", "MYDB2.MYSCHEMA2.MYTABLE2"] == Parser(
@@ -205,7 +257,9 @@ def test_insert_queries():
     assert ["foo"] == Parser("INSERT INTO `foo` (id,text) VALUES (X,X)").tables
 
     assert ["page_vote"] == Parser(
-        "INSERT /* VoteHelper::addVote xxx */  INTO `page_vote` (article_id,user_id,time) VALUES ('442001','27574631','20180228130846')"
+        "INSERT /* VoteHelper::addVote xxx */  "
+        "INTO `page_vote` (article_id,user_id,time) "
+        "VALUES ('442001','27574631','20180228130846')"
     ).tables
 
 
@@ -234,9 +288,10 @@ def test_table_name_with_group_by():
     assert (
         Parser(
             """
-                    SELECT s.cust_id,count(s.cust_id) FROM SH.sales s
-                    GROUP BY s.cust_id HAVING s.cust_id != '1660' AND s.cust_id != '2'
-                        """.strip()
+            SELECT s.cust_id,count(s.cust_id) FROM SH.sales s
+            GROUP BY s.cust_id HAVING s.cust_id != '1660'
+            AND s.cust_id != '2'
+            """.strip()
         ).tables
         == expected_tables
     )
@@ -245,15 +300,18 @@ def test_table_name_with_group_by():
 def test_datasets():
     # see https://github.com/macbre/sql-metadata/issues/38
     assert Parser(
-        "SELECT A.FIELD1, B.FIELD1, (A.FIELD1 * B.FIELD1) AS QTY FROM TABLE1 AS A, TABLE2 AS B"
+        "SELECT A.FIELD1, B.FIELD1, (A.FIELD1 * B.FIELD1) AS QTY "
+        "FROM TABLE1 AS A, TABLE2 AS B"
     ).tables == ["TABLE1", "TABLE2"]
 
     assert Parser(
-        "SELECT A.FIELD1, B.FIELD1, (A.FIELD1 * B.FIELD1) AS QTY FROM DATASET1.TABLE1, DATASET2.TABLE2"
+        "SELECT A.FIELD1, B.FIELD1, (A.FIELD1 * B.FIELD1) AS QTY "
+        "FROM DATASET1.TABLE1, DATASET2.TABLE2"
     ).tables == ["DATASET1.TABLE1", "DATASET2.TABLE2"]
 
     assert Parser(
-        "SELECT A.FIELD1, B.FIELD1, (A.FIELD1 * B.FIELD1) AS QTY FROM DATASET1.TABLE1 AS A, DATASET2.TABLE2 AS B"
+        "SELECT A.FIELD1, B.FIELD1, (A.FIELD1 * B.FIELD1) AS QTY "
+        "FROM DATASET1.TABLE1 AS A, DATASET2.TABLE2 AS B"
     ).tables == ["DATASET1.TABLE1", "DATASET2.TABLE2"]
 
 
@@ -309,38 +367,38 @@ WHERE bar = '1') t
 
 def test_db2_query():
     query = """
-    SELECT ca.IDENTIFICATION_CODE identificationCode, 
-eo.KBO_NUMBER kboNumber, 
+    SELECT ca.IDENTIFICATION_CODE identificationCode,
+eo.KBO_NUMBER kboNumber,
 eo.PARTY_NAME,
-ca.total_guaranteed totale_borgtocht, 
-coalesce(sum(ae1.remainder),0) Saldo, 
-coalesce(sum(ae3.remainder),0) uitstel_van_betaling, 
-coalesce(sum(ae4.remainder),0) reservering_aangifte, 
+ca.total_guaranteed totale_borgtocht,
+coalesce(sum(ae1.remainder),0) Saldo,
+coalesce(sum(ae3.remainder),0) uitstel_van_betaling,
+coalesce(sum(ae4.remainder),0) reservering_aangifte,
 coalesce(sum(ae5.remainder),0) reservering_vergunning,
-coalesce(sum(ae6.remainder),0) zekerheid_douanevervoer, 
+coalesce(sum(ae6.remainder),0) zekerheid_douanevervoer,
 coalesce(sum(ae7.remainder),0) zekerheid_accijnsbeweging,
-coalesce(sum(ae8.remainder),0) FRCT 
-from CUSTOMER_ACCOUNT ca 
-inner join economic_operator eo on eo.id = ca.economic_operator_id 
-join contact_details cd on cd.id = ca.contact_details_id 
-left join ( ca1_remainder_total_guaranteed crtg 
+coalesce(sum(ae8.remainder),0) FRCT
+from CUSTOMER_ACCOUNT ca
+inner join economic_operator eo on eo.id = ca.economic_operator_id
+join contact_details cd on cd.id = ca.contact_details_id
+left join ( ca1_remainder_total_guaranteed crtg
 inner join accounting_entity ae1 on ae1.id = crtg.accounting_entity_id)
-on crtg.id = ca.ca1_id 
-left join (ca3_credit_account cca inner join accounting_entity ae3 on ae3.id = 
-cca.accounting_entity_id) on cca.id = ca.ca3_id 
-left join (ca4_reservations_declaration crd inner join accounting_entity ae4 on 
-ae4.id = crd.accounting_entity_id) on crd.id = ca.ca4_id 
-left join (ca5_reservations_permits crp inner join accounting_entity ae5 on ae5.id 
-= crp.accounting_entity_id) on crp.id = ca.ca5_id 
-left join (CA6_GUARANTEE_CUSTOMS_TRANSPORT gct inner join accounting_entity ae6 on 
-ae6.id = gct.accounting_entity_id) on gct.id = ca.ca6_id 
-left join (CA7_GUARANTEE_EXCISE_PRODUCTS gep inner join accounting_entity ae7 on 
-ae7.id = gep.accounting_entity_id) on gep.id = ca.ca7_id 
-left join (ca8_frct cf inner join ca8_frct_per_discharge cfpd on cfpd.CA8_ID = 
-cf.id inner join accounting_entity ae8 on ae8.id = cfpd.accounting_entity_id) on 
-cf.id = ca.ca8_id 
-group by eo.PARTY_NAME,eo.KBO_NUMBER, ca.IDENTIFICATION_CODE, ca.total_guaranteed 
-order by eo.KBO_NUMBER, ca.IDENTIFICATION_CODE 
+on crtg.id = ca.ca1_id
+left join (ca3_credit_account cca inner join accounting_entity ae3 on ae3.id =
+cca.accounting_entity_id) on cca.id = ca.ca3_id
+left join (ca4_reservations_declaration crd inner join accounting_entity ae4 on
+ae4.id = crd.accounting_entity_id) on crd.id = ca.ca4_id
+left join (ca5_reservations_permits crp inner join accounting_entity ae5 on ae5.id
+= crp.accounting_entity_id) on crp.id = ca.ca5_id
+left join (CA6_GUARANTEE_CUSTOMS_TRANSPORT gct inner join accounting_entity ae6 on
+ae6.id = gct.accounting_entity_id) on gct.id = ca.ca6_id
+left join (CA7_GUARANTEE_EXCISE_PRODUCTS gep inner join accounting_entity ae7 on
+ae7.id = gep.accounting_entity_id) on gep.id = ca.ca7_id
+left join (ca8_frct cf inner join ca8_frct_per_discharge cfpd on cfpd.CA8_ID =
+cf.id inner join accounting_entity ae8 on ae8.id = cfpd.accounting_entity_id) on
+cf.id = ca.ca8_id
+group by eo.PARTY_NAME,eo.KBO_NUMBER, ca.IDENTIFICATION_CODE, ca.total_guaranteed
+order by eo.KBO_NUMBER, ca.IDENTIFICATION_CODE
 with ur
     """
     parser = Parser(query)
@@ -423,23 +481,28 @@ with ur
 def test_get_tables_with_leading_digits():
     # see #139
 
-    # Identifiers may begin with a digit but unless quoted may not consist solely of digits.
+    # Identifiers may begin with a digit
+    # but unless quoted may not consist solely of digits.
     assert ["0020"] == Parser("SELECT * FROM `0020`").tables
 
     assert ["0020_big_table"] == Parser(
-        "SELECT t.val as value, count(*) FROM `0020_big_table` as t WHERE id BETWEEN 10 AND 20 GROUP BY val"
+        "SELECT t.val as value, count(*) "
+        "FROM `0020_big_table` as t WHERE id BETWEEN 10 AND 20 GROUP BY val"
     ).tables
     assert ["0020_big_table"] == Parser(
         "SELECT t.val as value, count(*) FROM `0020_big_table`"
     ).tables
     assert ["0020_big_table"] == Parser(
-        'SELECT t.val as value, count(*) FROM "0020_big_table" as t WHERE id BETWEEN 10 AND 20 GROUP BY val'
+        "SELECT t.val as value, count(*) "
+        'FROM "0020_big_table" as t WHERE id BETWEEN 10 AND 20 GROUP BY val'
     ).tables
     assert ["0020_big_table"] == Parser(
-        "SELECT t.val as value, count(*) FROM 0020_big_table as t WHERE id BETWEEN 10 AND 20 GROUP BY val"
+        "SELECT t.val as value, count(*) "
+        "FROM 0020_big_table as t WHERE id BETWEEN 10 AND 20 GROUP BY val"
     ).tables
     assert ["0020_big_table"] == Parser(
-        "SELECT t.val as value, count(*) FROM `0020_big_table` as t WHERE id BETWEEN 10 AND 20 GROUP BY val"
+        "SELECT t.val as value, count(*) "
+        "FROM `0020_big_table` as t WHERE id BETWEEN 10 AND 20 GROUP BY val"
     ).tables
     assert ["0020_big_table"] == Parser(
         "SELECT t.val as value, count(*) FROM 0020_big_table"
@@ -456,3 +519,32 @@ def test_insert_ignore_with_comments():
 
     for query in queries:
         assert ["bar"] == Parser(query).tables
+
+
+def test_mutli_from_aliases_without_as():
+    query = """
+    select distinct e1.eid as eid from uw_emp "e1", uw_emp "e2", uw_payroll p
+    where e1.eid = e2.eid and e1.eid = p.eid
+    """
+    parser = Parser(query)
+    assert parser.tables == ["uw_emp", "uw_payroll"]
+    assert parser.tables_aliases == {"p": "uw_payroll", "e1": "uw_emp", "e2": "uw_emp"}
+
+
+def test_tables_with_aggregation():
+    query = """
+    SELECT
+    tc.col2
+    , max(tc.col3) col3_mx
+    , trunc(max(tc.col4)) col4_mx
+    , extract (week from (max(tc.col5))) col5_week
+    , sum(NVL(tc.amt,0)) tot_amt
+    FROM
+    my_sc.tab1 tc
+    WHERE
+    tc.col1 = 'AAA'
+    group by
+    tc.col2
+    """
+    parser = Parser(query)
+    assert parser.tables == ["my_sc.tab1"]
