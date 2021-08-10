@@ -4,8 +4,12 @@
 version: 2
 updates:
 
-  # Maintain PyPI dependencies
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
       interval: "daily"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+        interval: daily
