@@ -324,11 +324,15 @@ class Parser:  # pylint: disable=R0902
                 token.value in self.columns_aliases_names
                 and token.value not in column_aliases
                 and not token.previous_token.is_nested_function_start
-                and (token.is_alias_definition
-                # or its a rank() w/out as
-                or (token.get_nth_previous(11).normalized in ["RANK", "ROW_NUMBER", "MIN", "MAX"]
-                    and token.get_nth_previous(8).normalized == "OVER"
-                    and not token.previous_token.normalized == "AS")
+                and (
+                    token.is_alias_definition
+                    # or its a rank() w/out as
+                    or (
+                        token.get_nth_previous(11).normalized
+                        in ["RANK", "ROW_NUMBER", "MIN", "MAX"]
+                        and token.get_nth_previous(8).normalized == "OVER"
+                        and not token.previous_token.normalized == "AS"
+                    )
                 )
             ):
                 if token.previous_token.normalized == "AS":
@@ -418,9 +422,12 @@ class Parser:  # pylint: disable=R0902
                     and token.normalized not in ["DIV"]
                     and token.is_alias_definition
                     or token.is_in_with_columns
-                    or (token.get_nth_previous(11).normalized in ["RANK", "ROW_NUMBER", "MIN", "MAX"]
+                    or (
+                        token.get_nth_previous(11).normalized
+                        in ["RANK", "ROW_NUMBER", "MIN", "MAX"]
                         and token.get_nth_previous(8).normalized == "OVER"
-                        and not token.previous_token.normalized == "AS")
+                        and not token.previous_token.normalized == "AS"
+                    )
                 ) and token.value not in with_names + subqueries_names:
                     column_aliases_names.append(token.value)
                     self._handle_column_alias_token(token)

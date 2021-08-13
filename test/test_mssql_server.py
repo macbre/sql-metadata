@@ -105,6 +105,7 @@ FROM
         "where": ["order_date"],
     }
 
+
 def test_sql_server_rank_subquery():
     """Test for #204"""
     parser = Parser(
@@ -122,4 +123,4 @@ def test_sql_server_rank_subquery():
     )
     assert parser.tables == ["nice_table"]
     assert ["nice_table"] == parser.tables
-    assert ['col_one', 'col_two', 'col_three'] == parser.columns
+    assert ["col_one", "col_two", "col_three"] == parser.columns
