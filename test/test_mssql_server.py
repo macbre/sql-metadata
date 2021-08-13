@@ -104,3 +104,22 @@ FROM
         "select": ["staff_id", "*"],
         "where": ["order_date"],
     }
+
+def test_sql_server_rank_subquery():
+    """Test for #204"""
+    parser = Parser(
+        """
+        select t.RaNKeD, t.RANKED_twO, t.test, t.row_num from (SELECT
+        ,RANK() OVER (PARTITION BY col_one ORDER BY col_two) RANKED
+        ,RANK() OVER (PARTITION BY col_one ORDER BY col_two) as RANKED_two
+        ,ROW_NUMBER() OVER (PARTITION BY col_one ORDER BY col_two) row_num
+        ,ROW_NUMBER() OVER (PARTITION BY col_one ORDER BY col_two) as row_num_tow
+        , col_three as test
+        FROM nice_table) as t
+        where t.RANkED = 1
+        and t.RaNKED_two = 2
+        """
+    )
+    assert parser.tables == ["nice_table"]
+    assert ["nice_table"] == parser.tables
+    assert ['col_one', 'col_two', 'col_three'] == parser.columns
