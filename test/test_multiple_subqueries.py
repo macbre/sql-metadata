@@ -409,29 +409,6 @@ def test_resolving_columns_in_sub_queries_functions():
     assert parser.subqueries_names == ["sq"]
 
 
-def test_alias_case_from_sub_query():
-    # for issue #202
-    parser = Parser(
-        """
-        select tEsT
-        from (select a as TeSt from nowhere) as t
-        where t.tEsT = 'asdf'
-        """
-    )
-    assert ["nowhere"] == parser.tables
-    assert ["tEsT", "a"] == parser.columns
-
-    parser = Parser(
-        """
-        select tEsT
-        from (select a as TeSt from nowhere) as t
-        where tEsT = 'asdf'
-        """
-    )
-    assert ["nowhere"] == parser.tables
-    assert ["tEsT", "a"] == parser.columns
-
-
 def test_readme_query():
     parser = Parser(
         """

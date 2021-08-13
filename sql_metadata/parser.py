@@ -822,9 +822,8 @@ class Parser:  # pylint: disable=R0902
         """
         if isinstance(alias, list):
             return [self._resolve_column_alias(x) for x in alias]
-        columns_aliases = {k.casefold(): v for k, v in self.columns_aliases.items()}
-        while alias.casefold() in columns_aliases:
-            alias = columns_aliases[alias.casefold()]
+        while alias in self.columns_aliases:
+            alias = self.columns_aliases[alias]
             if isinstance(alias, list):
                 return self._resolve_column_alias(alias)
         return alias
@@ -877,9 +876,7 @@ class Parser:  # pylint: disable=R0902
         subparser = already_parsed.setdefault(sub_query, Parser(sub_query_definition))
         # in subquery you cannot have more than one column with given name
         # so it either has to have an alias or only one column with given name exists
-        if column_name.casefold() in [
-            x.casefold() for x in subparser.columns_aliases_names
-        ]:
+        if column_name in subparser.columns_aliases_names:
             resolved_column = subparser._resolve_column_alias(  # pylint: disable=W0212
                 column_name
             )
