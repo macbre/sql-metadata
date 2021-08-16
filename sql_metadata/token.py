@@ -80,6 +80,8 @@ class SQLToken:  # pylint: disable=R0902
         self.is_column_definition_end = False
         self.is_create_table_columns_declaration_start = False
         self.is_create_table_columns_declaration_end = False
+        self.is_partition_clause_start = False
+        self.is_partition_clause_end = False
 
     def __str__(self):
         """
@@ -182,6 +184,7 @@ class SQLToken:  # pylint: disable=R0902
             and (
                 self.last_keyword_normalized == "SELECT"
                 or self.previous_token.is_column_definition_end
+                or self.previous_token.is_partition_clause_end
             )
             and not self.previous_token.is_comment
         )
