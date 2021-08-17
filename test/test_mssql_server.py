@@ -27,14 +27,14 @@ def test_sql_server_cte():
     assert (
         Parser(
             """
-                    WITH x AS (
-                        SELECT * FROM n
-                    )
-                    SELECT
-                        *
-                    FROM x
-                    JOIN y ON x.a = y.a
-                        """
+                        WITH x AS (
+                            SELECT * FROM n
+                        )
+                        SELECT
+                            *
+                        FROM x
+                        JOIN y ON x.a = y.a
+                            """
         ).tables
         == ["n", "y"]
     )
@@ -42,11 +42,11 @@ def test_sql_server_cte():
     assert (
         Parser(
             """
-                    WITH foo AS (
-                        SELECT * FROM n
-                    )
-                    UPDATE z from foo set z.q = foo.y
-                        """
+                        WITH foo AS (
+                            SELECT * FROM n
+                        )
+                        UPDATE z from foo set z.q = foo.y
+                            """
         ).tables
         == ["n", "z"]
     )
@@ -54,11 +54,11 @@ def test_sql_server_cte():
     assert (
         Parser(
             """
-                    WITH foo AS (
-                         SELECT * FROM tab
-                    )
-                    DELETE FROM z JOIN foo ON z.a = foo.a
-                        """.strip()
+                        WITH foo AS (
+                             SELECT * FROM tab
+                        )
+                        DELETE FROM z JOIN foo ON z.a = foo.a
+                            """.strip()
         ).tables
         == ["tab", "z"]
     )
@@ -118,6 +118,7 @@ def test_partition_over_with_rank_and_one_order():
         FROM nice_table) as t
         where t.RANKED = 1
         and t.RANKED_two = 2
+        order by test
         """
     )
     assert parser.tables == ["nice_table"]
@@ -129,6 +130,7 @@ def test_partition_over_with_rank_and_one_order():
     }
     assert parser.columns == ["col_one", "col_two", "col_three"]
     assert parser.columns_dict == {
+        "order_by": ["col_three"],
         "select": ["col_one", "col_two", "col_three"],
         "where": ["col_one", "col_two"],
     }
@@ -150,6 +152,7 @@ def test_partition_over_with_row_number_and_many_orders():
         FROM nice_table) as t
         where t.row_no = 1
         and t.row_no_two = 2
+        order by t.row_no
         """
     )
     assert parser.tables == ["nice_table"]
@@ -161,6 +164,7 @@ def test_partition_over_with_row_number_and_many_orders():
     }
     assert parser.columns == ["col_one", "col_two", "col_three", "col_four"]
     assert parser.columns_dict == {
+        "order_by": ["col_one", "col_two", "col_three", "col_four"],
         "select": ["col_one", "col_two", "col_three", "col_four"],
         "where": ["col_one", "col_two", "col_three", "col_four"],
     }
