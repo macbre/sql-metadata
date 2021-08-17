@@ -17,56 +17,50 @@ def test_sql_server_cte():
             *
         FROM x
         JOIN y ON x.a = y.a
-            """
+        """
     )
     assert parser.tables == ["n", "y"]
     assert parser.with_names == ["x"]
     assert parser.with_queries == {"x": "SELECT * FROM n"}
     assert parser.columns == ["*", "a", "y.a"]
 
-    assert (
-        Parser(
-            """
-                        WITH x AS (
-                            SELECT * FROM n
-                        )
-                        SELECT
-                            *
-                        FROM x
-                        JOIN y ON x.a = y.a
-                            """
-        ).tables
-        == ["n", "y"]
+    parser = Parser(
+        """
+            WITH x AS (
+                SELECT * FROM n
+            )
+            SELECT
+                *
+            FROM x
+            JOIN y ON x.a = y.a
+        """
     )
+    assert parser.tables == ["n", "y"]
 
-    assert (
-        Parser(
-            """
-                        WITH foo AS (
-                            SELECT * FROM n
-                        )
-                        UPDATE z from foo set z.q = foo.y
-                            """
-        ).tables
-        == ["n", "z"]
+    parser = Parser(
+        """
+        WITH foo AS (
+            SELECT * FROM n
+        )
+        UPDATE z from foo set z.q = foo.y
+        """
     )
+    assert parser.tables == ["n", "z"]
 
-    assert (
-        Parser(
-            """
-                        WITH foo AS (
-                             SELECT * FROM tab
-                        )
-                        DELETE FROM z JOIN foo ON z.a = foo.a
-                            """.strip()
-        ).tables
-        == ["tab", "z"]
+    parser = Parser(
+        """
+        WITH foo AS (
+             SELECT * FROM tab
+        )
+        DELETE FROM z JOIN foo ON z.a = foo.a
+        """
     )
+    assert parser.tables == ["tab", "z"]
 
 
 def test_sql_server_cte_sales_by_year():
     sales_query = """
-WITH cte_sales AS (
+    WITH cte_sales AS (
     SELECT
         staff_id,
         COUNT(*) order_count
@@ -76,12 +70,12 @@ WITH cte_sales AS (
         YEAR(order_date) = 2018
     GROUP BY
         staff_id
-)
-SELECT
+    )
+    SELECT
     AVG(order_count) average_orders_by_staff
-FROM
+    FROM
     cte_sales;
-    """.strip()
+    """
 
     parser = Parser(sales_query)
     assert parser.tables == ["sales.orders"]
