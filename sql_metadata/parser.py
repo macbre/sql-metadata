@@ -66,7 +66,7 @@ class Parser:  # pylint: disable=R0902
         self._subquery_level = 0
         self._nested_level = 0
         self._parenthesis_level = 0
-        self._open_parentheses = []
+        self._open_parentheses: List[SQLToken] = []
         self._aliases_to_check = None
         self._is_in_nested_function = False
         self._is_in_with_block = False
@@ -326,10 +326,11 @@ class Parser:  # pylint: disable=R0902
                 and not token.previous_token.is_nested_function_start
                 and token.is_alias_definition
             ):
-                if token.previous_token.normalized == "AS":
-                    token_check = token.get_nth_previous(2)
-                else:
-                    token_check = token.previous_token
+                token_check = (
+                    token.get_nth_previous(2)
+                    if token.previous_token.normalized == "AS"
+                    else token.previous_token
+                )
                 if token_check.is_column_definition_end:
                     # nested subquery like select a, (select a as b from x) as column
                     start_token = token.find_nearest_token(
@@ -348,6 +349,13 @@ class Parser:  # pylint: disable=R0902
                         alias_of = self._find_all_columns_between_tokens(
                             start_token=start_token, end_token=token
                         )
+                elif token_check.is_partition_clause_end:
+                    start_token = token.find_nearest_token(
+                        True, value_attribute="is_partition_clause_start"
+                    )
+                    alias_of = self._find_all_columns_between_tokens(
+                        start_token=start_token, end_token=token
+                    )
                 elif token.is_in_with_columns:
                     # columns definition is to the right in subquery
                     # we are in: with with_name (<aliases>) as (subquery)
@@ -916,6 +924,8 @@ class Parser:  # pylint: disable=R0902
             or token.get_nth_previous(4).normalized == "TABLE"
         ):
             token.is_create_table_columns_declaration_start = True
+        elif token.previous_token.normalized == "OVER":
+            token.is_partition_clause_start = True
         else:
             # nested function
             token.is_nested_function_start = True
@@ -938,6 +948,8 @@ class Parser:  # pylint: disable=R0902
             token.is_with_query_end = True
         elif last_open_parenthesis.is_create_table_columns_declaration_start:
             token.is_create_table_columns_declaration_end = True
+        elif last_open_parenthesis.is_partition_clause_start:
+            token.is_partition_clause_end = True
         else:
             token.is_nested_function_end = True
             self._nested_level -= 1
@@ -1010,12 +1022,15 @@ class Parser:  # pylint: disable=R0902
 
         return query
 
-    @staticmethod
-    def _determine_last_relevant_keyword(token: SQLToken, last_keyword: str):
+    def _determine_last_relevant_keyword(self, token: SQLToken, last_keyword: str):
         if token.is_keyword and "".join(token.normalized.split()) in RELEVANT_KEYWORDS:
             if not (
                 token.normalized == "FROM"
                 and token.get_nth_previous(3).normalized == "EXTRACT"
+            ) and not (
+                token.normalized == "ORDERBY"
+                and len(self._open_parentheses) > 0
+                and self._open_parentheses[-1].is_partition_clause_start
             ):
                 last_keyword = token.normalized
         return last_keyword
