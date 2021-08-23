@@ -44,7 +44,7 @@ class Parser:  # pylint: disable=R0902
         self._columns_dict = None
         self._columns_aliases_names = None
         self._columns_aliases = None
-        self._columns_with_tables_aliases = dict()
+        self._columns_with_tables_aliases = {}
         self._columns_aliases_dict = None
 
         self._tables = None
@@ -55,8 +55,8 @@ class Parser:  # pylint: disable=R0902
         self._with_queries_columns = None
         self._subqueries = None
         self._subqueries_names = None
-        self._subqueries_parsers = dict()
-        self._with_parsers = dict()
+        self._subqueries_parsers = {}
+        self._with_parsers = {}
 
         self._limit_and_offset = None
 
@@ -70,8 +70,8 @@ class Parser:  # pylint: disable=R0902
         self._aliases_to_check = None
         self._is_in_nested_function = False
         self._is_in_with_block = False
-        self._with_columns_candidates = dict()
-        self._column_aliases_max_subquery_level = dict()
+        self._with_columns_candidates = {}
+        self._column_aliases_max_subquery_level = {}
 
         self.sqlparse_tokens = None
         self.non_empty_tokens = None
@@ -312,7 +312,7 @@ class Parser:  # pylint: disable=R0902
         """
         if self._columns_aliases is not None:
             return self._columns_aliases
-        column_aliases = dict()
+        column_aliases = {}
         _ = self.columns
         self._aliases_to_check = (
             list(self._columns_with_tables_aliases.keys())
@@ -523,7 +523,7 @@ class Parser:  # pylint: disable=R0902
         """
         if self._table_aliases is not None:
             return self._table_aliases
-        aliases = dict()
+        aliases = {}
         tables = self.tables
 
         for token in self._not_parsed_tokens:
@@ -603,8 +603,8 @@ class Parser:  # pylint: disable=R0902
         """
         if self._with_queries is not None:
             return self._with_queries
-        with_queries = dict()
-        with_queries_columns = dict()
+        with_queries = {}
+        with_queries_columns = {}
         for name in self.with_names:
             token = self.tokens[0].find_nearest_token(
                 name, value_attribute="value", direction="right"
@@ -637,7 +637,7 @@ class Parser:  # pylint: disable=R0902
         """
         if self._subqueries is not None:
             return self._subqueries
-        subqueries = dict()
+        subqueries = {}
         token = self.tokens[0]
         while token.next_token:
             if token.previous_token.is_subquery_start:
@@ -778,7 +778,7 @@ class Parser:  # pylint: disable=R0902
         Add columns to the section in which it appears in query
         """
         section = COLUMNS_SECTIONS[keyword]
-        self._columns_dict = self._columns_dict or dict()
+        self._columns_dict = self._columns_dict or {}
         current_section = self._columns_dict.setdefault(section, UniqueList())
         if isinstance(column, str):
             current_section.append(column)
@@ -799,7 +799,7 @@ class Parser:  # pylint: disable=R0902
         ):
             keyword = "SELECT"
         section = COLUMNS_SECTIONS[keyword]
-        self._columns_aliases_dict = self._columns_aliases_dict or dict()
+        self._columns_aliases_dict = self._columns_aliases_dict or {}
         self._columns_aliases_dict.setdefault(section, UniqueList()).append(alias)
 
     def _add_to_columns_with_tables(
