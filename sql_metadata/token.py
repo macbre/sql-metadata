@@ -313,6 +313,16 @@ class SQLToken:  # pylint: disable=R0902, R0904
         )
 
     @property
+    def is_conversion_specifier(self) -> bool:
+        """
+        Checks if token is a format or data type in cast or convert
+        """
+        return (
+            self.previous_token.normalized in ["AS", "USING"]
+            and self.is_in_nested_function
+        )
+
+    @property
     def is_column_name_inside_insert_clause(self) -> bool:
         """
         Checks if token is a column name inside insert clause,
@@ -321,6 +331,30 @@ class SQLToken:  # pylint: disable=R0902, R0904
         return (
             self.last_keyword_normalized == "INTO"
             and self.previous_token.is_punctuation
+        )
+
+    @property
+    def is_potential_alias(self) -> bool:
+        """
+        Checks if given token can possibly be an alias
+        """
+        return self.is_name or (
+            self.is_keyword
+            and self.previous_token.normalized == "AS"
+            and self.last_keyword_normalized == "SELECT"
+        )
+
+    @property
+    def is_a_valid_alias(self) -> bool:
+        """
+        Checks if given token meets the alias criteria
+        """
+        return (
+            self.last_keyword_normalized in KEYWORDS_BEFORE_COLUMNS
+            and self.normalized not in ["DIV"]
+            and self.is_alias_definition
+            and not self.is_in_nested_function
+            or self.is_in_with_columns
         )
 
     def is_constraint_definition_inside_create_table_clause(

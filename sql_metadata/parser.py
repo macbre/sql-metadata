@@ -14,7 +14,6 @@ from sql_metadata.generalizator import Generalizator
 from sql_metadata.keywords_lists import (
     COLUMNS_SECTIONS,
     KEYWORDS_BEFORE_COLUMNS,
-    QueryType,
     TokenType,
     RELEVANT_KEYWORDS,
     SUBQUERY_PRECEDING_KEYWORDS,
@@ -200,6 +199,7 @@ class Parser:  # pylint: disable=R0902
                     and not token.is_table_definition_suffix_in_non_select_create_table(
                         query_type=self.query_type
                     )
+                    and not token.is_conversion_specifier
                 ):
                     self._handle_column_save(token=token, columns=columns)
 
@@ -260,7 +260,6 @@ class Parser:  # pylint: disable=R0902
                 column_aliases=column_aliases,
                 columns_aliases_names=self.columns_aliases_names,
             ):
-
                 token_check = (
                     token.previous_token
                     if not token.previous_token.normalized == "AS"
@@ -268,6 +267,13 @@ class Parser:  # pylint: disable=R0902
                 )
                 if token_check.is_column_definition_end:
                     alias_of = self._resolve_subquery_alias(token=token)
+                elif token_check.is_partition_clause_end:
+                    start_token = token.find_nearest_token(
+                        True, value_attribute="is_partition_clause_start"
+                    )
+                    alias_of = self._find_all_columns_between_tokens(
+                        start_token=start_token, end_token=token
+                    )
                 elif token.is_in_with_columns:
                     # columns definition is to the right in subquery
                     # we are in: with with_name (<aliases>) as (subquery)
@@ -305,39 +311,15 @@ class Parser:  # pylint: disable=R0902
         with_names = self.with_names
         subqueries_names = self.subqueries_names
         for token in self._not_parsed_tokens:
-            if token.is_name or (
-                token.is_keyword
-                and token.previous_token.normalized == "AS"
-                and token.last_keyword_normalized == "SELECT"
-            ):
+            if token.is_potential_alias:
                 if token.value in column_aliases_names:
-                    token.token_type = TokenType.COLUMN_ALIAS
-                    self._add_to_columns_aliases_subsection(token=token)
-                    current_level = self._column_aliases_max_subquery_level.get(
-                        token.value
-                    )
-                    if token.subquery_level > current_level:
-                        self._column_aliases_max_subquery_level[
-                            token.value
-                        ] = token.subquery_level
-                    continue
-                if (
-                    token.last_keyword_normalized in KEYWORDS_BEFORE_COLUMNS
-                    and token.normalized not in ["DIV"]
-                    and token.is_alias_definition
-                    or token.is_in_with_columns
-                ) and token.value not in with_names + subqueries_names:
-                    alias = token.value
-                    token.token_type = TokenType.COLUMN_ALIAS
-                    self._add_to_columns_aliases_subsection(token=token)
-                    column_aliases_names.append(alias)
-                    current_level = self._column_aliases_max_subquery_level.setdefault(
-                        alias, 0
-                    )
-                    if token.subquery_level > current_level:
-                        self._column_aliases_max_subquery_level[
-                            alias
-                        ] = token.subquery_level
+                    self._handle_column_alias_subquery_level_update(token=token)
+                elif (
+                    token.is_a_valid_alias
+                    and token.value not in with_names + subqueries_names
+                ):
+                    column_aliases_names.append(token.value)
+                    self._handle_column_alias_subquery_level_update(token=token)
 
         self._columns_aliases_names = column_aliases_names
         return self._columns_aliases_names
@@ -661,6 +643,15 @@ class Parser:  # pylint: disable=R0902
         else:
             token.token_type = TokenType.WITH_NAME
             with_names.append(token.value)
+
+    def _handle_column_alias_subquery_level_update(self, token: SQLToken) -> None:
+        token.token_type = TokenType.COLUMN_ALIAS
+        self._add_to_columns_aliases_subsection(token=token)
+        current_level = self._column_aliases_max_subquery_level.setdefault(
+            token.value, 0
+        )
+        if token.subquery_level > current_level:
+            self._column_aliases_max_subquery_level[token.value] = token.subquery_level
 
     def _resolve_subquery_alias(self, token: SQLToken) -> Union[str, List[str]]:
         # nested subquery like select a, (select a as b from x) as column
