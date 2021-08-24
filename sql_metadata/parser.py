@@ -10,20 +10,6 @@ import sqlparse
 from sqlparse.sql import Token
 from sqlparse.tokens import Name, Number, Whitespace
 
-from sql_metadata.conditions import (
-    is_a_wildcard_in_select_statement,
-    is_alias_of_table_or_alias_of_subquery,
-    is_column_definition_inside_create_table,
-    is_column_name_inside_insert_clause,
-    is_columns_alias_of_with_query_or_column_in_insert_query,
-    is_constraint_definition_inside_create_table_clause,
-    is_not_an_alias_or_is_self_alias_outside_of_subquery,
-    is_potential_column_name,
-    is_potential_table_name,
-    is_sub_query_name_or_with_name_or_function_name,
-    is_table_definition_suffix_in_non_select_create_table,
-    is_with_statement_nested_in_subquery,
-)
 from sql_metadata.generalizator import Generalizator
 from sql_metadata.keywords_lists import (
     COLUMNS_SECTIONS,
@@ -195,33 +181,35 @@ class Parser:  # pylint: disable=R0902
 
         for token in self._not_parsed_tokens:
             if token.is_name or token.is_keyword_column_name:
-                if is_column_definition_inside_create_table(parser=self, token=token):
+                if token.is_column_definition_inside_create_table(
+                    query_type=self.query_type
+                ):
                     token.token_type = TokenType.COLUMN
                     columns.append(token.value)
                 elif (
-                    is_potential_column_name(token=token)
-                    and is_not_an_alias_or_is_self_alias_outside_of_subquery(
-                        parser=self, token=token
+                    token.is_potential_column_name
+                    and token.is_not_an_alias_or_is_self_alias_outside_of_subquery(
+                        columns_aliases_names=self.columns_aliases_names,
+                        max_subquery_level=self._column_aliases_max_subquery_level,
                     )
-                    and not is_sub_query_name_or_with_name_or_function_name(
-                        token=token,
+                    and not token.is_sub_query_name_or_with_name_or_function_name(
                         sub_queries_names=self.subqueries_names,
                         with_names=self.with_names,
                     )
-                    and not is_table_definition_suffix_in_non_select_create_table(
-                        parser=self, token=token
+                    and not token.is_table_definition_suffix_in_non_select_create_table(
+                        query_type=self.query_type
                     )
                 ):
                     self._handle_column_save(token=token, columns=columns)
 
-                elif is_column_name_inside_insert_clause(token=token):
+                elif token.is_column_name_inside_insert_clause:
                     column = str(token.value).strip("`")
                     self._add_to_columns_subsection(
                         keyword=token.last_keyword_normalized, column=column
                     )
                     token.token_type = TokenType.COLUMN
                     columns.append(column)
-            elif is_a_wildcard_in_select_statement(token=token):
+            elif token.is_a_wildcard_in_select_statement:
                 self._handle_column_save(token=token, columns=columns)
 
         self._columns = columns
@@ -267,11 +255,9 @@ class Parser:  # pylint: disable=R0902
             + ["*"]
         )
         for token in self.tokens:
-            if (
-                token.value in self.columns_aliases_names
-                and token.value not in column_aliases
-                and not token.previous_token.is_nested_function_start
-                and token.is_alias_definition
+            if token.is_potential_column_alias(
+                column_aliases=column_aliases,
+                columns_aliases_names=self.columns_aliases_names,
             ):
 
                 token_check = (
@@ -280,41 +266,13 @@ class Parser:  # pylint: disable=R0902
                     else token.get_nth_previous(2)
                 )
                 if token_check.is_column_definition_end:
-                    # nested subquery like select a, (select a as b from x) as column
-                    start_token = token.find_nearest_token(
-                        True, value_attribute="is_column_definition_start"
-                    )
-                    if start_token.next_token.normalized == "SELECT":
-                        # we have a subquery
-                        alias_token = start_token.next_token.find_nearest_token(
-                            self._aliases_to_check,
-                            direction="right",
-                            value_attribute="value",
-                        )
-                        alias_of = self._resolve_alias_to_column(alias_token)
-                    else:
-                        # chain of functions or redundant parenthesis
-                        alias_of = self._find_all_columns_between_tokens(
-                            start_token=start_token, end_token=token
-                        )
+                    alias_of = self._resolve_subquery_alias(token=token)
                 elif token.is_in_with_columns:
                     # columns definition is to the right in subquery
                     # we are in: with with_name (<aliases>) as (subquery)
                     alias_of = self._find_column_for_with_column_alias(token)
                 else:
-                    # it can be one function or a chain of functions
-                    # like: sum(a) + sum(b) as alias
-                    # or operation on columns like: col1 + col2 as alias
-                    start_token = token.find_nearest_token(
-                        [",", "SELECT"], value_attribute="normalized"
-                    )
-                    while start_token.is_in_nested_function:
-                        start_token = start_token.find_nearest_token(
-                            [",", "SELECT"], value_attribute="normalized"
-                        )
-                    alias_of = self._find_all_columns_between_tokens(
-                        start_token=start_token, end_token=token
-                    )
+                    alias_of = self._resolve_function_alias(token=token)
                 if token.value != alias_of:
                     # skip aliases of self, like sum(column) as column
                     column_aliases[token.value] = alias_of
@@ -394,15 +352,15 @@ class Parser:  # pylint: disable=R0902
         with_names = self.with_names
 
         for token in self._not_parsed_tokens:
-            if is_potential_table_name(token=token):
+            if token.is_potential_table_name:
                 if (
-                    is_alias_of_table_or_alias_of_subquery(token=token)
-                    or is_with_statement_nested_in_subquery(token=token)
-                    or is_constraint_definition_inside_create_table_clause(
-                        parser=self, token=token
+                    token.is_alias_of_table_or_alias_of_subquery
+                    or token.is_with_statement_nested_in_subquery
+                    or token.is_constraint_definition_inside_create_table_clause(
+                        query_type=self.query_type
                     )
-                    or is_columns_alias_of_with_query_or_column_in_insert_query(
-                        token=token, with_names=with_names
+                    or token.is_columns_alias_of_with_query_or_column_in_insert_query(
+                        with_names=with_names
                     )
                 ):
                     continue
@@ -685,7 +643,8 @@ class Parser:  # pylint: disable=R0902
         token.token_type = TokenType.COLUMN
         columns.extend(column)
 
-    def _handle_with_name_save(self, token: SQLToken, with_names: List[str]) -> None:
+    @staticmethod
+    def _handle_with_name_save(token: SQLToken, with_names: List[str]) -> None:
         if token.is_right_parenthesis:
             # inside columns of with statement
             # like: with (col1, col2) as (subquery)
@@ -700,6 +659,40 @@ class Parser:  # pylint: disable=R0902
         else:
             token.token_type = TokenType.WITH_NAME
             with_names.append(token.value)
+
+    def _resolve_subquery_alias(self, token: SQLToken) -> Union[str, List[str]]:
+        # nested subquery like select a, (select a as b from x) as column
+        start_token = token.find_nearest_token(
+            True, value_attribute="is_column_definition_start"
+        )
+        if start_token.next_token.normalized == "SELECT":
+            # we have a subquery
+            alias_token = start_token.next_token.find_nearest_token(
+                self._aliases_to_check,
+                direction="right",
+                value_attribute="value",
+            )
+            return self._resolve_alias_to_column(alias_token)
+
+        # chain of functions or redundant parenthesis
+        return self._find_all_columns_between_tokens(
+            start_token=start_token, end_token=token
+        )
+
+    def _resolve_function_alias(self, token: SQLToken) -> Union[str, List[str]]:
+        # it can be one function or a chain of functions
+        # like: sum(a) + sum(b) as alias
+        # or operation on columns like: col1 + col2 as alias
+        start_token = token.find_nearest_token(
+            [",", "SELECT"], value_attribute="normalized"
+        )
+        while start_token.is_in_nested_function:
+            start_token = start_token.find_nearest_token(
+                [",", "SELECT"], value_attribute="normalized"
+            )
+        return self._find_all_columns_between_tokens(
+            start_token=start_token, end_token=token
+        )
 
     def _add_to_columns_subsection(self, keyword: str, column: Union[str, List[str]]):
         """
