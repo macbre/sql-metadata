@@ -14,6 +14,7 @@ from sql_metadata.generalizator import Generalizator
 from sql_metadata.keywords_lists import (
     COLUMNS_SECTIONS,
     KEYWORDS_BEFORE_COLUMNS,
+    QueryType,
     TokenType,
     RELEVANT_KEYWORDS,
     SUBQUERY_PRECEDING_KEYWORDS,
@@ -43,7 +44,7 @@ class Parser:  # pylint: disable=R0902
         self._columns_dict = None
         self._columns_aliases_names = None
         self._columns_aliases = None
-        self._columns_with_tables_aliases = dict()
+        self._columns_with_tables_aliases = {}
         self._columns_aliases_dict = None
 
         self._tables = None
@@ -54,8 +55,8 @@ class Parser:  # pylint: disable=R0902
         self._with_queries_columns = None
         self._subqueries = None
         self._subqueries_names = None
-        self._subqueries_parsers = dict()
-        self._with_parsers = dict()
+        self._subqueries_parsers = {}
+        self._with_parsers = {}
 
         self._limit_and_offset = None
 
@@ -65,12 +66,12 @@ class Parser:  # pylint: disable=R0902
         self._subquery_level = 0
         self._nested_level = 0
         self._parenthesis_level = 0
-        self._open_parentheses = []
+        self._open_parentheses: List[SQLToken] = []
         self._aliases_to_check = None
         self._is_in_nested_function = False
         self._is_in_with_block = False
-        self._with_columns_candidates = dict()
-        self._column_aliases_max_subquery_level = dict()
+        self._with_columns_candidates = {}
+        self._column_aliases_max_subquery_level = {}
 
         self.sqlparse_tokens = None
         self.non_empty_tokens = None
@@ -247,7 +248,7 @@ class Parser:  # pylint: disable=R0902
         """
         if self._columns_aliases is not None:
             return self._columns_aliases
-        column_aliases = dict()
+        column_aliases = {}
         _ = self.columns
         self._aliases_to_check = (
             list(self._columns_with_tables_aliases.keys())
@@ -410,7 +411,7 @@ class Parser:  # pylint: disable=R0902
         """
         if self._table_aliases is not None:
             return self._table_aliases
-        aliases = dict()
+        aliases = {}
         tables = self.tables
 
         for token in self._not_parsed_tokens:
@@ -455,6 +456,7 @@ class Parser:  # pylint: disable=R0902
                         while token.next_token and not token.is_with_query_end:
                             token = token.next_token
                         if token.next_token.normalized in WITH_ENDING_KEYWORDS:
+                            # end of with block
                             self._is_in_with_block = False
                     else:
                         token = token.next_token
@@ -474,8 +476,8 @@ class Parser:  # pylint: disable=R0902
         """
         if self._with_queries is not None:
             return self._with_queries
-        with_queries = dict()
-        with_queries_columns = dict()
+        with_queries = {}
+        with_queries_columns = {}
         for name in self.with_names:
             token = self.tokens[0].find_nearest_token(
                 name, value_attribute="value", direction="right"
@@ -508,7 +510,7 @@ class Parser:  # pylint: disable=R0902
         """
         if self._subqueries is not None:
             return self._subqueries
-        subqueries = dict()
+        subqueries = {}
         token = self.tokens[0]
         while token.next_token:
             if token.previous_token.is_subquery_start:
@@ -699,7 +701,7 @@ class Parser:  # pylint: disable=R0902
         Add columns to the section in which it appears in query
         """
         section = COLUMNS_SECTIONS[keyword]
-        self._columns_dict = self._columns_dict or dict()
+        self._columns_dict = self._columns_dict or {}
         current_section = self._columns_dict.setdefault(section, UniqueList())
         if isinstance(column, str):
             current_section.append(column)
@@ -720,7 +722,7 @@ class Parser:  # pylint: disable=R0902
         ):
             keyword = "SELECT"
         section = COLUMNS_SECTIONS[keyword]
-        self._columns_aliases_dict = self._columns_aliases_dict or dict()
+        self._columns_aliases_dict = self._columns_aliases_dict or {}
         self._columns_aliases_dict.setdefault(section, UniqueList()).append(alias)
 
     def _add_to_columns_with_tables(
@@ -845,6 +847,8 @@ class Parser:  # pylint: disable=R0902
             or token.get_nth_previous(4).normalized == "TABLE"
         ):
             token.is_create_table_columns_declaration_start = True
+        elif token.previous_token.normalized == "OVER":
+            token.is_partition_clause_start = True
         else:
             # nested function
             token.is_nested_function_start = True
@@ -867,6 +871,8 @@ class Parser:  # pylint: disable=R0902
             token.is_with_query_end = True
         elif last_open_parenthesis.is_create_table_columns_declaration_start:
             token.is_create_table_columns_declaration_end = True
+        elif last_open_parenthesis.is_partition_clause_start:
+            token.is_partition_clause_end = True
         else:
             token.is_nested_function_end = True
             self._nested_level -= 1
@@ -939,12 +945,15 @@ class Parser:  # pylint: disable=R0902
 
         return query
 
-    @staticmethod
-    def _determine_last_relevant_keyword(token: SQLToken, last_keyword: str):
+    def _determine_last_relevant_keyword(self, token: SQLToken, last_keyword: str):
         if token.is_keyword and "".join(token.normalized.split()) in RELEVANT_KEYWORDS:
             if not (
                 token.normalized == "FROM"
                 and token.get_nth_previous(3).normalized == "EXTRACT"
+            ) and not (
+                token.normalized == "ORDERBY"
+                and len(self._open_parentheses) > 0
+                and self._open_parentheses[-1].is_partition_clause_start
             ):
                 last_keyword = token.normalized
         return last_keyword
