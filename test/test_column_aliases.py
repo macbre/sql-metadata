@@ -108,3 +108,28 @@ def test_mutiple_functions():
     assert parser.columns == ["col", "col2", "col3", "col4", "col5"]
     assert parser.columns_aliases_names == ["result"]
     assert parser.columns_aliases == {"result": ["col", "col2", "col3", "col4", "col5"]}
+
+
+def test_cast_in_where():
+    parser = Parser(
+        "SELECT count(c) as test, id as uu FROM foo where cast(d as bigint) > uu"
+    )
+    assert parser.columns_aliases_names == ["test", "uu"]
+    assert parser.columns_aliases == {"test": "c", "uu": "id"}
+    assert parser.columns_aliases_dict == {"select": ["test", "uu"], "where": ["uu"]}
+
+
+def test_cast_in_select():
+    parser = Parser("select CAST(test as STRING) as test1 from table")
+    assert parser.columns_aliases_names == ["test1"]
+    assert parser.columns_aliases == {"test1": "test"}
+    assert parser.columns_aliases_dict == {"select": ["test1"]}
+
+
+def test_convert_in_select():
+    parser = Parser(
+        "SELECT CONVERT(latin1_column USING utf8) as alias FROM latin1_table;"
+    )
+    assert parser.columns_aliases_names == ["alias"]
+    assert parser.columns_aliases == {"alias": "latin1_column"}
+    assert parser.columns_aliases_dict == {"select": ["alias"]}

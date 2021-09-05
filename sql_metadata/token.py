@@ -6,10 +6,15 @@ from typing import Dict, List, Union
 import sqlparse.sql
 from sqlparse.tokens import Comment, Name, Number, Punctuation, Wildcard
 
-from sql_metadata.keywords_lists import RELEVANT_KEYWORDS
+from sql_metadata.keywords_lists import (
+    KEYWORDS_BEFORE_COLUMNS,
+    RELEVANT_KEYWORDS,
+    QueryType,
+    TABLE_ADJUSTMENT_KEYWORDS,
+)
 
 
-class SQLToken:  # pylint: disable=R0902
+class SQLToken:  # pylint: disable=R0902, R0904
     """
     Class representing single token and connected into linked list
     """
@@ -80,6 +85,8 @@ class SQLToken:  # pylint: disable=R0902
         self.is_column_definition_end = False
         self.is_create_table_columns_declaration_start = False
         self.is_create_table_columns_declaration_end = False
+        self.is_partition_clause_start = False
+        self.is_partition_clause_end = False
 
     def __str__(self):
         """
@@ -182,6 +189,7 @@ class SQLToken:  # pylint: disable=R0902
             and (
                 self.last_keyword_normalized == "SELECT"
                 or self.previous_token.is_column_definition_end
+                or self.previous_token.is_partition_clause_end
             )
             and not self.previous_token.is_comment
         )
@@ -240,6 +248,223 @@ class SQLToken:  # pylint: disable=R0902
             self.previous_token.value in [",", ".", "SELECT"]
             or (self.previous_token.value == "(")
             and self.next_token.value == ")"
+        )
+
+    @property
+    def is_potential_table_name(self) -> bool:
+        """
+        Checks if token is a possible candidate for table name
+        """
+        return (
+            (self.is_name or self.is_keyword)
+            and self.last_keyword_normalized in TABLE_ADJUSTMENT_KEYWORDS
+            and self.previous_token.normalized not in ["AS", "WITH"]
+            and self.normalized not in ["AS", "SELECT"]
+        )
+
+    @property
+    def is_with_statement_nested_in_subquery(self) -> bool:
+        """
+        Checks if token is with statement nested in subquery
+        """
+        return (
+            self.normalized == "WITH"
+            and self.previous_token.is_left_parenthesis
+            and self.get_nth_previous(2).normalized == "FROM"
+        )
+
+    @property
+    def is_alias_of_table_or_alias_of_subquery(self) -> bool:
+        """
+        Checks if token is alias of table or alias of subquery
+
+        It's not a list of tables, e.g. SELECT * FROM foo, bar
+        hence, it can be the case of alias without AS, e.g. SELECT * FROM foo bar
+        or an alias of subquery (SELECT * FROM foo) bar
+        """
+        is_alias_without_as = (
+            self.previous_token.normalized != self.last_keyword_normalized
+            and not self.previous_token.is_punctuation
+        )
+        return is_alias_without_as or self.previous_token.is_right_parenthesis
+
+    @property
+    def is_a_wildcard_in_select_statement(self) -> bool:
+        """
+        Checks if token is a wildcard in select statement
+
+        Handle * wildcard in select part, but ignore count(*)
+        """
+        return (
+            self.is_wildcard
+            and self.last_keyword_normalized == "SELECT"
+            and not self.previous_token.is_left_parenthesis
+        )
+
+    @property
+    def is_potential_column_name(self) -> bool:
+        """
+        Checks if token is a potential column name
+        """
+        return (
+            self.last_keyword_normalized in KEYWORDS_BEFORE_COLUMNS
+            and self.previous_token.normalized not in ["AS", ")"]
+            and not self.is_alias_without_as
+        )
+
+    @property
+    def is_conversion_specifier(self) -> bool:
+        """
+        Checks if token is a format or data type in cast or convert
+        """
+        return (
+            self.previous_token.normalized in ["AS", "USING"]
+            and self.is_in_nested_function
+        )
+
+    @property
+    def is_column_name_inside_insert_clause(self) -> bool:
+        """
+        Checks if token is a column name inside insert clause,
+        e.g. INSERT INTO `foo` (col1, `col2`) VALUES (..)
+        """
+        return (
+            self.last_keyword_normalized == "INTO"
+            and self.previous_token.is_punctuation
+        )
+
+    @property
+    def is_potential_alias(self) -> bool:
+        """
+        Checks if given token can possibly be an alias
+        """
+        return self.is_name or (
+            self.is_keyword
+            and self.previous_token.normalized == "AS"
+            and self.last_keyword_normalized == "SELECT"
+        )
+
+    @property
+    def is_a_valid_alias(self) -> bool:
+        """
+        Checks if given token meets the alias criteria
+        """
+        return (
+            self.last_keyword_normalized in KEYWORDS_BEFORE_COLUMNS
+            and self.normalized not in ["DIV"]
+            and self.is_alias_definition
+            and not self.is_in_nested_function
+            or self.is_in_with_columns
+        )
+
+    def is_constraint_definition_inside_create_table_clause(
+        self, query_type: str
+    ) -> bool:
+        """
+        Checks if token is constraint definition inside create table clause
+
+        Used to handle CREATE TABLE queries (#35) to skip keyword that are withing
+        parenthesis-wrapped list of column
+        """
+        return (
+            query_type == QueryType.CREATE.value
+            and self.is_in_parenthesis
+            and self.is_create_table_columns_definition
+        )
+
+    def is_columns_alias_of_with_query_or_column_in_insert_query(
+        self, with_names: List[str]
+    ) -> bool:
+        """
+        Check if token is column alias of with query or column in insert query
+
+        We are in <columns> of INSERT INTO <TABLE> (<columns>),
+        or columns of with statement: with (<columns>) as ...
+        """
+        return self.is_in_parenthesis and (
+            self.find_nearest_token("(").previous_token.value in with_names
+            or self.last_keyword_normalized == "INTO"
+        )
+
+    def is_sub_query_alias(self, subqueries_names: List[str]) -> bool:
+        """
+        Checks for aliases of sub-queries i.e.: SELECT from (...) <alias>
+        """
+        return (
+            self.previous_token.is_right_parenthesis and self.value in subqueries_names
+        )
+
+    def is_with_query_name(self, with_names: List[str]) -> bool:
+        """
+        checks for names of the with queries <name> as (subquery)
+        """
+        return self.next_token.normalized == "AS" and self.value in with_names
+
+    def is_sub_query_name_or_with_name_or_function_name(
+        self, sub_queries_names: List[str], with_names: List[str]
+    ) -> bool:
+        """
+        Check for non applicable names: with, subquery or custom function
+        """
+        return (
+            self.is_sub_query_alias(subqueries_names=sub_queries_names)
+            or self.is_with_query_name(with_names=with_names)
+            or self.next_token.is_left_parenthesis
+        )
+
+    def is_not_an_alias_or_is_self_alias_outside_of_subquery(
+        self, columns_aliases_names: List[str], max_subquery_level: Dict
+    ) -> bool:
+        """
+        Checks if token is not alias or alias of self outside of sub query
+        """
+        return (
+            self.value not in columns_aliases_names
+            or self.token_is_alias_of_self_not_from_subquery(
+                aliases_levels=max_subquery_level
+            )
+        )
+
+    def is_table_definition_suffix_in_non_select_create_table(
+        self, query_type: str
+    ) -> bool:
+        """
+        Checks if we are after create table definition.
+
+        Ignore annotations outside the parenthesis with the list of columns
+        e.g. ) CHARACTER SET utf8;
+        """
+        return (
+            query_type == QueryType.CREATE
+            and not self.is_in_parenthesis
+            and self.find_nearest_token("SELECT", value_attribute="normalized")
+            is EmptyToken
+        )
+
+    def is_column_definition_inside_create_table(self, query_type: str) -> bool:
+        """
+        Checks for column names in create table
+
+        Previous token is either ( or , -> indicates the column name
+        """
+        return (
+            query_type == QueryType.CREATE
+            and self.is_in_parenthesis
+            and self.previous_token.is_punctuation
+            and self.last_keyword_normalized == "TABLE"
+        )
+
+    def is_potential_column_alias(
+        self, columns_aliases_names: List[str], column_aliases: Dict
+    ) -> bool:
+        """
+        Checks if column can be an alias
+        """
+        return (
+            self.value in columns_aliases_names
+            and self.value not in column_aliases
+            and not self.previous_token.is_nested_function_start
+            and self.is_alias_definition
         )
 
     def token_is_alias_of_self_not_from_subquery(self, aliases_levels: Dict) -> bool:
