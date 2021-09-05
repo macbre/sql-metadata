@@ -1035,12 +1035,21 @@ class Parser:  # pylint: disable=R0902
         Combines names like <schema>.<table>.<column> or <table/sub_query>.<column>
         """
         value = token.value
-        prev_value = self.non_empty_tokens[index - 2].value.strip("`").strip('"')
-        value = f"{prev_value}.{value}"
-        if index >= 3 and str(self.non_empty_tokens[index - 3]) == ".":
-            prev_value = self.non_empty_tokens[index - 4].value.strip("`").strip('"')
-            value = f"{prev_value}.{value}"
+        is_complex = True
+        while is_complex:
+            value, is_complex = self._combine_tokens(index=index, value=value)
+            index = index - 2
         token.value = value
+
+    def _combine_tokens(self, index: int, value: str) -> Tuple[str, bool]:
+        """
+        Checks if complex identifier is longer and follows back until it's finished
+        """
+        if index > 1 and str(self.non_empty_tokens[index - 1]) == ".":
+            prev_value = self.non_empty_tokens[index - 2].value.strip("`").strip('"')
+            value = f"{prev_value}.{value}"
+            return value, True
+        return value, False
 
     def _get_sqlparse_tokens(self, parsed) -> None:
         """
