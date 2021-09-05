@@ -423,6 +423,9 @@ class SQLToken:  # pylint: disable=R0902, R0904
             or self.token_is_alias_of_self_not_from_subquery(
                 aliases_levels=max_subquery_level
             )
+            or self.token_name_is_same_as_alias_not_from_subquery(
+                aliases_levels=max_subquery_level
+            )
         )
 
     def is_table_definition_suffix_in_non_select_create_table(
@@ -475,6 +478,19 @@ class SQLToken:  # pylint: disable=R0902, R0904
         return (
             self.last_keyword_normalized == "SELECT"
             and self.is_alias_of_self
+            and self.subquery_level == aliases_levels[self.value]
+        )
+
+    def token_name_is_same_as_alias_not_from_subquery(
+        self, aliases_levels: Dict
+    ) -> bool:
+        """
+        Checks if token is also an alias, but is an alias of self that is not
+        coming from a subquery, that means it's a valid column
+        """
+        return (
+            self.last_keyword_normalized == "SELECT"
+            and self.next_token.normalized == "AS"
             and self.subquery_level == aliases_levels[self.value]
         )
 
