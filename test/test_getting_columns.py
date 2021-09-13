@@ -424,5 +424,20 @@ def test_columns_with_aliases_same_as_columns():
 
 def test_columns_with_distinct():
     query = "SELECT DISTINCT customer_id FROM table"
+    parser = Parser(query)
+    assert parser.columns == ["customer_id"]
+    assert parser.columns_dict == {"select": ["customer_id"]}
+
+
+def test_getting_columns_dict_with_distinct():
+    query = "select a from tb1 where b in (select distinct b from tb2)"
     parsed = Parser(query)
-    assert parsed.columns == ["customer_id"]
+    assert parsed.columns_dict == {"select": ["a", "b"], "where": ["b"]}
+    assert parsed.columns == ["a", "b"]
+
+
+def test_aliases_switching_column_names():
+    query = "select a as b, b as a from tb"
+    parsed = Parser(query)
+    assert parsed.columns == ["a", "b"]
+    assert parsed.columns_dict == {"select": ["a", "b"]}

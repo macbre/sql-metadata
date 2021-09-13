@@ -4,7 +4,7 @@ This module provides SQL query parsing functions
 """
 import logging
 import re
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Set, Tuple, Union
 
 import sqlparse
 from sqlparse.sql import Token
@@ -732,16 +732,20 @@ class Parser:  # pylint: disable=R0902
             column = column[0]
         self._columns_with_tables_aliases[token.value] = column
 
-    def _resolve_column_alias(self, alias: Union[str, List[str]]) -> Union[str, List]:
+    def _resolve_column_alias(
+        self, alias: Union[str, List[str]], visited: Set = None
+    ) -> Union[str, List]:
         """
         Returns a column name for a given alias
         """
+        visited = visited or set()
         if isinstance(alias, list):
-            return [self._resolve_column_alias(x) for x in alias]
-        while alias in self.columns_aliases:
+            return [self._resolve_column_alias(x, visited) for x in alias]
+        while alias in self.columns_aliases and alias not in visited:
+            visited.add(alias)
             alias = self.columns_aliases[alias]
             if isinstance(alias, list):
-                return self._resolve_column_alias(alias)
+                return self._resolve_column_alias(alias, visited)
         return alias
 
     def _resolve_alias_to_column(self, alias_token: SQLToken) -> str:
