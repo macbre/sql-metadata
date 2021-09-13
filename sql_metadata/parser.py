@@ -103,10 +103,19 @@ class Parser:  # pylint: disable=R0902
         if not tokens:
             raise ValueError("Empty queries are not supported!")
 
-        if tokens[0].normalized in ["CREATE", "ALTER"]:
-            switch = tokens[0].normalized + tokens[1].normalized
+        index = (
+            0
+            if not tokens[0].is_left_parenthesis
+            else tokens[0]
+            .find_nearest_token(
+                value=False, value_attribute="is_left_parenthesis", direction="right"
+            )
+            .position
+        )
+        if tokens[index].normalized in ["CREATE", "ALTER"]:
+            switch = tokens[index].normalized + tokens[index + 1].normalized
         else:
-            switch = tokens[0].normalized
+            switch = tokens[index].normalized
         self._query_type = SUPPORTED_QUERY_TYPES.get(switch, "UNSUPPORTED")
         if self._query_type == "UNSUPPORTED":
             self._logger.error("Not supported query type: %s", self._raw_query)

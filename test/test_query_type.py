@@ -1,6 +1,6 @@
 import pytest
 
-from sql_metadata import Parser
+from sql_metadata import Parser, QueryType
 
 
 def test_insert_query():
@@ -48,3 +48,27 @@ def test_empty_query():
             _ = Parser(query).query_type
 
         assert "Empty queries are not supported!" in str(ex.value)
+
+
+def test_redundant_parentheses():
+    query = """
+    (select c, d from ab)
+    """
+    parser = Parser(query)
+    assert parser.query_type == QueryType.SELECT
+
+
+def test_multiple_redundant_parentheses():
+    query = """
+    ((update ac set ab = 1))
+    """
+    parser = Parser(query)
+    assert parser.query_type == QueryType.UPDATE
+
+
+def test_multiple_redundant_parentheses_create():
+    query = """
+    ((create table aa (ac int primary key)))
+    """
+    parser = Parser(query)
+    assert parser.query_type == QueryType.CREATE
