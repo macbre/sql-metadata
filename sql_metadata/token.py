@@ -259,7 +259,7 @@ class SQLToken:  # pylint: disable=R0902, R0904
             (self.is_name or self.is_keyword)
             and self.last_keyword_normalized in TABLE_ADJUSTMENT_KEYWORDS
             and self.previous_token.normalized not in ["AS", "WITH"]
-            and self.normalized not in ["AS", "SELECT"]
+            and self.normalized not in ["AS", "SELECT", "IF"]
         )
 
     @property
@@ -285,6 +285,7 @@ class SQLToken:  # pylint: disable=R0902, R0904
         is_alias_without_as = (
             self.previous_token.normalized != self.last_keyword_normalized
             and not self.previous_token.is_punctuation
+            and not self.previous_token.normalized == "EXISTS"
         )
         return is_alias_without_as or self.previous_token.is_right_parenthesis
 

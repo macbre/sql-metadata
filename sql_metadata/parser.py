@@ -842,9 +842,9 @@ class Parser:  # pylint: disable=R0902
             token.is_column_definition_start = True
         elif token.previous_token.normalized == "AS":
             token.is_with_query_start = True
-        elif token.last_keyword_normalized == "TABLE" and (
-            token.get_nth_previous(2).normalized == "TABLE"
-            or token.get_nth_previous(4).normalized == "TABLE"
+        elif (
+            token.last_keyword_normalized == "TABLE"
+            and token.find_nearest_token("(") is EmptyToken
         ):
             token.is_create_table_columns_declaration_start = True
         elif token.previous_token.normalized == "OVER":

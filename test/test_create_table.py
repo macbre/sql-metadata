@@ -140,3 +140,27 @@ def test_create_table_as_select_in_parentheses_with_schema():
     assert parser.query_type == QueryType.CREATE
     assert parser.columns == ["t.id", "t.name", "e.name", "t.e_id", "e.id"]
     assert parser.tables == ["mysuper_secret_schema.records", "t", "e"]
+
+
+def test_create_if_not_exists_with_select():
+    qry = """
+    CREATE TABLE if not exists mysuper_secret_schema.records AS
+    (SELECT t.id, t.name, e.name as energy FROM t JOIN e ON t.e_id = e.id)
+    """
+    parser = Parser(qry)
+    assert parser.query_type == QueryType.CREATE
+    assert parser.columns == ["t.id", "t.name", "e.name", "t.e_id", "e.id"]
+    assert parser.tables == ["mysuper_secret_schema.records", "t", "e"]
+
+
+def test_create_if_not_exists_simple_name():
+    qry = """
+    CREATE TABLE IF NOT EXISTS analytics_table (
+    `version` int4 NULL,
+    created_date datetime null
+    )
+    """
+    parser = Parser(qry)
+    assert parser.query_type == QueryType.CREATE
+    assert parser.tables == ["analytics_table"]
+    assert parser.columns == ["version", "created_date"]
