@@ -133,3 +133,27 @@ def test_convert_in_select():
     assert parser.columns_aliases_names == ["alias"]
     assert parser.columns_aliases == {"alias": "latin1_column"}
     assert parser.columns_aliases_dict == {"select": ["alias"]}
+
+
+def test_cast_in_select_with_function():
+    query = """
+    SELECT
+    t_alias.id as UniqueId,
+    CAST(date_format(t_alias.date, 'yyyyMMdd') as INT) as datekey,
+    CAST(concat( '1',
+    case when LENGTH(hour(t_alias.starttime))
+    then hour(t_alias.starttime)
+    else concat('0', hour(t_alias.starttime)) end,
+   case when LENGTH(minute(t_alias.starttime)) > 1
+   then minute(t_alias.starttime)
+   else concat('0', minute(t_alias.starttime)) end
+   ) as INT)
+    as starttimekey
+  FROM testdb.test_table t_alias
+    """
+    parser = Parser(query)
+    assert parser.columns_aliases == {
+        "UniqueId": "testdb.test_table.id",
+        "datekey": "testdb.test_table.date",
+        "starttimekey": "testdb.test_table.starttime",
+    }
