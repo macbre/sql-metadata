@@ -24,6 +24,8 @@ Supported queries syntax:
 
 (note that listed backends can differ quite substantially but should work in regard of query types supported by `sql-metadata`)
 
+You can test the capabilities of `sql-metadata` with an interactive demo: [https://sql-app.infocruncher.com/](https://sql-app.infocruncher.com/)
+
 ## Usage
 
 ```
