@@ -100,7 +100,7 @@ def test_complex_query_tables():
         ["tab", "tab2"]
         == Parser(
             """SELECT a,b,c from tab
-            full  outer \r\n\t  join tab2  on (col1 = col2) group
+    full  outer \r\n\t  join tab2  on (col1 = col2) group
 \r\n   \t   by  a, b, c """
         ).tables
     )
@@ -288,10 +288,10 @@ def test_table_name_with_group_by():
     assert (
         Parser(
             """
-            SELECT s.cust_id,count(s.cust_id) FROM SH.sales s
-            GROUP BY s.cust_id HAVING s.cust_id != '1660'
-            AND s.cust_id != '2'
-            """.strip()
+                    SELECT s.cust_id,count(s.cust_id) FROM SH.sales s
+                    GROUP BY s.cust_id HAVING s.cust_id != '1660'
+                    AND s.cust_id != '2'
+                    """.strip()
         ).tables
         == expected_tables
     )
@@ -548,3 +548,77 @@ def test_tables_with_aggregation():
     """
     parser = Parser(query)
     assert parser.tables == ["my_sc.tab1"]
+
+
+def test_insert_with_on_conflict():
+    sql = """
+    INSERT INTO global_config (entry_id) VALUES ($1)
+    ON CONFLICT (entry_id) UPDATE SET entry_id = $1
+    """
+
+    parser = Parser(sql)
+    assert parser.tables == ["global_config"]
+    assert parser.columns == ["entry_id"]
+
+
+def test_insert_with_on_conflict_set_name():
+    sql = """
+    INSERT INTO global_config (`SET`) VALUES ($1)
+    ON CONFLICT (`SET`) UPDATE SET `SET` = $1
+    """
+
+    parser = Parser(sql)
+    assert parser.tables == ["global_config"]
+    assert parser.columns == ["SET"]
+
+
+def test_with_keyword_in_joins():
+    query = """
+    SELECT DWH_DM.COM_MONITOR_OPT_TREND.OC_YM_REF,
+    CALENDAR_OPT_TREND.YM_REF, DWH_DM.COM_MONITOR_OPT_TREND.RULE,
+    OPT_TREND_RANKING.QNTY_YM_NG, DWH_DM.COM_MONITOR_OPT_TREND.ABS_OC,
+    DWH_DM.COM_MONITOR_OPT_TREND.EFFC_CPTY_N3, DWH_DM.COM_MONITOR_OPT_TREND.ABS_PIP,
+    DWH_DM.COM_MONITOR_OPT_TREND.EFFC_CPTY_N3-DWH_DM.COM_MONITOR_OPT_TREND.ABS_OC,
+    DWH_DM.COM_MONITOR_OPT_TREND.EFFC_CPTY_N3-DWH_DM.COM_MONITOR_OPT_TREND.ABS_PIP
+    FROM ( 
+        SELECT RULE , EFFC_CPTY_N3-ABS_PIP QNTY_YM_NG 
+        FROM DWH_DM.COM_MONITOR_OPT_TREND 
+        WHERE OC_YM_REF = (
+        SELECT MAX(OC_YM_REF)
+        FROM DWH_DM.COM_MONITOR_OPT_TREND LAST_MONTH) 
+        ORDER BY (EFFC_CPTY_N3-ABS_PIP) DESC ) OPT_TREND_RANKING 
+    RIGHT OUTER JOIN DWH_DM.COM_MONITOR_OPT_TREND 
+    ON (DWH_DM.COM_MONITOR_OPT_TREND.RULE=OPT_TREND_RANKING.RULE) 
+    INNER JOIN ( 
+        WITH CTE_RANGE AS (
+        SELECT TO_CHAR(ADD_MONTHS(TO_DATE(MAX(OC_YM_REF), 'YYYYMM'),-11),'YYYYMM')
+        AS START_MONTH, MAX(OC_YM_REF) AS END_MONTH FROM DWH_DM.COM_MONITOR_OPT_TREND) 
+        SELECT YM_REF, 
+        TO_CHAR(TO_DATE(YM_REF,'YYYYMM'), 'Mon', 'NLS_DATE_LANGUAGE = ENGLISH') 
+        MONTH_REF FROM DWH_DM.FER_D_CALENDAR_MONTH_SLS 
+        INNER JOIN CTE_RANGE 
+        ON YM_REF BETWEEN CTE_RANGE.START_MONTH AND CTE_RANGE.END_MONTH ORDER BY YM_REF)
+        CALENDAR_OPT_TREND 
+        ON (CALENDAR_OPT_TREND.YM_REF=DWH_DM.COM_MONITOR_OPT_TREND.OC_YM_REF) 
+    WHERE ( DWH_DM.COM_MONITOR_OPT_TREND.RULE NOT IN ('DELY') )
+    """
+    parser = Parser(query)
+    assert parser.tables == [
+        "DWH_DM.COM_MONITOR_OPT_TREND",
+        "DWH_DM.FER_D_CALENDAR_MONTH_SLS",
+    ]
+
+    assert parser.columns == [
+        "DWH_DM.COM_MONITOR_OPT_TREND.OC_YM_REF",
+        "YM_REF",
+        "DWH_DM.COM_MONITOR_OPT_TREND.RULE",
+        "EFFC_CPTY_N3",
+        "ABS_PIP",
+        "DWH_DM.COM_MONITOR_OPT_TREND.ABS_OC",
+        "DWH_DM.COM_MONITOR_OPT_TREND.EFFC_CPTY_N3",
+        "DWH_DM.COM_MONITOR_OPT_TREND.ABS_PIP",
+        "RULE",
+        "OC_YM_REF",
+    ]
+
+    assert parser.with_names == ["CTE_RANGE"]
