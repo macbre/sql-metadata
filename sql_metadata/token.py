@@ -259,7 +259,7 @@ class SQLToken:  # pylint: disable=R0902, R0904
             (self.is_name or self.is_keyword)
             and self.last_keyword_normalized in TABLE_ADJUSTMENT_KEYWORDS
             and self.previous_token.normalized not in ["AS", "WITH"]
-            and self.normalized not in ["AS", "SELECT", "IF"]
+            and self.normalized not in ["AS", "SELECT", "IF", "SET"]
         )
 
     @property

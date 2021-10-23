@@ -548,3 +548,25 @@ def test_tables_with_aggregation():
     """
     parser = Parser(query)
     assert parser.tables == ["my_sc.tab1"]
+
+
+def test_insert_with_on_conflict():
+    sql = """
+    INSERT INTO global_config (entry_id) VALUES ($1)
+    ON CONFLICT (entry_id) UPDATE SET entry_id = $1
+    """
+
+    parser = Parser(sql)
+    assert parser.tables == ["global_config"]
+    assert parser.columns == ["entry_id"]
+
+
+def test_insert_with_on_conflict_set_name():
+    sql = """
+    INSERT INTO global_config (`SET`) VALUES ($1)
+    ON CONFLICT (`SET`) UPDATE SET `SET` = $1
+    """
+
+    parser = Parser(sql)
+    assert parser.tables == ["global_config"]
+    assert parser.columns == ["SET"]

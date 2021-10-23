@@ -8,6 +8,7 @@ coverage:
 	poetry run pytest -vv --cov=sql_metadata --cov-report=term --cov-report=xml
 
 lint:
+	poetry run flake8 sql_metadata
 	poetry run pylint sql_metadata
 
 publish:
