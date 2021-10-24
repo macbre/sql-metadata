@@ -25,7 +25,7 @@ TABLE_ADJUSTMENT_KEYWORDS = {
 }
 
 # next statement beginning after with statement
-WITH_ENDING_KEYWORDS = {"UPDATE", "SELECT", "DELETE", "REPLACE"}
+WITH_ENDING_KEYWORDS = {"UPDATE", "SELECT", "DELETE", "REPLACE", "INSERT"}
 
 # subquery preceding keywords
 SUBQUERY_PRECEDING_KEYWORDS = {
