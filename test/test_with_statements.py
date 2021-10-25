@@ -366,3 +366,62 @@ def test_nested_with_statement_in_create_table():
     }
 
     assert parser.query_type == QueryType.CREATE
+
+
+def test_insert_overwrite():
+    query = """
+    WITH AAA AS
+    (
+      SELECT *
+      FROM
+        db1.tb1 AS jt
+      WHERE
+        col_date >= CURRENT_DATE
+    )
+    , BBB AS
+    (
+      SELECT
+        col1,
+        ROW_NUMBER() OVER(PARTITION BY col2 ORDER BY col3 DESC, col4 DESC) AS row_count
+      FROM
+        AAA
+    )
+    , CCC AS
+    (
+      SELECT *
+      FROM
+        BBB
+      WHERE
+        row_count = 1
+    )
+    , DDD AS
+    (
+      SELECT *
+      FROM
+        CCC
+      WHERE
+        col1 = 'HI'
+    )
+    INSERT OVERWRITE TABLE db4.tb25
+    SELECT
+      jt.col1,
+      jt.col2,
+      jt.col3
+    FROM
+      DDD AS jt
+    ;
+    """
+    parser = Parser(query)
+    assert parser.with_names == ["AAA", "BBB", "CCC", "DDD"]
+    assert parser.columns == [
+        "*",
+        "col_date",
+        "col1",
+        "col2",
+        "col3",
+        "col4",
+        "db1.tb1.col1",
+        "db1.tb1.col2",
+        "db1.tb1.col3",
+    ]
+    assert parser.tables == ["db1.tb1", "db4.tb25"]
