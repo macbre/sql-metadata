@@ -58,6 +58,7 @@ COLUMNS_SECTIONS = {
     "INTO": "insert",
     "SET": "update",
     "GROUPBY": "group_by",
+    "USING": "using",
 }
 
 

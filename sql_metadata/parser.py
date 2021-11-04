@@ -951,13 +951,17 @@ class Parser:  # pylint: disable=R0902
 
     def _determine_last_relevant_keyword(self, token: SQLToken, last_keyword: str):
         if token.is_keyword and "".join(token.normalized.split()) in RELEVANT_KEYWORDS:
-            if not (
-                token.normalized == "FROM"
-                and token.get_nth_previous(3).normalized == "EXTRACT"
-            ) and not (
-                token.normalized == "ORDERBY"
-                and len(self._open_parentheses) > 0
-                and self._open_parentheses[-1].is_partition_clause_start
+            if (
+                not (
+                    token.normalized == "FROM"
+                    and token.get_nth_previous(3).normalized == "EXTRACT"
+                )
+                and not (
+                    token.normalized == "ORDERBY"
+                    and len(self._open_parentheses) > 0
+                    and self._open_parentheses[-1].is_partition_clause_start
+                )
+                and not (token.normalized == "USING" and last_keyword == "SELECT")
             ):
                 last_keyword = token.normalized
         return last_keyword
