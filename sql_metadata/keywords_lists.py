@@ -6,7 +6,15 @@ checks for tables an columns
 # these keywords are followed by columns reference
 from enum import Enum
 
-KEYWORDS_BEFORE_COLUMNS = {"SELECT", "WHERE", "ORDERBY", "GROUPBY", "ON", "SET"}
+KEYWORDS_BEFORE_COLUMNS = {
+    "SELECT",
+    "WHERE",
+    "ORDERBY",
+    "GROUPBY",
+    "ON",
+    "SET",
+    "USING",
+}
 
 # normalized list of table preceding keywords
 TABLE_ADJUSTMENT_KEYWORDS = {
