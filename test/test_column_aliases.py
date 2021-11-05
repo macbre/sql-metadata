@@ -135,6 +135,35 @@ def test_convert_in_select():
     assert parser.columns_aliases_dict == {"select": ["alias"]}
 
 
+def test_convert_in_join():
+    parser = Parser(
+        "SELECT la1.col1, la2.col2, CONVERT(la1.col2 USING utf8) FROM latin1_table la1 "
+        "left join latin2_table la2 "
+        "on CONVERT(la1.latin1_column USING utf8) = "
+        "CONVERT(la2.latin1_column USING utf8) "
+        "left join latin3_table la3 using (col1, col2);"
+    )
+    assert parser.columns == [
+        "latin1_table.col1",
+        "latin2_table.col2",
+        "latin1_table.col2",
+        "latin1_table.latin1_column",
+        "latin2_table.latin1_column",
+        "col1",
+        "col2",
+    ]
+    assert parser.columns_dict == {
+        "join": [
+            "latin1_table.latin1_column",
+            "latin2_table.latin1_column",
+            "col1",
+            "col2",
+        ],
+        "select": ["latin1_table.col1", "latin2_table.col2", "latin1_table.col2"],
+    }
+    assert parser.tables == ["latin1_table", "latin2_table", "latin3_table"]
+
+
 def test_cast_in_select_with_function():
     query = """
     SELECT

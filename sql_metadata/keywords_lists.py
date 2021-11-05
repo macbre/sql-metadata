@@ -55,10 +55,10 @@ COLUMNS_SECTIONS = {
     "WHERE": "where",
     "ORDERBY": "order_by",
     "ON": "join",
+    "USING": "join",
     "INTO": "insert",
     "SET": "update",
     "GROUPBY": "group_by",
-    "USING": "using",
 }
 
 
