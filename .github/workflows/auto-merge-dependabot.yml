@@ -24,7 +24,7 @@ jobs:
                   'version-update:semver-minor' ||
                   steps.metadata.outputs.update-type ==
                   'version-update:semver-patch' ||
-                  steps.metadata.outputs.outputs.dependency-names ==
+                  steps.metadata.outputs.dependency-names ==
                   'black' }}" 
 
               # https://cli.github.com/manual/gh_pr_merge
