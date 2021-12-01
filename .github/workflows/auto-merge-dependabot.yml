@@ -19,10 +19,13 @@ jobs:
 
             - name: Enable auto-merge for Dependabot PRs
               # Automatically merge semver-patch and semver-minor PRs
+              # or black dependency upgrades
               if: "${{ steps.metadata.outputs.update-type ==
                   'version-update:semver-minor' ||
                   steps.metadata.outputs.update-type ==
-                  'version-update:semver-patch' }}"
+                  'version-update:semver-patch' ||
+                  steps.metadata.outputs.dependency-names ==
+                  'black' }}" 
 
               # https://cli.github.com/manual/gh_pr_merge
               run: gh pr merge --auto --squash "$PR_URL"
