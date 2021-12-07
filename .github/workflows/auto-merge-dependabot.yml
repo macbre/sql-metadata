@@ -25,7 +25,7 @@ jobs:
                   steps.metadata.outputs.update-type ==
                   'version-update:semver-patch' ||
                   steps.metadata.outputs.dependency-names ==
-                  'black' }}" 
+                  'black' }}"
 
               # https://cli.github.com/manual/gh_pr_merge
               run: gh pr merge --auto --squash "$PR_URL"
