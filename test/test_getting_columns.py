@@ -48,6 +48,18 @@ def test_joins():
     ).columns
 
 
+def test_joins_using():
+    parser = Parser(
+        "SELECT  page_title  FROM `redirect` INNER JOIN `page` "
+        "USING (page_title, rd_title, rd_namespace)"
+    )
+    assert parser.columns == ["page_title", "rd_title", "rd_namespace"]
+    assert parser.columns_dict == {
+        "select": ["page_title"],
+        "join": ["page_title", "rd_title", "rd_namespace"],
+    }
+
+
 def test_getting_columns():
     assert Parser("SELECT * FROM `test_table`").columns == ["*"]
     assert Parser("SELECT foo.* FROM `test_table`").columns == ["foo.*"]
