@@ -27,6 +27,17 @@ def test_select_query():
         assert "SELECT" == Parser(query).query_type
 
 
+def test_delete_query():
+    queries = [
+        "{0}DELETE {0}FROM{0} foo;{0}",
+        "{0}DELETE{0} foo {0}FROM {0}foo{0} INNER {0} JOIN {0} bar ON {0} foo.id = bar.foo_id;{0}",
+    ]
+
+    for query in queries:
+        for comment in ["", "/* foo */", "\n--foo\n", "\n# foo\n"]:
+            assert "DELETE" == Parser(query.format(comment)).query_type
+
+
 def test_unsupported_query():
     queries = [
         "FOO BAR",
