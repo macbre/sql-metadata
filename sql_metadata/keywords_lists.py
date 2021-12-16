@@ -70,6 +70,7 @@ class QueryType(str, Enum):
     INSERT = "INSERT"
     REPLACE = "REPLACE"
     UPDATE = "UPDATE"
+    DELETE = "DELETE"
     SELECT = "SELECT"
     CREATE = "CREATE TABLE"
     ALTER = "ALTER TABLE"
@@ -95,6 +96,7 @@ SUPPORTED_QUERY_TYPES = {
     "REPLACE": QueryType.REPLACE,
     "UPDATE": QueryType.UPDATE,
     "SELECT": QueryType.SELECT,
+    "DELETE": QueryType.DELETE,
     "WITH": QueryType.SELECT,
     "CREATETABLE": QueryType.CREATE,
     "ALTERTABLE": QueryType.ALTER,
