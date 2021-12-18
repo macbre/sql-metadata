@@ -271,7 +271,7 @@ class Parser:  # pylint: disable=R0902
             ):
                 token_check = (
                     token.previous_token
-                    if not token.previous_token.normalized == "AS"
+                    if not token.previous_token.is_as_keyword
                     else token.get_nth_previous(2)
                 )
                 if token_check.is_column_definition_end:
@@ -408,10 +408,10 @@ class Parser:  # pylint: disable=R0902
         for token in self._not_parsed_tokens:
             if (
                 token.last_keyword_normalized in TABLE_ADJUSTMENT_KEYWORDS
-                and token.is_name
-                and token.next_token.normalized != "AS"
+                and (token.is_name or (token.is_keyword and not token.is_as_keyword))
+                and not token.next_token.is_as_keyword
             ):
-                if token.previous_token.normalized == "AS":
+                if token.previous_token.is_as_keyword:
                     # potential <DB.<SCHEMA>.<TABLE> as <ALIAS>
                     potential_table_name = token.get_nth_previous(2).value
                 else:
@@ -442,7 +442,7 @@ class Parser:  # pylint: disable=R0902
             if token.previous_token.normalized == "WITH":
                 self._is_in_with_block = True
                 while self._is_in_with_block and token.next_token:
-                    if token.next_token.normalized == "AS":
+                    if token.next_token.is_as_keyword:
                         self._handle_with_name_save(token=token, with_names=with_names)
                         while token.next_token and not token.is_with_query_end:
                             token = token.next_token
@@ -541,8 +541,8 @@ class Parser:  # pylint: disable=R0902
             return self._subqueries_names
         subqueries_names = UniqueList()
         for token in self.tokens:
-            if (token.previous_token.is_subquery_end and token.normalized != "AS") or (
-                token.previous_token.normalized == "AS"
+            if (token.previous_token.is_subquery_end and not token.is_as_keyword) or (
+                token.previous_token.is_as_keyword
                 and token.get_nth_previous(2).is_subquery_end
             ):
                 token.token_type = TokenType.SUB_QUERY_NAME
@@ -844,7 +844,7 @@ class Parser:  # pylint: disable=R0902
         elif token.previous_token.normalized in KEYWORDS_BEFORE_COLUMNS.union({","}):
             # we are in columns and in a column subquery definition
             token.is_column_definition_start = True
-        elif token.previous_token.normalized == "AS":
+        elif token.previous_token.is_as_keyword:
             token.is_with_query_start = True
         elif (
             token.last_keyword_normalized == "TABLE"

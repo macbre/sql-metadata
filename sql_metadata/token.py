@@ -4,7 +4,7 @@ Module contains internal SQLToken that creates linked list
 from typing import Dict, List, Union
 
 import sqlparse.sql
-from sqlparse.tokens import Comment, Name, Number, Punctuation, Wildcard
+from sqlparse.tokens import Comment, Name, Number, Punctuation, Wildcard, Keyword
 
 from sql_metadata.keywords_lists import (
     KEYWORDS_BEFORE_COLUMNS,
@@ -41,6 +41,7 @@ class SQLToken:  # pylint: disable=R0902, R0904
             self.is_integer = tok.ttype is Number.Integer
             self.is_float = tok.ttype is Number.Float
             self.is_comment = tok.ttype is Comment or tok.ttype.parent == Comment
+            self.is_as_keyword = tok.ttype is Keyword and tok.normalized == "AS"
 
             self.is_left_parenthesis = str(tok) == "("
             self.is_right_parenthesis = str(tok) == ")"
@@ -62,6 +63,7 @@ class SQLToken:  # pylint: disable=R0902, R0904
         self.is_integer = False
         self.is_float = False
         self.is_comment = False
+        self.is_as_keyword = False
 
         self.is_left_parenthesis = False
         self.is_right_parenthesis = False
