@@ -170,6 +170,8 @@ def test_joins():
         "SELECT foo FROM `foos` LEFT OUTER JOIN `bars` ON (foos.id = bars.id)"
     ).tables
 
+    assert ["foos", "bars"] == Parser("SELECT foo FROM `foos` CROSS JOIN `bars`").tables
+
 
 def test_quoted_names():
     # handle quoted names
