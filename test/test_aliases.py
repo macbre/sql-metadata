@@ -6,6 +6,13 @@ def test_get_query_table_aliases():
     assert Parser("SELECT bar FROM foo AS f").tables_aliases == {"f": "foo"}
     assert Parser("SELECT bar FROM foo f").tables_aliases == {"f": "foo"}
     assert Parser("SELECT bar AS value FROM foo AS f").tables_aliases == {"f": "foo"}
+    # use SQL keywords as table aliases
+    assert Parser("SELECT system.bar FROM foo AS system").tables_aliases == {
+        "system": "foo"
+    }
+    assert Parser("SELECT system.bar FROM foo system").tables_aliases == {
+        "system": "foo"
+    }
     assert Parser(
         "SELECT bar AS value FROM foo AS f INNER JOIN dimensions AS d ON f.id = d.id"
     ).tables_aliases == {"f": "foo", "d": "dimensions"}
