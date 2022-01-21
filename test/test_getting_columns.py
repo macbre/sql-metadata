@@ -47,6 +47,14 @@ def test_joins():
         "ON (rd_title = 'foo' AND rd_namespace = '100' AND (page_id = rd_from))"
     ).columns
 
+    assert ["page_title"] == Parser(
+        "SELECT  page_title  FROM `redirect` CROSS JOIN `page` "
+    ).columns
+
+    assert ["page_title", "rd_title"] == Parser(
+        "SELECT  page_title  FROM `redirect` CROSS JOIN (select rd_title from `page`) as other"
+    ).columns
+
 
 def test_joins_using():
     parser = Parser(
