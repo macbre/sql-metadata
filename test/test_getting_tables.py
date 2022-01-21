@@ -622,3 +622,23 @@ def test_with_keyword_in_joins():
     ]
 
     assert parser.with_names == ["CTE_RANGE"]
+
+
+def test_getting_proper_tables_with_keyword_aliases():
+    # use SQL keywords as table aliases
+    assert Parser("SELECT system.bar FROM foo AS system").tables == ["foo"]
+    assert Parser("SELECT system.bar FROM foo system").tables == ["foo"]
+
+    assert Parser(
+        "SELECT system.bar FROM foo system union all select * from b user"
+    ).tables == ["foo", "b"]
+
+    query = """
+    SELECT system.bar FROM foo system 
+    join select user.asd as val from b user on user.gfd=system.bar
+    """
+
+    assert Parser(query).tables == ["foo", "b"]
+    assert Parser(query).columns == ["foo.bar", "b.asd", "b.gfd"]
+    assert Parser(query).columns_aliases == {"val": "b.asd"}
+    assert Parser(query).tables_aliases == {"system": "foo", "user": "b"}
