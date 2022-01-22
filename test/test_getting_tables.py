@@ -18,6 +18,10 @@ def test_simple_queries_tables():
         "SELECT foo FROM test_table, second_table WHERE id = 1"
     ).tables
 
+    assert ["test_table", "second_table"] == Parser(
+        "SELECT foo FROM test_table CROSS JOIN second_table WHERE id = 1"
+    ).tables
+
     assert ["revision", "page", "wikicities_user"] == Parser(
         "SELECT rev_id,rev_page,rev_text_id,rev_timestamp,rev_comment,rev_user_text,"
         "rev_user,rev_minor_edit,rev_deleted,rev_len,rev_parent_id,rev_shaN,"
@@ -169,6 +173,8 @@ def test_joins():
     assert ["foos", "bars"] == Parser(
         "SELECT foo FROM `foos` LEFT OUTER JOIN `bars` ON (foos.id = bars.id)"
     ).tables
+
+    assert ["foos", "bars"] == Parser("SELECT foo FROM `foos` CROSS JOIN `bars`").tables
 
 
 def test_quoted_names():
@@ -642,3 +648,13 @@ def test_getting_proper_tables_with_keyword_aliases():
     assert Parser(query).columns == ["foo.bar", "b.asd", "b.gfd"]
     assert Parser(query).columns_aliases == {"val": "b.asd"}
     assert Parser(query).tables_aliases == {"system": "foo", "user": "b"}
+
+
+def test_cross_join_with_subquery():
+    query = "SELECT foo FROM `foos` CROSS JOIN (SELECT * FROM `bars`) AS `foobar`"
+    parser = Parser(query)
+    assert parser.tables == ["foos", "bars"]
+    assert parser.subqueries_names == ["foobar"]
+    assert parser.subqueries == {
+        "foobar": "SELECT * FROM bars",
+    }
