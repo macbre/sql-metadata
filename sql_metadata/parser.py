@@ -442,7 +442,7 @@ class Parser:  # pylint: disable=R0902
             if token.previous_token.normalized == "WITH":
                 self._is_in_with_block = True
                 while self._is_in_with_block and token.next_token:
-                    if token.next_token.is_as_keyword:
+                    if token.next_token.is_as_keyword and token.next_token.next_token.is_in_with_columns:
                         self._handle_with_name_save(token=token, with_names=with_names)
                         while token.next_token and not token.is_with_query_end:
                             token = token.next_token
