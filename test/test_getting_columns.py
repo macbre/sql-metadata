@@ -92,10 +92,15 @@ def test_getting_columns():
         "test",
     ]
     assert Parser("SELECT /* a comment */ bar FROM test_table").columns == ["bar"]
-    assert Parser(
-        "WITH foo AS (SELECT test_table.* FROM test_table)"
-        "SELECT foo.bar FROM foo"
-    ).columns == ["test_table.*", "bar"]
+    assert (
+        Parser(
+            """
+                WITH foo AS (SELECT test_table.* FROM test_table)
+                SELECT foo.bar FROM foo
+            """
+        ).columns
+        == ["test_table.*", "bar"]
+    )
 
 
 def test_columns_with_order_by():
