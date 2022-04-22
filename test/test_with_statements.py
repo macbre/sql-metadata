@@ -425,3 +425,29 @@ def test_insert_overwrite():
         "db1.tb1.col3",
     ]
     assert parser.tables == ["db1.tb1", "db4.tb25"]
+
+
+def test_window_in_with():
+    query = """
+        WITH cte_1 AS (
+            SELECT
+                column_1, column_2
+            FROM
+                table_1
+            WINDOW window_1 AS (
+                PARTITION BY column_2
+            )
+        )
+        SELECT
+            column_1, column_2
+        FROM
+            cte_1 AS alias_1
+    """
+
+    parser = Parser(query)
+    assert parser.with_names == ["cte_1"]
+    assert parser.columns == ["column_1", "column_2"]
+    assert parser.with_queries == {
+        "cte_1": "SELECT column_1, column_2 FROM table_1 WINDOW window_1 AS(PARTITION BY column_2)"
+    }
+    assert parser.tables == ["table_1"]

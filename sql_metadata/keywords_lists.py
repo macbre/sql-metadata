@@ -117,4 +117,5 @@ RELEVANT_KEYWORDS = {
     "VALUES",
     "INDEX",
     "WITH",
+    "WINDOW",
 }
