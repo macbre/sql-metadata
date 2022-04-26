@@ -201,4 +201,7 @@ def test_next_token_not_comment_on_non_comments():
     select_tok = parser.tokens[0]
 
     assert select_tok.next_token == select_tok.next_token_not_comment
-    assert select_tok.next_token.next_token == select_tok.next_token_not_comment.next_token_not_comment
+    assert (
+        select_tok.next_token.next_token
+        == select_tok.next_token_not_comment.next_token_not_comment
+    )

@@ -468,7 +468,5 @@ def test_comment_between_with_and_query():
     parser = Parser(query)
     assert parser.with_names == ["cte_1"]
     assert parser.columns == ["column_1", "column_2"]
-    assert parser.with_queries == {
-        "cte_1": "SELECT column_1, column_2 FROM table_1"
-    }
+    assert parser.with_queries == {"cte_1": "SELECT column_1, column_2 FROM table_1"}
     assert parser.tables == ["table_1"]
