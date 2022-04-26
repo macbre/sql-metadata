@@ -446,8 +446,11 @@ class Parser:  # pylint: disable=R0902
                         self._handle_with_name_save(token=token, with_names=with_names)
                         while token.next_token and not token.is_with_query_end:
                             token = token.next_token
-                        if token.next_token.normalized in WITH_ENDING_KEYWORDS:
-                            # end of with block
+                        is_end_of_with_block = (
+                            token.next_token_not_comment.normalized
+                            in WITH_ENDING_KEYWORDS
+                        )
+                        if is_end_of_with_block:
                             self._is_in_with_block = False
                     else:
                         token = token.next_token

@@ -153,3 +153,52 @@ def test_inline_comments_with_hash():
         ],
     }
     assert parser.comments == []
+
+
+def test_next_token_not_comment_single():
+    query = """
+        SELECT column_1 -- comment_1
+        FROM table_1 
+    """
+    parser = Parser(query)
+    column_1_tok = parser.tokens[1]
+
+    assert column_1_tok.next_token.is_comment
+    assert not column_1_tok.next_token_not_comment.is_comment
+    assert column_1_tok.next_token.next_token == column_1_tok.next_token_not_comment
+
+
+def test_next_token_not_comment_multiple():
+    query = """
+            SELECT column_1 -- comment_1
+            
+            /*
+            comment_2
+            */
+            
+            # comment_3
+            FROM table_1
+        """
+    parser = Parser(query)
+    column_1_tok = parser.tokens[1]
+
+    assert column_1_tok.next_token.is_comment
+    assert column_1_tok.next_token.next_token.is_comment
+    assert column_1_tok.next_token.next_token.next_token.is_comment
+    assert not column_1_tok.next_token_not_comment.is_comment
+    assert (
+        column_1_tok.next_token.next_token.next_token.next_token
+        == column_1_tok.next_token_not_comment
+    )
+
+
+def test_next_token_not_comment_on_non_comments():
+    query = """
+            SELECT column_1
+            FROM table_1
+        """
+    parser = Parser(query)
+    select_tok = parser.tokens[0]
+
+    assert select_tok.next_token == select_tok.next_token_not_comment
+    assert select_tok.next_token.next_token == select_tok.next_token_not_comment.next_token_not_comment
