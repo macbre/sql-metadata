@@ -38,6 +38,16 @@ def test_delete_query():
             assert "DELETE" == Parser(query.format(comment)).query_type
 
 
+def test_drop_table_query():
+    queries = [
+        "{0}DROP TABLE foo;{0}",
+    ]
+
+    for query in queries:
+        for comment in ["", "/* foo */", "\n--foo\n", "\n# foo\n"]:
+            assert "DROP TABLE" == Parser(query.format(comment)).query_type
+
+
 def test_unsupported_query():
     queries = [
         "FOO BAR",

@@ -76,6 +76,7 @@ class QueryType(str, Enum):
     SELECT = "SELECT"
     CREATE = "CREATE TABLE"
     ALTER = "ALTER TABLE"
+    DROP = "DROP TABLE"
 
 
 class TokenType(str, Enum):
@@ -102,6 +103,7 @@ SUPPORTED_QUERY_TYPES = {
     "WITH": QueryType.SELECT,
     "CREATETABLE": QueryType.CREATE,
     "ALTERTABLE": QueryType.ALTER,
+    "DROPTABLE": QueryType.DROP,
 }
 
 # all the keywords we care for - rest is ignored in assigning

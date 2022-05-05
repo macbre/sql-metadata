@@ -112,7 +112,7 @@ class Parser:  # pylint: disable=R0902
             )
             .position
         )
-        if tokens[index].normalized in ["CREATE", "ALTER"]:
+        if tokens[index].normalized in ["CREATE", "ALTER", "DROP"]:
             switch = tokens[index].normalized + tokens[index + 1].normalized
         else:
             switch = tokens[index].normalized
