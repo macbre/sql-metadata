@@ -782,7 +782,8 @@ class Parser:  # pylint: disable=R0902
         return column if isinstance(column, list) else [column]
 
     @staticmethod
-    def _resolve_nested_query(
+    # pylint:disable=too-many-return-statements
+    def _resolve_nested_query(  # noqa: C901
         subquery_alias: str,
         nested_queries_names: List[str],
         nested_queries: Dict,
