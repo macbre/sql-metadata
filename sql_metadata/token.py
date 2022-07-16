@@ -360,6 +360,15 @@ class SQLToken:  # pylint: disable=R0902, R0904
             or self.is_in_with_columns
         )
 
+    @property
+    def next_token_not_comment(self):
+        """
+        Property returning next non-comment token
+        """
+        if self.next_token and self.next_token.is_comment:
+            return self.next_token.next_token_not_comment
+        return self.next_token
+
     def is_constraint_definition_inside_create_table_clause(
         self, query_type: str
     ) -> bool:
