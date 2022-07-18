@@ -7,6 +7,7 @@ import re
 from typing import Dict, List, Optional, Set, Tuple, Union
 
 import sqlparse
+from sqlglot import parse_one, exp
 from sqlparse.sql import Token
 from sqlparse.tokens import Name, Number, Whitespace
 
@@ -75,6 +76,8 @@ class Parser:  # pylint: disable=R0902
         self.sqlparse_tokens = None
         self.non_empty_tokens = None
         self.tokens_length = None
+
+        self.expression = parse_one(sql)
 
     @property
     def query(self) -> str:
@@ -184,45 +187,8 @@ class Parser:  # pylint: disable=R0902
         """
         Returns the list columns this query refers to
         """
-        if self._columns is not None:
-            return self._columns
-        columns = UniqueList()
-
-        for token in self._not_parsed_tokens:
-            if token.is_name or token.is_keyword_column_name:
-                if token.is_column_definition_inside_create_table(
-                    query_type=self.query_type
-                ):
-                    token.token_type = TokenType.COLUMN
-                    columns.append(token.value)
-                elif (
-                    token.is_potential_column_name
-                    and token.is_not_an_alias_or_is_self_alias_outside_of_subquery(
-                        columns_aliases_names=self.columns_aliases_names,
-                        max_subquery_level=self._column_aliases_max_subquery_level,
-                    )
-                    and not token.is_sub_query_name_or_with_name_or_function_name(
-                        sub_queries_names=self.subqueries_names,
-                        with_names=self.with_names,
-                    )
-                    and not token.is_table_definition_suffix_in_non_select_create_table(
-                        query_type=self.query_type
-                    )
-                    and not token.is_conversion_specifier
-                ):
-                    self._handle_column_save(token=token, columns=columns)
-
-                elif token.is_column_name_inside_insert_clause:
-                    column = str(token.value).strip("`")
-                    self._add_to_columns_subsection(
-                        keyword=token.last_keyword_normalized, column=column
-                    )
-                    token.token_type = TokenType.COLUMN
-                    columns.append(column)
-            elif token.is_a_wildcard_in_select_statement:
-                self._handle_column_save(token=token, columns=columns)
-
-        self._columns = columns
+        if self._columns is None:
+            self._columns = self.expression.find_all(exp.Column)
         return self._columns
 
     @property
@@ -255,8 +221,9 @@ class Parser:  # pylint: disable=R0902
         """
         Returns a dictionary of column aliases with columns
         """
-        if self._columns_aliases is not None:
-            return self._columns_aliases
+        if self._columns_aliases is None:
+            self._column_aliases =
+        return self._columns_aliases
         column_aliases = {}
         _ = self.columns
         self._aliases_to_check = (
@@ -338,29 +305,8 @@ class Parser:  # pylint: disable=R0902
         """
         Return the list of tables this query refers to
         """
-        if self._tables is not None:
-            return self._tables
-        tables = UniqueList()
-        with_names = self.with_names
-
-        for token in self._not_parsed_tokens:
-            if token.is_potential_table_name:
-                if (
-                    token.is_alias_of_table_or_alias_of_subquery
-                    or token.is_with_statement_nested_in_subquery
-                    or token.is_constraint_definition_inside_create_table_clause(
-                        query_type=self.query_type
-                    )
-                    or token.is_columns_alias_of_with_query_or_column_in_insert_query(
-                        with_names=with_names
-                    )
-                ):
-                    continue
-                table_name = str(token.value.strip("`"))
-                token.token_type = TokenType.TABLE
-                tables.append(table_name)
-
-        self._tables = tables - with_names
+        if self._tables is None:
+            self._tables = [str(table) for table in self.expression.find_all(exp.Table)]
         return self._tables
 
     @property

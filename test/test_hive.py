@@ -43,6 +43,6 @@ JOIN statsdb.dimension_wikis d ON r.wiki_id = d.wiki_id;
 
     assert [
         "foo_report",
-        "rollup_wiki_beacon_pageviews",
         "statsdb.dimension_wikis",
+        "rollup_wiki_beacon_pageviews",
     ] == Parser(dag).tables
