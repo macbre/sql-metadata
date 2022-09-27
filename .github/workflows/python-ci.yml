@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
 
     strategy:
+      fail-fast: false
       matrix:
         # https://github.com/actions/python-versions/blob/main/versions-manifest.json
         python-version:
