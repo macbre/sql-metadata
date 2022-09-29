@@ -17,7 +17,6 @@ jobs:
       matrix:
         # https://github.com/actions/python-versions/blob/main/versions-manifest.json
         python-version:
-        - "3.6"
         - "3.7"
         - "3.8"
         - "3.9"
