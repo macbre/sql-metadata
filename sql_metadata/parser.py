@@ -554,27 +554,43 @@ class Parser:  # pylint: disable=R0902
         self._subqueries_names = subqueries_names
         return self._subqueries_names
 
+    def _format_value(self, token: SQLToken) -> str:
+        value = None
+        if token.is_integer:
+            value = int(token.value)
+        elif token.is_float:
+            value = float(token.value)
+        else:
+            value = token.value.strip("'\"")
+        return value
+
     @property
     def values(self) -> List:
         """
-        Returns list of values from insert queries
+        Returns list of values from insert/update queries
         """
         if self._values:
             return self._values
         values = []
         for token in self._not_parsed_tokens:
             if (
-                token.last_keyword_normalized == "VALUES"
-                and token.is_in_parenthesis
-                and token.next_token.is_punctuation
+                # Check for insert clause
+                (
+                    token.last_keyword_normalized == "VALUES"
+                    and token.is_in_parenthesis
+                    and token.next_token.is_punctuation
+                )
+                # Check for update clause
+                or (
+                    token.last_keyword_normalized == "SET"
+                    and token.previous_token.normalized == "="
+                )
+                or (
+                    token.last_keyword_normalized == "WHERE"
+                    and token.previous_token.normalized == "="
+                )
             ):
-                if token.is_integer:
-                    value = int(token.value)
-                elif token.is_float:
-                    value = float(token.value)
-                else:
-                    value = token.value.strip("'\"")
-                values.append(value)
+                values.append(self._format_value(token))
         self._values = values
         return self._values
 

@@ -93,3 +93,21 @@ def test_getting_values():
         "comment_parent": 0,
         "user_id": 0,
     }
+
+    parser = Parser(
+        "UPDATE `page_vote`"
+        "SET article_id = '442002', user_time = '27574631'"
+        "WHERE topic_id = '10000' AND section_id = '200000'"
+    )
+    assert parser.columns == ["article_id", "user_time", "topic_id", "section_id"]
+    assert parser.columns_dict == {
+        'update': ['article_id', 'user_time'],
+        'where': ['topic_id', 'section_id'],
+    }
+    assert parser.values == ["442002", "27574631", "10000", "200000"]
+    assert parser.values_dict == {
+        "article_id": "442002",
+        "user_time": "27574631",
+        "topic_id": "10000",
+        "section_id": "200000",
+    }
