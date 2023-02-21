@@ -17,10 +17,10 @@ python = "^3.7.0"
 sqlparse = "^0.4.1"
 
 [tool.poetry.dev-dependencies]
-black = "^22.12"
+black = "^23.1"
 coverage = {extras = ["toml"], version = "^6.5"}
 pylint = "^2.13.9"
-pytest = "^7.2.0"
+pytest = "^7.2.1"
 pytest-cov = "^4.0.0"
 coveralls = "^3.3.1"
 flake8 = "^5.0.4"
