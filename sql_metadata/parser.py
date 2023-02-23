@@ -30,10 +30,9 @@ class Parser:  # pylint: disable=R0902
     Main class to parse sql query
     """
 
-    def __init__(self, sql: str = "", enable_logging: bool = True) -> None:
+    def __init__(self, sql: str = "", disable_logging: bool = False) -> None:
         self._logger = logging.getLogger(self.__class__.__name__)
-        if not enable_logging:
-            self._logger.disabled = True
+        self._logger.disabled = disable_logging
 
         self._raw_query = sql
         self._query = self._preprocess_query()
