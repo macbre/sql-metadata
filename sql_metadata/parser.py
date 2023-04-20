@@ -357,6 +357,14 @@ class Parser:  # pylint: disable=R0902
                     )
                 ):
                     continue
+
+                # handle INSERT INTO ON DUPLICATE KEY UPDATE queries
+                if (
+                    token.last_keyword_normalized == "UPDATE"
+                    and self.query_type == "INSERT"
+                ):
+                    continue
+
                 table_name = str(token.value.strip("`"))
                 token.token_type = TokenType.TABLE
                 tables.append(table_name)
