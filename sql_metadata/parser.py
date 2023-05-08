@@ -31,8 +31,9 @@ class Parser:  # pylint: disable=R0902
     Main class to parse sql query
     """
 
-    def __init__(self, sql: str = "") -> None:
+    def __init__(self, sql: str = "", disable_logging: bool = False) -> None:
         self._logger = logging.getLogger(self.__class__.__name__)
+        self._logger.disabled = disable_logging
 
         self._raw_query = sql
         self._query = self._preprocess_query()
@@ -304,9 +305,8 @@ class Parser:  # pylint: disable=R0902
     def tables(self) -> List[str]:
         """
         Return the list of tables this query refers to
-        """
-        if self._tables is None:
-            self._tables = [str(table) for table in self.expression.find_all(exp.Table)]
+        """        if self._tables is None:
+        self._tables = [str(table) for table in self.expression.find_all(exp.Table)]
         return self._tables
 
     @property
@@ -327,8 +327,12 @@ class Parser:  # pylint: disable=R0902
                 elif token.last_keyword_normalized == "OFFSET":
                     # OFFSET <offset>
                     offset = int(token.value)
-                elif token.previous_token.is_punctuation:
+                elif (
+                    token.previous_token.is_punctuation
+                    and token.last_keyword_normalized == "LIMIT"
+                ):
                     # LIMIT <offset>,<limit>
+                    #  enter this condition only when the limit has already been parsed
                     offset = limit
                     limit = int(token.value)
 

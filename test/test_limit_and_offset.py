@@ -45,3 +45,10 @@ def test_comma_separated():
         "WHERE cl_type = 'page' AND cl_to = 'Spotify/Song'  "
         "ORDER BY cl_sortkey LIMIT 927600,200"
     ).limit_and_offset == (200, 927600)
+
+
+def test_with_in_condition():
+    # https://github.com/macbre/sql-metadata/issues/382
+    assert Parser(
+        "SELECT count(*) FROM aa WHERE userid IN (222,333) LIMIT 50 OFFSET 1000"
+    ).limit_and_offset == (50, 1000)

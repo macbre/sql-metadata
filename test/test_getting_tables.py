@@ -658,3 +658,11 @@ def test_cross_join_with_subquery():
     assert parser.subqueries == {
         "foobar": "SELECT * FROM bars",
     }
+
+
+def test_insert_into_on_duplicate_key_ipdate():
+    assert Parser(
+        "INSERT INTO user (id, name, age)"
+        " VALUES ('user1', 'john doe', 20)"
+        " ON DUPLICATE KEY UPDATE name='john doe', age=20"
+    ).tables == ["user"]
