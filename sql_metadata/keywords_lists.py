@@ -34,7 +34,7 @@ TABLE_ADJUSTMENT_KEYWORDS = {
 }
 
 # next statement beginning after with statement
-WITH_ENDING_KEYWORDS = {"UPDATE", "SELECT", "DELETE", "REPLACE", "INSERT"}
+WITH_ENDING_KEYWORDS = {"UPDATE", "SELECT", "DELETE", "REPLACE", "INSERT", "MERGE"}
 
 # subquery preceding keywords
 SUBQUERY_PRECEDING_KEYWORDS = {
@@ -61,6 +61,7 @@ COLUMNS_SECTIONS = {
     "INTO": "insert",
     "SET": "update",
     "GROUPBY": "group_by",
+    "MERGE": "merge",
 }
 
 
@@ -77,6 +78,7 @@ class QueryType(str, Enum):
     CREATE = "CREATE TABLE"
     ALTER = "ALTER TABLE"
     DROP = "DROP TABLE"
+    MERGE = "MERGE"
 
 
 class TokenType(str, Enum):
@@ -104,6 +106,7 @@ SUPPORTED_QUERY_TYPES = {
     "CREATETABLE": QueryType.CREATE,
     "ALTERTABLE": QueryType.ALTER,
     "DROPTABLE": QueryType.DROP,
+    "MERGE": QueryType.MERGE,
 }
 
 # all the keywords we care for - rest is ignored in assigning
