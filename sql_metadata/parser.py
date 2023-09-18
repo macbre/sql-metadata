@@ -972,7 +972,6 @@ class Parser:  # pylint: disable=R0902
     def _determine_last_relevant_keyword(self, token: SQLToken, last_keyword: str):
         if token.value == "," and token.last_keyword_normalized == "ON":
             return "FROM"
-            
         if token.is_keyword and "".join(token.normalized.split()) in RELEVANT_KEYWORDS:
             if (
                 not (
