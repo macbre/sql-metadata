@@ -723,19 +723,16 @@ def test_join_followed_by_tables():
         web_site_id
     """
     parser = Parser(query)
-    assert parser.tables == [
-        "web_sales",
-        "web_returns",
-        "date_dim",
-        "web_site"
-    ]
+    assert parser.tables == ["web_sales", "web_returns", "date_dim", "web_site"]
 
-    parser = Parser("""
+    parser = Parser(
+        """
     SELECT * 
     FROM Sales 
         JOIN Customers 
             ON Sales.CustomerID = Customers.CustomerID, 
         (SELECT MAX(Revenue) FROM Sales),
         Stores
-    """)
+    """
+    )
     assert parser.tables == ["Sales", "Customers", "Stores"]
