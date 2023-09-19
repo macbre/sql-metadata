@@ -125,7 +125,7 @@ class Parser:  # pylint: disable=R0902
         return self._query_type
 
     @property
-    def tokens(self) -> List[SQLToken]:
+    def tokens(self) -> List[SQLToken]:  # noqa: C901
         """
         Tokenizes the query
         """
