@@ -67,6 +67,7 @@ class Parser:  # pylint: disable=R0902
         self._nested_level = 0
         self._parenthesis_level = 0
         self._open_parentheses: List[SQLToken] = []
+        self._preceded_keywords: List[SQLToken] = []
         self._aliases_to_check = None
         self._is_in_nested_function = False
         self._is_in_with_block = False
@@ -164,6 +165,8 @@ class Parser:  # pylint: disable=R0902
             elif token.is_right_parenthesis:
                 token.token_type = TokenType.PARENTHESIS
                 self._determine_closing_parenthesis_type(token=token)
+                if token.is_subquery_end:
+                    last_keyword = self._preceded_keywords.pop()
 
             last_keyword = self._determine_last_relevant_keyword(
                 token=token, last_keyword=last_keyword
@@ -856,6 +859,7 @@ class Parser:  # pylint: disable=R0902
             # inside subquery / derived table
             token.is_subquery_start = True
             self._subquery_level += 1
+            self._preceded_keywords.append(token.last_keyword_normalized)
             token.subquery_level = self._subquery_level
         elif token.previous_token.normalized in KEYWORDS_BEFORE_COLUMNS.union({","}):
             # we are in columns and in a column subquery definition
@@ -970,6 +974,8 @@ class Parser:  # pylint: disable=R0902
         return query
 
     def _determine_last_relevant_keyword(self, token: SQLToken, last_keyword: str):
+        if token.value == "," and token.last_keyword_normalized == "ON":
+            return "FROM"
         if token.is_keyword and "".join(token.normalized.split()) in RELEVANT_KEYWORDS:
             if (
                 not (

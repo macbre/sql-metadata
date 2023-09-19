@@ -666,3 +666,136 @@ def test_insert_into_on_duplicate_key_ipdate():
         " VALUES ('user1', 'john doe', 20)"
         " ON DUPLICATE KEY UPDATE name='john doe', age=20"
     ).tables == ["user"]
+
+
+def test_join_followed_by_tables():
+    query = """
+    SELECT 
+        web_site_id, 
+        sum(sales_price) AS sales, 
+        sum(profit) AS profit, 
+        sum(return_amt) AS returns1, 
+        sum(net_loss) AS profit_loss 
+    FROM 
+        (
+        SELECT 
+            ws_web_site_sk AS wsr_web_site_sk, 
+            ws_sold_date_sk AS date_sk, 
+            ws_ext_sales_price AS sales_price, 
+            ws_net_profit AS profit, 
+            cast(
+            0 AS decimal(7, 2)
+            ) AS return_amt, 
+            cast(
+            0 AS decimal(7, 2)
+            ) AS net_loss 
+        FROM 
+            web_sales 
+        UNION ALL 
+        SELECT 
+            ws_web_site_sk AS wsr_web_site_sk, 
+            wr_returned_date_sk AS date_sk, 
+            cast(
+            0 AS decimal(7, 2)
+            ) AS sales_price, 
+            cast(
+            0 AS decimal(7, 2)
+            ) AS profit, 
+            wr_return_amt AS return_amt, 
+            wr_net_loss AS net_loss 
+        FROM 
+            web_returns 
+            LEFT OUTER JOIN web_sales ON (
+            wr_item_sk = ws_item_sk 
+            AND wr_order_number = ws_order_number
+            )
+        ) salesreturns, 
+        date_dim, 
+        web_site 
+    WHERE 
+        date_sk = d_date_sk 
+        AND d_date BETWEEN cast('2002-08-22' AS date) 
+        AND (
+        cast('2002-08-22' AS date) + INTERVAL '14' day
+        ) 
+        AND wsr_web_site_sk = web_site_sk 
+    GROUP BY 
+        web_site_id
+    """
+    parser = Parser(query)
+    assert parser.tables == ["web_sales", "web_returns", "date_dim", "web_site"]
+
+    parser = Parser(
+        """
+    SELECT * 
+    FROM Sales 
+        JOIN Customers 
+            ON Sales.CustomerID = Customers.CustomerID, 
+        (SELECT MAX(Revenue) FROM Sales),
+        Stores
+    """
+    )
+    assert parser.tables == ["Sales", "Customers", "Stores"]
+
+
+def test_subquery_followed_by_tables():
+    query = """
+    SELECT top 100 c_last_name ,
+           c_first_name ,
+           ca_city ,
+           bought_city ,
+           ss_ticket_number ,
+           amt,
+           profit
+    FROM
+    (SELECT ss_ticket_number ,
+            ss_customer_sk ,
+            ca_city bought_city ,
+            sum(ss_coupon_amt) amt ,
+            sum(ss_net_profit) profit
+    FROM store_sales,
+            date_dim,
+            store,
+            household_demographics,
+            customer_address
+    WHERE store_sales.ss_sold_date_sk = date_dim.d_date_sk
+        AND store_sales.ss_store_sk = store.s_store_sk
+        AND store_sales.ss_hdemo_sk = household_demographics.hd_demo_sk
+        AND store_sales.ss_addr_sk = customer_address.ca_address_sk
+        AND (household_demographics.hd_dep_count = 3
+            OR household_demographics.hd_vehicle_count= 2)
+        AND date_dim.d_dow IN (6,
+                                0)
+        AND date_dim.d_year IN (1998,
+                                1998+1,
+                                1998+2)
+        AND store.s_city IN ('Oak Grove',
+                            'Fairview',
+                            'Riverside',
+                            'Five Points',
+                            'Midway')
+    GROUP BY ss_ticket_number,
+                ss_customer_sk,
+                ss_addr_sk,
+                ca_city) dn,
+        customer,
+        customer_address current_addr
+    WHERE ss_customer_sk = c_customer_sk
+    AND customer.c_current_addr_sk = current_addr.ca_address_sk
+    AND current_addr.ca_city <> bought_city
+    ORDER BY c_last_name ,
+            c_first_name ,
+            ca_city ,
+            bought_city ,
+            ss_ticket_number
+    """
+
+    parser = Parser(query)
+    assert parser.tables == [
+        "store_sales",
+        "date_dim",
+        "store",
+        "household_demographics",
+        "customer_address",
+        "customer",
+    ]
