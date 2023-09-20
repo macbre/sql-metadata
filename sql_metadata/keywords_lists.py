@@ -9,6 +9,7 @@ from enum import Enum
 KEYWORDS_BEFORE_COLUMNS = {
     "SELECT",
     "WHERE",
+    "HAVING",
     "ORDERBY",
     "GROUPBY",
     "ON",
@@ -55,6 +56,7 @@ SUBQUERY_PRECEDING_KEYWORDS = {
 COLUMNS_SECTIONS = {
     "SELECT": "select",
     "WHERE": "where",
+    "HAVING": "having",
     "ORDERBY": "order_by",
     "ON": "join",
     "USING": "join",
