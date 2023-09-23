@@ -461,3 +461,19 @@ def test_aliases_switching_column_names():
     parsed = Parser(query)
     assert parsed.columns == ["a", "b"]
     assert parsed.columns_dict == {"select": ["a", "b"]}
+
+
+def test_having_columns():
+    query = """
+    SELECT Country
+    FROM Customers
+    GROUP BY Country
+    HAVING COUNT(CustomerID) > 5;
+    """
+    parsed = Parser(query)
+    assert parsed.columns == ["Country", "CustomerID"]
+    assert parsed.columns_dict == {
+        "select": ["Country"],
+        "group_by": ["Country"],
+        "having": ["CustomerID"],
+    }
