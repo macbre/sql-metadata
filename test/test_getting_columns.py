@@ -472,7 +472,6 @@ def test_having_columns():
     """
     parsed = Parser(query)
     assert parsed.columns == ["Country", "CustomerID"]
-    print(parsed.columns_dict)
     assert parsed.columns_dict == {
         "select": ["Country"],
         "group_by": ["Country"],
