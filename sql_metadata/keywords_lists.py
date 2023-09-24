@@ -9,6 +9,7 @@ from enum import Enum
 KEYWORDS_BEFORE_COLUMNS = {
     "SELECT",
     "WHERE",
+    "HAVING",
     "ORDERBY",
     "GROUPBY",
     "ON",
@@ -28,6 +29,7 @@ TABLE_ADJUSTMENT_KEYWORDS = {
     "RIGHTJOIN",
     "LEFTOUTERJOIN",
     "RIGHTOUTERJOIN",
+    "NATURALJOIN",
     "INTO",
     "UPDATE",
     "TABLE",
@@ -49,6 +51,7 @@ SUBQUERY_PRECEDING_KEYWORDS = {
     "RIGHTJOIN",
     "LEFTOUTERJOIN",
     "RIGHTOUTERJOIN",
+    "NATURALJOIN",
 }
 
 # section of a query in which column can exists
@@ -56,6 +59,7 @@ SUBQUERY_PRECEDING_KEYWORDS = {
 COLUMNS_SECTIONS = {
     "SELECT": "select",
     "WHERE": "where",
+    "HAVING": "having",
     "ORDERBY": "order_by",
     "ON": "join",
     "USING": "join",

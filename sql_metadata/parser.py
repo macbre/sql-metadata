@@ -30,8 +30,9 @@ class Parser:  # pylint: disable=R0902
     Main class to parse sql query
     """
 
-    def __init__(self, sql: str = "") -> None:
+    def __init__(self, sql: str = "", disable_logging: bool = False) -> None:
         self._logger = logging.getLogger(self.__class__.__name__)
+        self._logger.disabled = disable_logging
 
         self._raw_query = sql
         self._query = self._preprocess_query()
@@ -66,6 +67,7 @@ class Parser:  # pylint: disable=R0902
         self._nested_level = 0
         self._parenthesis_level = 0
         self._open_parentheses: List[SQLToken] = []
+        self._preceded_keywords: List[SQLToken] = []
         self._aliases_to_check = None
         self._is_in_nested_function = False
         self._is_in_with_block = False
@@ -123,7 +125,7 @@ class Parser:  # pylint: disable=R0902
         return self._query_type
 
     @property
-    def tokens(self) -> List[SQLToken]:
+    def tokens(self) -> List[SQLToken]:  # noqa: C901
         """
         Tokenizes the query
         """
@@ -163,6 +165,8 @@ class Parser:  # pylint: disable=R0902
             elif token.is_right_parenthesis:
                 token.token_type = TokenType.PARENTHESIS
                 self._determine_closing_parenthesis_type(token=token)
+                if token.is_subquery_end:
+                    last_keyword = self._preceded_keywords.pop()
 
             last_keyword = self._determine_last_relevant_keyword(
                 token=token, last_keyword=last_keyword
@@ -356,6 +360,14 @@ class Parser:  # pylint: disable=R0902
                     )
                 ):
                     continue
+
+                # handle INSERT INTO ON DUPLICATE KEY UPDATE queries
+                if (
+                    token.last_keyword_normalized == "UPDATE"
+                    and self.query_type == "INSERT"
+                ):
+                    continue
+
                 table_name = str(token.value.strip("`"))
                 token.token_type = TokenType.TABLE
                 tables.append(table_name)
@@ -381,8 +393,12 @@ class Parser:  # pylint: disable=R0902
                 elif token.last_keyword_normalized == "OFFSET":
                     # OFFSET <offset>
                     offset = int(token.value)
-                elif token.previous_token.is_punctuation:
+                elif (
+                    token.previous_token.is_punctuation
+                    and token.last_keyword_normalized == "LIMIT"
+                ):
                     # LIMIT <offset>,<limit>
+                    #  enter this condition only when the limit has already been parsed
                     offset = limit
                     limit = int(token.value)
 
@@ -843,6 +859,7 @@ class Parser:  # pylint: disable=R0902
             # inside subquery / derived table
             token.is_subquery_start = True
             self._subquery_level += 1
+            self._preceded_keywords.append(token.last_keyword_normalized)
             token.subquery_level = self._subquery_level
         elif token.previous_token.normalized in KEYWORDS_BEFORE_COLUMNS.union({","}):
             # we are in columns and in a column subquery definition
@@ -957,6 +974,8 @@ class Parser:  # pylint: disable=R0902
         return query
 
     def _determine_last_relevant_keyword(self, token: SQLToken, last_keyword: str):
+        if token.value == "," and token.last_keyword_normalized == "ON":
+            return "FROM"
         if token.is_keyword and "".join(token.normalized.split()) in RELEVANT_KEYWORDS:
             if (
                 not (
