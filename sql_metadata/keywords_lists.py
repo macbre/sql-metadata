@@ -29,6 +29,7 @@ TABLE_ADJUSTMENT_KEYWORDS = {
     "RIGHTJOIN",
     "LEFTOUTERJOIN",
     "RIGHTOUTERJOIN",
+    "NATURALJOIN",
     "INTO",
     "UPDATE",
     "TABLE",
@@ -49,6 +50,7 @@ SUBQUERY_PRECEDING_KEYWORDS = {
     "RIGHTJOIN",
     "LEFTOUTERJOIN",
     "RIGHTOUTERJOIN",
+    "NATURALJOIN",
 }
 
 # section of a query in which column can exists
