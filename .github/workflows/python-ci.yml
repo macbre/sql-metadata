@@ -22,6 +22,7 @@ jobs:
         - "3.9"
         - "3.10"
         - "3.11"
+        - "3.12"
 
     steps:
     - uses: actions/checkout@v4
@@ -48,7 +49,7 @@ jobs:
     - name: Install Poetry
       uses: snok/install-poetry@v1.3.4
       with:
-        version: 1.3.2
+        version: latest
         virtualenvs-create: true
         virtualenvs-in-project: true
 
