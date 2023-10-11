@@ -426,6 +426,7 @@ class Parser:  # pylint: disable=R0902
                 token.last_keyword_normalized in TABLE_ADJUSTMENT_KEYWORDS
                 and (token.is_name or (token.is_keyword and not token.is_as_keyword))
                 and not token.next_token.is_as_keyword
+                and not token.value in RELEVANT_KEYWORDS
             ):
                 if token.previous_token.is_as_keyword:
                     # potential <DB.<SCHEMA>.<TABLE> as <ALIAS>
