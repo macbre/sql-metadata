@@ -272,6 +272,7 @@ def test_columns_with_comments():
     assert parser.columns == ["C1", "C2"]
     assert parser.columns_dict == {"select": ["C1", "C2"]}
 
+
 def test_columns_with_keyword_aliases():
     parser = Parser(
         "SELECT date_format(time_id,'%Y-%m-%d') AS date, pageviews AS cnt         "
@@ -484,6 +485,7 @@ def test_having_columns():
         "group_by": ["Country"],
         "having": ["CustomerID"],
     }
+
 
 def test_nested_queries():
     query = """

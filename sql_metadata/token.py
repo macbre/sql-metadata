@@ -228,7 +228,7 @@ class SQLToken:  # pylint: disable=R0902, R0904
             end_of_column = end_of_column.find_nearest_token(
                 [",", "FROM"], value_attribute="normalized", direction="right"
             )
-        
+
         if end_of_column is EmptyToken:
             return False
 

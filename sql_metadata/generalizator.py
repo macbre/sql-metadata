@@ -47,7 +47,7 @@ class Generalizator:
         :rtype: str
         """
         sql = sqlparse.format(self._raw_query, strip_comments=True)
-        sql = sql.replace('\n', ' ')
+        sql = sql.replace("\n", " ")
         sql = re.sub(r"[ \t]+", " ", sql)
         return sql
 
