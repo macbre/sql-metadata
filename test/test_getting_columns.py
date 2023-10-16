@@ -264,6 +264,13 @@ def test_columns_with_comments():
         "order_by": ["cl_sortkey"],
     }
 
+    parser = Parser(
+        """WITH aa AS --sdfsdfsdf 
+        (SELECT C1, C2 FROM T1) 
+        SELECT C1, C2 FROM aa"""
+    )
+    assert parser.columns == ["C1", "C2"]
+    assert parser.columns_dict == {"select": ["C1", "C2"]}
 
 def test_columns_with_keyword_aliases():
     parser = Parser(

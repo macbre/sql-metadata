@@ -369,6 +369,15 @@ class SQLToken:  # pylint: disable=R0902, R0904
             return self.next_token.next_token_not_comment
         return self.next_token
 
+    @property
+    def previous_token_not_comment(self):
+        """
+        Property returning previous non-comment token
+        """
+        if self.previous_token and self.previous_token.is_comment:
+            return self.previous_token.previous_token_not_comment
+        return self.previous_token
+
     def is_constraint_definition_inside_create_table_clause(
         self, query_type: str
     ) -> bool:

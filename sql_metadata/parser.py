@@ -865,7 +865,7 @@ class Parser:  # pylint: disable=R0902
             # we are in columns and in a column subquery definition
             token.is_column_definition_start = True
         elif (
-            token.previous_token.is_as_keyword
+            token.previous_token_not_comment.is_as_keyword
             and token.last_keyword_normalized != "WINDOW"
         ):
             # window clause also contains AS keyword, but it is not a query
