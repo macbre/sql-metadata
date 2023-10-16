@@ -47,7 +47,8 @@ class Generalizator:
         :rtype: str
         """
         sql = sqlparse.format(self._raw_query, strip_comments=True)
-        sql = re.sub(r"\s{2,}", " ", sql)
+        sql = sql.replace('\n', ' ')
+        sql = re.sub(r"[ \t]+", " ", sql)
         return sql
 
     @property

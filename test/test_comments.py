@@ -205,3 +205,11 @@ def test_next_token_not_comment_on_non_comments():
         select_tok.next_token.next_token
         == select_tok.next_token_not_comment.next_token_not_comment
     )
+
+
+def test_without_comments_for_multiline_query():
+    query = """SELECT * -- comment
+        FROM table
+        WHERE table.id = '123'"""
+    parser = Parser(query)
+    assert parser.without_comments == """SELECT * FROM table WHERE table.id = '123'"""
