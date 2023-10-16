@@ -533,12 +533,18 @@ class Parser:  # pylint: disable=R0902
                 ):
                     current_subquery.append(inner_token)
                     inner_token = inner_token.next_token
+
+                query_name = None
                 if inner_token.next_token.value in self.subqueries_names:
                     query_name = inner_token.next_token.value
-                else:
+                elif inner_token.next_token.is_as_keyword:
                     query_name = inner_token.next_token.next_token.value
+                elif inner_token.next_token.is_name:
+                    query_name = inner_token.next_token.value
+
                 subquery_text = "".join([x.stringified_token for x in current_subquery])
-                subqueries[query_name] = subquery_text
+                if query_name is not None:
+                    subqueries[query_name] = subquery_text
 
             token = token.next_token
 

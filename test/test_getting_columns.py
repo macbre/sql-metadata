@@ -484,3 +484,36 @@ def test_having_columns():
         "group_by": ["Country"],
         "having": ["CustomerID"],
     }
+
+def test_nested_queries():
+    query = """
+    SELECT max(dt) FROM
+        (
+         SELECT max(dt) as dt FROM t      
+      UNION ALL
+          SELECT max(dt) as dt FROM t2
+        )
+    """
+    parser = Parser(query)
+    assert parser.columns == ["dt"]
+    assert parser.columns_dict == {"select": ["dt"]}
+
+    query = """
+    SELECT max(dt) FROM
+        (
+         SELECT max(dt) as dt FROM t      
+        )
+    """
+    parser = Parser(query)
+    assert parser.columns == ["dt"]
+    assert parser.columns_dict == {"select": ["dt"]}
+
+    query = """
+    SELECT max(dt) FROM
+        (
+         SELECT dt FROM t      
+        )
+    """
+    parser = Parser(query)
+    assert parser.columns == ["dt"]
+    assert parser.columns_dict == {"select": ["dt"]}
