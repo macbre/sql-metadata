@@ -539,8 +539,6 @@ class Parser:  # pylint: disable=R0902
                     query_name = inner_token.next_token.value
                 elif inner_token.next_token.is_as_keyword:
                     query_name = inner_token.next_token.next_token.value
-                elif inner_token.next_token.is_name:
-                    query_name = inner_token.next_token.value
 
                 subquery_text = "".join([x.stringified_token for x in current_subquery])
                 if query_name is not None:
