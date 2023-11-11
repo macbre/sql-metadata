@@ -533,12 +533,16 @@ class Parser:  # pylint: disable=R0902
                 ):
                     current_subquery.append(inner_token)
                     inner_token = inner_token.next_token
+
+                query_name = None
                 if inner_token.next_token.value in self.subqueries_names:
                     query_name = inner_token.next_token.value
-                else:
+                elif inner_token.next_token.is_as_keyword:
                     query_name = inner_token.next_token.next_token.value
+
                 subquery_text = "".join([x.stringified_token for x in current_subquery])
-                subqueries[query_name] = subquery_text
+                if query_name is not None:
+                    subqueries[query_name] = subquery_text
 
             token = token.next_token
 
@@ -622,7 +626,7 @@ class Parser:  # pylint: disable=R0902
         """
         Removes comments from SQL query
         """
-        return Generalizator(self.query).without_comments
+        return Generalizator(self._raw_query).without_comments
 
     @property
     def generalize(self) -> str:
@@ -865,7 +869,7 @@ class Parser:  # pylint: disable=R0902
             # we are in columns and in a column subquery definition
             token.is_column_definition_start = True
         elif (
-            token.previous_token.is_as_keyword
+            token.previous_token_not_comment.is_as_keyword
             and token.last_keyword_normalized != "WINDOW"
         ):
             # window clause also contains AS keyword, but it is not a query

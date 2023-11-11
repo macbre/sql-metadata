@@ -264,6 +264,14 @@ def test_columns_with_comments():
         "order_by": ["cl_sortkey"],
     }
 
+    parser = Parser(
+        """WITH aa AS --sdfsdfsdf 
+        (SELECT C1, C2 FROM T1) 
+        SELECT C1, C2 FROM aa"""
+    )
+    assert parser.columns == ["C1", "C2"]
+    assert parser.columns_dict == {"select": ["C1", "C2"]}
+
 
 def test_columns_with_keyword_aliases():
     parser = Parser(
@@ -477,3 +485,37 @@ def test_having_columns():
         "group_by": ["Country"],
         "having": ["CustomerID"],
     }
+
+
+def test_nested_queries():
+    query = """
+    SELECT max(dt) FROM
+        (
+         SELECT max(dt) as dt FROM t      
+      UNION ALL
+          SELECT max(dt) as dt FROM t2
+        )
+    """
+    parser = Parser(query)
+    assert parser.columns == ["dt"]
+    assert parser.columns_dict == {"select": ["dt"]}
+
+    query = """
+    SELECT max(dt) FROM
+        (
+         SELECT max(dt) as dt FROM t      
+        )
+    """
+    parser = Parser(query)
+    assert parser.columns == ["dt"]
+    assert parser.columns_dict == {"select": ["dt"]}
+
+    query = """
+    SELECT max(dt) FROM
+        (
+         SELECT dt FROM t      
+        )
+    """
+    parser = Parser(query)
+    assert parser.columns == ["dt"]
+    assert parser.columns_dict == {"select": ["dt"]}
