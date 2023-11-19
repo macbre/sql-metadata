@@ -463,8 +463,8 @@ class Parser:  # pylint: disable=R0902
                         while token.next_token and not token.is_with_query_end:
                             token = token.next_token
                         is_end_of_with_block = (
-                            token.next_token_not_comment is None or
-                            token.next_token_not_comment.normalized
+                            token.next_token_not_comment is None
+                            or token.next_token_not_comment.normalized
                             in WITH_ENDING_KEYWORDS
                         )
                         if is_end_of_with_block:
