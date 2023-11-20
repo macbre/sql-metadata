@@ -470,3 +470,26 @@ def test_comment_between_with_and_query():
     assert parser.columns == ["column_1", "column_2"]
     assert parser.with_queries == {"cte_1": "SELECT column_1, column_2 FROM table_1"}
     assert parser.tables == ["table_1"]
+
+
+def test_identifier_syntax():
+    """
+    Specific for ClickHouse With indentifier syntax
+
+    https://clickhouse.com/docs/en/sql-reference/statements/select/with#examples
+    """
+
+    query = """
+        WITH
+            '2019-08-01 15:23:00' as ts_upper_bound
+        SELECT EventDate, EventTime
+        FROM hits
+        WHERE
+            EventDate = toDate(ts_upper_bound) AND
+            EventTime <= ts_upper_bound;
+    """
+
+    parser = Parser(query)
+
+    assert parser.tables == ["hits"]
+    assert parser.columns == ["EventDate", "EventTime", "ts_upper_bound"]

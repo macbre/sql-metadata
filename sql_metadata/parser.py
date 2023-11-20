@@ -463,7 +463,8 @@ class Parser:  # pylint: disable=R0902
                         while token.next_token and not token.is_with_query_end:
                             token = token.next_token
                         is_end_of_with_block = (
-                            token.next_token_not_comment.normalized
+                            token.next_token_not_comment is None
+                            or token.next_token_not_comment.normalized
                             in WITH_ENDING_KEYWORDS
                         )
                         if is_end_of_with_block:
@@ -504,7 +505,7 @@ class Parser:  # pylint: disable=R0902
                 True, value_attribute="is_with_query_end", direction="right"
             )
             query_token = with_start.next_token
-            while query_token != with_end:
+            while query_token is not None and query_token != with_end:
                 current_with_query.append(query_token)
                 query_token = query_token.next_token
             with_query_text = "".join([x.stringified_token for x in current_with_query])
