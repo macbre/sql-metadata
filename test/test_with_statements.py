@@ -1,3 +1,5 @@
+import pytest
+
 from sql_metadata import Parser
 from sql_metadata.keywords_lists import QueryType
 
@@ -493,3 +495,35 @@ def test_identifier_syntax():
 
     assert parser.tables == ["hits"]
     assert parser.columns == ["EventDate", "EventTime", "ts_upper_bound"]
+
+
+def test_as_was_preceded_by_with_query():
+    # fix
+    # When 'with .* as (.*) as ...', it should prompt an error instead of an infinite loop.
+    query = """
+        WITH
+        t1 (c1, c2) AS (SELECT * FROM t2) AS a1
+        SELECT 1;
+    """
+    parser = Parser(query)
+    with pytest.raises(ValueError, match="This query is wrong"):
+        parser.tables
+    
+    query = """
+        WITH
+            t1 as (SELECT * FROM t2) AS
+        SELECT 1;
+    """
+    parser = Parser(query)
+    with pytest.raises(ValueError, match="This query is wrong"):
+        parser.tables
+
+    query = """
+        WITH
+            '2023-01-01' as (date) AS
+        SELECT 1;
+    """
+    parser = Parser(query)
+    with pytest.raises(ValueError, match="This query is wrong"):
+        parser.tables
+    
