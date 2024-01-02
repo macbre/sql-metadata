@@ -668,6 +668,10 @@ class Parser:  # pylint: disable=R0902
             token.is_with_columns_end = True
             token.is_nested_function_end = False
             start_token = token.find_nearest_token("(")
+            # like: with (col1, col2) as (subquery) as ..., it enters an infinite loop.
+            # return exception
+            if start_token.is_with_query_start:
+                raise ValueError("This query is wrong")
             start_token.is_with_columns_start = True
             start_token.is_nested_function_start = False
             prev_token = start_token.previous_token
