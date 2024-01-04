@@ -977,7 +977,6 @@ class Parser:  # pylint: disable=R0902
         # as double quotes are not properly handled in sqlparse
         query = re.sub(r"'.*?'", replace_quotes_in_string, self._raw_query)
         query = re.sub(r'"([^`]+?)"', r"`\1`", query)
-        query = re.sub(r'"([^`]+?)"\."([^`]+?)"', r"`\1`.`\2`", query)
         query = re.sub(r"'.*?'", replace_back_quotes_in_string, query)
 
         return query
