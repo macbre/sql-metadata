@@ -19,7 +19,7 @@ sqlparse = "^0.4.1"
 [tool.poetry.dev-dependencies]
 black = "^23.12"
 coverage = {extras = ["toml"], version = "^6.5"}
-pylint = "^3.0.3"
+pylint = "^3.1.0"
 pytest = "^8.0.2"
 pytest-cov = "^4.1.0"
 coveralls = "^3.3.1"
