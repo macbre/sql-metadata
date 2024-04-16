@@ -1,6 +1,7 @@
 """
 Module used to produce generalized sql out of given query
 """
+
 import re
 import sqlparse
 

@@ -1,6 +1,7 @@
 """
 Module contains internal SQLToken that creates linked list
 """
+
 from typing import Dict, List, Union
 
 import sqlparse.sql
