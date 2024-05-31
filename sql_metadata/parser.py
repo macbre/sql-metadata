@@ -834,7 +834,8 @@ class Parser:  # pylint: disable=R0902
             return [resolved_column]
 
         if column_name == "*":
-            return subparser.columns
+            # return subparser.columns
+            return list(set(item for sublist in subparser.columns_dict['select'] for item in (sublist if isinstance(sublist, list) else [sublist])))
         try:
             column_index = [x.split(".")[-1] for x in subparser.columns].index(
                 column_name
