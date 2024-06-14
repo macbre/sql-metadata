@@ -85,19 +85,6 @@ class Parser:  # pylint: disable=R0902
         """
         return self._query.replace("\n", " ").replace("  ", " ")
 
-    @staticmethod
-    def get_switch_by_create_query(tokens: List[SQLToken], index: int) -> str:
-        switch = tokens[index].normalized + tokens[index + 1].normalized
-
-        # Hive CREATE FUNCTION
-        if any(
-            index + i < len(tokens) and tokens[index + i].normalized == "FUNCTION"
-            for i in (1, 2)
-        ):
-            switch = "CREATEFUNCTION"
-
-        return switch
-
     @property
     def query_type(self) -> str:
         """
@@ -1094,3 +1081,19 @@ class Parser:  # pylint: disable=R0902
                             yield tok
             else:
                 yield token
+
+    @staticmethod
+    def _get_switch_by_create_query(tokens: List[SQLToken], index: int) -> str:
+        """
+        Return the switch that creates query type.
+        """
+        switch = tokens[index].normalized + tokens[index + 1].normalized
+
+        # Hive CREATE FUNCTION
+        if any(
+            index + i < len(tokens) and tokens[index + i].normalized == "FUNCTION"
+            for i in (1, 2)
+        ):
+            switch = "CREATEFUNCTION"
+
+        return switch
