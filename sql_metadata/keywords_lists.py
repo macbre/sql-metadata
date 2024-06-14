@@ -108,6 +108,7 @@ SUPPORTED_QUERY_TYPES = {
     "CREATETABLE": QueryType.CREATE,
     "ALTERTABLE": QueryType.ALTER,
     "DROPTABLE": QueryType.DROP,
+    "CREATEFUNCTION": QueryType.CREATE,
 }
 
 # all the keywords we care for - rest is ignored in assigning
