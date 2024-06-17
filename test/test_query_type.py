@@ -93,3 +93,22 @@ def test_multiple_redundant_parentheses_create():
     """
     parser = Parser(query)
     assert parser.query_type == QueryType.CREATE
+
+
+def test_hive_create_function():
+    query = """
+        CREATE FUNCTION simple_udf AS 'com.example.hive.udf.SimpleUDF' 
+        USING JAR 'hdfs:///user/hive/udfs/simple-udf.jar'
+        WITH SERDEPROPERTIES (
+          "hive.udf.param1"="value1",
+          "hive.udf.param2"="value2"
+        );
+    """
+    parser = Parser(query)
+    assert parser.query_type == QueryType.CREATE
+
+    query = """
+        CREATE TEMPORARY FUNCTION myudf AS 'com.udf.myudf';
+    """
+    parser = Parser(query)
+    assert parser.query_type == QueryType.CREATE
