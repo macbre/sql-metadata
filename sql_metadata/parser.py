@@ -809,7 +809,8 @@ class Parser:  # pylint: disable=R0902
         return column if isinstance(column, list) else [column]
 
     @staticmethod
-    def _resolve_nested_query(
+    # pylint:disable=too-many-return-statements
+    def _resolve_nested_query(  # noqa: C901
         subquery_alias: str,
         nested_queries_names: List[str],
         nested_queries: Dict,
@@ -845,6 +846,9 @@ class Parser:  # pylint: disable=R0902
             # handle case when column name is used but subquery select all by wildcard
             if "*" in subparser.columns:
                 return column_name
+            for table in subparser.tables:
+                if f"{table}.*" in subparser.columns:
+                    return column_name
             raise exc  # pragma: no cover
         resolved_column = subparser.columns[column_index]
         return [resolved_column]
