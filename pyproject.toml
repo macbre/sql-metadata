@@ -17,7 +17,7 @@ python = "^3.8"
 sqlparse = ">=0.4.1,<0.6.0"
 
 [tool.poetry.dev-dependencies]
-black = "^24.4"
+black = "^24.8"
 coverage = {extras = ["toml"], version = "^6.5"}
 pylint = "^3.2.6"
 pytest = "^8.3.2"
