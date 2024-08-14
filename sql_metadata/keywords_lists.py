@@ -81,6 +81,7 @@ class QueryType(str, Enum):
     CREATE = "CREATE TABLE"
     ALTER = "ALTER TABLE"
     DROP = "DROP TABLE"
+    TRUNCATE = "TRUNCATE TABLE"
 
 
 class TokenType(str, Enum):
@@ -109,6 +110,7 @@ SUPPORTED_QUERY_TYPES = {
     "ALTERTABLE": QueryType.ALTER,
     "DROPTABLE": QueryType.DROP,
     "CREATEFUNCTION": QueryType.CREATE,
+    "TRUNCATETABLE": QueryType.TRUNCATE,
 }
 
 # all the keywords we care for - rest is ignored in assigning
