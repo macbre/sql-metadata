@@ -187,7 +187,7 @@ class SQLToken:  # pylint: disable=R0902, R0904
         """
         return (
             self.next_token.normalized in [",", "FROM"]
-            and self.previous_token.normalized not in [",", ".", "(", "SELECT"]
+            and self.previous_token.normalized not in ["*", ",", ".", "(", "SELECT"]
             and not self.previous_token.is_keyword
             and (
                 self.last_keyword_normalized == "SELECT"
@@ -229,6 +229,11 @@ class SQLToken:  # pylint: disable=R0902, R0904
             end_of_column = end_of_column.find_nearest_token(
                 [",", "FROM"], value_attribute="normalized", direction="right"
             )
+
+            # early return. end_of_column is EmptyToken.
+            if end_of_column.previous_token is None:
+                return False
+
         return end_of_column.previous_token.normalized == self.normalized
 
     @property
