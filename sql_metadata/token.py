@@ -187,7 +187,7 @@ class SQLToken:  # pylint: disable=R0902, R0904
         """
         return (
             self.next_token.normalized in [",", "FROM"]
-            and self.previous_token.normalized not in [",", ".", "(", "SELECT"]
+            and self.previous_token.normalized not in ["*", ",", ".", "(", "SELECT"]
             and not self.previous_token.is_keyword
             and (
                 self.last_keyword_normalized == "SELECT"
