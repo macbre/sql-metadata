@@ -116,7 +116,7 @@ class Parser:  # pylint: disable=R0902
         )
         if tokens[index].normalized == "CREATE":
             switch = self._get_switch_by_create_query(tokens, index)
-        elif tokens[index].normalized in ("ALTER", "DROP"):
+        elif tokens[index].normalized in ("ALTER", "DROP", "TRUNCATE"):
             switch = tokens[index].normalized + tokens[index + 1].normalized
         else:
             switch = tokens[index].normalized
