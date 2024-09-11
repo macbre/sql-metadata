@@ -186,3 +186,15 @@ def test_cast_in_select_with_function():
         "datekey": "testdb.test_table.date",
         "starttimekey": "testdb.test_table.starttime",
     }
+
+
+def test_nested_function():
+    query = """
+        SELECT a * b
+        FROM c
+        WHERE b = (SELECT MAX(b) FROM c);
+    """
+    parser = Parser(query)
+
+    assert parser.columns == ["a", "b"]
+    assert parser.tables == ["c"]

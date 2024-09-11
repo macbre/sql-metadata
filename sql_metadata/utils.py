@@ -1,6 +1,7 @@
 """
 Module with various utils
 """
+
 from typing import Any, List, Sequence
 
 

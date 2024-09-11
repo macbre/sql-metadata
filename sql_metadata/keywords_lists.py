@@ -9,6 +9,7 @@ from enum import Enum
 KEYWORDS_BEFORE_COLUMNS = {
     "SELECT",
     "WHERE",
+    "HAVING",
     "ORDERBY",
     "GROUPBY",
     "ON",
@@ -28,6 +29,7 @@ TABLE_ADJUSTMENT_KEYWORDS = {
     "RIGHTJOIN",
     "LEFTOUTERJOIN",
     "RIGHTOUTERJOIN",
+    "NATURALJOIN",
     "INTO",
     "UPDATE",
     "TABLE",
@@ -48,6 +50,7 @@ SUBQUERY_PRECEDING_KEYWORDS = {
     "RIGHTJOIN",
     "LEFTOUTERJOIN",
     "RIGHTOUTERJOIN",
+    "NATURALJOIN",
 }
 
 # section of a query in which column can exists
@@ -55,6 +58,7 @@ SUBQUERY_PRECEDING_KEYWORDS = {
 COLUMNS_SECTIONS = {
     "SELECT": "select",
     "WHERE": "where",
+    "HAVING": "having",
     "ORDERBY": "order_by",
     "ON": "join",
     "USING": "join",
@@ -77,6 +81,7 @@ class QueryType(str, Enum):
     CREATE = "CREATE TABLE"
     ALTER = "ALTER TABLE"
     DROP = "DROP TABLE"
+    TRUNCATE = "TRUNCATE TABLE"
 
 
 class TokenType(str, Enum):
@@ -104,6 +109,8 @@ SUPPORTED_QUERY_TYPES = {
     "CREATETABLE": QueryType.CREATE,
     "ALTERTABLE": QueryType.ALTER,
     "DROPTABLE": QueryType.DROP,
+    "CREATEFUNCTION": QueryType.CREATE,
+    "TRUNCATETABLE": QueryType.TRUNCATE,
 }
 
 # all the keywords we care for - rest is ignored in assigning

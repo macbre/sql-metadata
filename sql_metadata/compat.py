@@ -11,6 +11,7 @@ into:
 from sql_metadata.compat import get_query_columns, get_query_tables
 
 """
+
 # pylint:disable=missing-function-docstring
 from typing import List, Optional, Tuple
 
