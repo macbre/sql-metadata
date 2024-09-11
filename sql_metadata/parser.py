@@ -30,8 +30,9 @@ class Parser:  # pylint: disable=R0902
     Main class to parse sql query
     """
 
-    def __init__(self, sql: str = "") -> None:
+    def __init__(self, sql: str = "", disable_logging: bool = False) -> None:
         self._logger = logging.getLogger(self.__class__.__name__)
+        self._logger.disabled = disable_logging
 
         self._raw_query = sql
         self._query = self._preprocess_query()
@@ -66,6 +67,7 @@ class Parser:  # pylint: disable=R0902
         self._nested_level = 0
         self._parenthesis_level = 0
         self._open_parentheses: List[SQLToken] = []
+        self._preceded_keywords: List[SQLToken] = []
         self._aliases_to_check = None
         self._is_in_nested_function = False
         self._is_in_with_block = False
@@ -112,7 +114,9 @@ class Parser:  # pylint: disable=R0902
             )
             .position
         )
-        if tokens[index].normalized in ["CREATE", "ALTER", "DROP"]:
+        if tokens[index].normalized == "CREATE":
+            switch = self._get_switch_by_create_query(tokens, index)
+        elif tokens[index].normalized in ("ALTER", "DROP", "TRUNCATE"):
             switch = tokens[index].normalized + tokens[index + 1].normalized
         else:
             switch = tokens[index].normalized
@@ -123,7 +127,7 @@ class Parser:  # pylint: disable=R0902
         return self._query_type
 
     @property
-    def tokens(self) -> List[SQLToken]:
+    def tokens(self) -> List[SQLToken]:  # noqa: C901
         """
         Tokenizes the query
         """
@@ -163,6 +167,8 @@ class Parser:  # pylint: disable=R0902
             elif token.is_right_parenthesis:
                 token.token_type = TokenType.PARENTHESIS
                 self._determine_closing_parenthesis_type(token=token)
+                if token.is_subquery_end:
+                    last_keyword = self._preceded_keywords.pop()
 
             last_keyword = self._determine_last_relevant_keyword(
                 token=token, last_keyword=last_keyword
@@ -356,6 +362,14 @@ class Parser:  # pylint: disable=R0902
                     )
                 ):
                     continue
+
+                # handle INSERT INTO ON DUPLICATE KEY UPDATE queries
+                if (
+                    token.last_keyword_normalized == "UPDATE"
+                    and self.query_type == "INSERT"
+                ):
+                    continue
+
                 table_name = str(token.value.strip("`"))
                 token.token_type = TokenType.TABLE
                 tables.append(table_name)
@@ -381,8 +395,12 @@ class Parser:  # pylint: disable=R0902
                 elif token.last_keyword_normalized == "OFFSET":
                     # OFFSET <offset>
                     offset = int(token.value)
-                elif token.previous_token.is_punctuation:
+                elif (
+                    token.previous_token.is_punctuation
+                    and token.last_keyword_normalized == "LIMIT"
+                ):
                     # LIMIT <offset>,<limit>
+                    #  enter this condition only when the limit has already been parsed
                     offset = limit
                     limit = int(token.value)
 
@@ -447,7 +465,8 @@ class Parser:  # pylint: disable=R0902
                         while token.next_token and not token.is_with_query_end:
                             token = token.next_token
                         is_end_of_with_block = (
-                            token.next_token_not_comment.normalized
+                            token.next_token_not_comment is None
+                            or token.next_token_not_comment.normalized
                             in WITH_ENDING_KEYWORDS
                         )
                         if is_end_of_with_block:
@@ -488,7 +507,7 @@ class Parser:  # pylint: disable=R0902
                 True, value_attribute="is_with_query_end", direction="right"
             )
             query_token = with_start.next_token
-            while query_token != with_end:
+            while query_token is not None and query_token != with_end:
                 current_with_query.append(query_token)
                 query_token = query_token.next_token
             with_query_text = "".join([x.stringified_token for x in current_with_query])
@@ -517,12 +536,16 @@ class Parser:  # pylint: disable=R0902
                 ):
                     current_subquery.append(inner_token)
                     inner_token = inner_token.next_token
+
+                query_name = None
                 if inner_token.next_token.value in self.subqueries_names:
                     query_name = inner_token.next_token.value
-                else:
+                elif inner_token.next_token.is_as_keyword:
                     query_name = inner_token.next_token.next_token.value
+
                 subquery_text = "".join([x.stringified_token for x in current_subquery])
-                subqueries[query_name] = subquery_text
+                if query_name is not None:
+                    subqueries[query_name] = subquery_text
 
             token = token.next_token
 
@@ -606,7 +629,7 @@ class Parser:  # pylint: disable=R0902
         """
         Removes comments from SQL query
         """
-        return Generalizator(self.query).without_comments
+        return Generalizator(self._raw_query).without_comments
 
     @property
     def generalize(self) -> str:
@@ -647,6 +670,10 @@ class Parser:  # pylint: disable=R0902
             token.is_with_columns_end = True
             token.is_nested_function_end = False
             start_token = token.find_nearest_token("(")
+            # like: with (col1, col2) as (subquery) as ..., it enters an infinite loop.
+            # return exception
+            if start_token.is_with_query_start:
+                raise ValueError("This query is wrong")
             start_token.is_with_columns_start = True
             start_token.is_nested_function_start = False
             prev_token = start_token.previous_token
@@ -847,12 +874,13 @@ class Parser:  # pylint: disable=R0902
             # inside subquery / derived table
             token.is_subquery_start = True
             self._subquery_level += 1
+            self._preceded_keywords.append(token.last_keyword_normalized)
             token.subquery_level = self._subquery_level
         elif token.previous_token.normalized in KEYWORDS_BEFORE_COLUMNS.union({","}):
             # we are in columns and in a column subquery definition
             token.is_column_definition_start = True
         elif (
-            token.previous_token.is_as_keyword
+            token.previous_token_not_comment.is_as_keyword
             and token.last_keyword_normalized != "WINDOW"
         ):
             # window clause also contains AS keyword, but it is not a query
@@ -955,12 +983,13 @@ class Parser:  # pylint: disable=R0902
         # as double quotes are not properly handled in sqlparse
         query = re.sub(r"'.*?'", replace_quotes_in_string, self._raw_query)
         query = re.sub(r'"([^`]+?)"', r"`\1`", query)
-        query = re.sub(r'"([^`]+?)"\."([^`]+?)"', r"`\1`.`\2`", query)
         query = re.sub(r"'.*?'", replace_back_quotes_in_string, query)
 
         return query
 
     def _determine_last_relevant_keyword(self, token: SQLToken, last_keyword: str):
+        if token.value == "," and token.last_keyword_normalized == "ON":
+            return "FROM"
         if token.is_keyword and "".join(token.normalized.split()) in RELEVANT_KEYWORDS:
             if (
                 not (
@@ -1056,3 +1085,19 @@ class Parser:  # pylint: disable=R0902
                             yield tok
             else:
                 yield token
+
+    @staticmethod
+    def _get_switch_by_create_query(tokens: List[SQLToken], index: int) -> str:
+        """
+        Return the switch that creates query type.
+        """
+        switch = tokens[index].normalized + tokens[index + 1].normalized
+
+        # Hive CREATE FUNCTION
+        if any(
+            index + i < len(tokens) and tokens[index + i].normalized == "FUNCTION"
+            for i in (1, 2)
+        ):
+            switch = "CREATEFUNCTION"
+
+        return switch
