@@ -219,7 +219,7 @@ class Parser:  # pylint: disable=R0902
                     self._handle_column_save(token=token, columns=columns)
 
                 elif token.is_column_name_inside_insert_clause:
-                    column = str(token.value).strip("`")
+                    column = str(token.value)
                     self._add_to_columns_subsection(
                         keyword=token.last_keyword_normalized, column=column
                     )
@@ -369,10 +369,8 @@ class Parser:  # pylint: disable=R0902
                     and self.query_type == "INSERT"
                 ):
                     continue
-
-                table_name = str(token.value.strip("`"))
                 token.token_type = TokenType.TABLE
-                tables.append(table_name)
+                tables.append(str(token.value))
 
         self._tables = tables - with_names
         return self._tables
@@ -1013,6 +1011,8 @@ class Parser:  # pylint: disable=R0902
         Checks if token is a part of complex identifier like
         <schema>.<table>.<column> or <table/sub_query>.<column>
         """
+        if token.is_keyword:
+            return False
         return str(token) == "." or (
             index + 1 < self.tokens_length
             and str(self.non_empty_tokens[index + 1]) == "."
@@ -1026,16 +1026,19 @@ class Parser:  # pylint: disable=R0902
         is_complex = True
         while is_complex:
             value, is_complex = self._combine_tokens(index=index, value=value)
-            index = index - 2
+            index = index - 1
         token.value = value
 
     def _combine_tokens(self, index: int, value: str) -> Tuple[str, bool]:
         """
         Checks if complex identifier is longer and follows back until it's finished
         """
-        if index > 1 and str(self.non_empty_tokens[index - 1]) == ".":
-            prev_value = self.non_empty_tokens[index - 2].value.strip("`").strip('"')
-            value = f"{prev_value}.{value}"
+        if index > 1:
+            prev_value = self.non_empty_tokens[index - 1]
+            if not self._is_token_part_of_complex_identifier(prev_value, index - 1):
+                return value, False
+            prev_value = str(prev_value).strip("`")
+            value = f"{prev_value}{value}"
             return value, True
         return value, False
 
