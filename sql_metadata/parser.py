@@ -144,7 +144,8 @@ class Parser:  # pylint: disable=R0902
         combine_flag = False
         for index, tok in enumerate(self.non_empty_tokens):
             # combine dot separated identifiers
-            if self._is_token_part_of_complex_identifier(token=tok, index=index):
+            #import ipdb; ipdb.set_trace()
+            if not tok.is_keyword and self._is_token_part_of_complex_identifier(token=tok, index=index):
                 combine_flag = True
                 continue
             token = SQLToken(
@@ -1033,15 +1034,16 @@ class Parser:  # pylint: disable=R0902
         Checks if complex identifier is longer and follows back until it's finished
         """
         keep_going = False
-        #import ipdb; ipdb.set_trace()
         if index > 1:
             prev_value = self.non_empty_tokens[index - 1]
-            prev_value = str(prev_value).strip('`')
-            if prev_value == ".":
+            if prev_value.is_keyword:
+                return value, False
+            if str(prev_value) == ".":
                keep_going = True
             if str(self.non_empty_tokens[index - 2]) == ".":
                 keep_going = True
-            value = f"{prev_value.strip('`')}{value}"
+            prev_value = str(prev_value).strip('`')
+            value = f"{prev_value}{value}"
             return value, keep_going
         return value, False
 

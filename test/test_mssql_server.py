@@ -6,7 +6,7 @@ from sql_metadata.parser import Parser
  "query, expected",
  [
     pytest.param("SELECT * FROM mydb..test_table", ["mydb..test_table"], id='Default schema, db qualified'),
-    #pytest.param("SELECT * FROM ..test_table", ["..test_table"], id='Default schema, db unqualified'),
+    pytest.param("SELECT * FROM ..test_table", ["..test_table"], id='Default schema, db unqualified'),
  ]
 )
 def test_simple_queries_tables(query, expected):
