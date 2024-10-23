@@ -219,7 +219,7 @@ class Parser:  # pylint: disable=R0902
                     self._handle_column_save(token=token, columns=columns)
 
                 elif token.is_column_name_inside_insert_clause:
-                    column = str(token.value).strip("`")
+                    column = str(token.value)
                     self._add_to_columns_subsection(
                         keyword=token.last_keyword_normalized, column=column
                     )
@@ -350,6 +350,7 @@ class Parser:  # pylint: disable=R0902
         with_names = self.with_names
 
         for token in self._not_parsed_tokens:
+            #import ipdb; ipdb.set_trace()
             if token.is_potential_table_name:
                 if (
                     token.is_alias_of_table_or_alias_of_subquery
@@ -369,10 +370,8 @@ class Parser:  # pylint: disable=R0902
                     and self.query_type == "INSERT"
                 ):
                     continue
-
-                table_name = str(token.value.strip("`"))
                 token.token_type = TokenType.TABLE
-                tables.append(table_name)
+                tables.append(str(token.value))
 
         self._tables = tables - with_names
         return self._tables
@@ -1026,17 +1025,24 @@ class Parser:  # pylint: disable=R0902
         is_complex = True
         while is_complex:
             value, is_complex = self._combine_tokens(index=index, value=value)
-            index = index - 2
+            index = index - 1
         token.value = value
 
     def _combine_tokens(self, index: int, value: str) -> Tuple[str, bool]:
         """
         Checks if complex identifier is longer and follows back until it's finished
         """
-        if index > 1 and str(self.non_empty_tokens[index - 1]) == ".":
-            prev_value = self.non_empty_tokens[index - 2].value.strip("`").strip('"')
-            value = f"{prev_value}.{value}"
-            return value, True
+        keep_going = False
+        #import ipdb; ipdb.set_trace()
+        if index > 1:
+            prev_value = self.non_empty_tokens[index - 1]
+            prev_value = str(prev_value).strip('`')
+            if prev_value == ".":
+               keep_going = True
+            if str(self.non_empty_tokens[index - 2]) == ".":
+                keep_going = True
+            value = f"{prev_value.strip('`')}{value}"
+            return value, keep_going
         return value, False
 
     def _get_sqlparse_tokens(self, parsed) -> None:
