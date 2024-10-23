@@ -144,8 +144,7 @@ class Parser:  # pylint: disable=R0902
         combine_flag = False
         for index, tok in enumerate(self.non_empty_tokens):
             # combine dot separated identifiers
-            #import ipdb; ipdb.set_trace()
-            if not tok.is_keyword and self._is_token_part_of_complex_identifier(token=tok, index=index):
+            if self._is_token_part_of_complex_identifier(token=tok, index=index):
                 combine_flag = True
                 continue
             token = SQLToken(
@@ -351,7 +350,6 @@ class Parser:  # pylint: disable=R0902
         with_names = self.with_names
 
         for token in self._not_parsed_tokens:
-            #import ipdb; ipdb.set_trace()
             if token.is_potential_table_name:
                 if (
                     token.is_alias_of_table_or_alias_of_subquery
@@ -1013,6 +1011,8 @@ class Parser:  # pylint: disable=R0902
         Checks if token is a part of complex identifier like
         <schema>.<table>.<column> or <table/sub_query>.<column>
         """
+        if token.is_keyword:
+            return False
         return str(token) == "." or (
             index + 1 < self.tokens_length
             and str(self.non_empty_tokens[index + 1]) == "."
@@ -1033,18 +1033,13 @@ class Parser:  # pylint: disable=R0902
         """
         Checks if complex identifier is longer and follows back until it's finished
         """
-        keep_going = False
         if index > 1:
             prev_value = self.non_empty_tokens[index - 1]
-            if prev_value.is_keyword:
+            if not self._is_token_part_of_complex_identifier(prev_value, index-1):
                 return value, False
-            if str(prev_value) == ".":
-               keep_going = True
-            if str(self.non_empty_tokens[index - 2]) == ".":
-                keep_going = True
             prev_value = str(prev_value).strip('`')
             value = f"{prev_value}{value}"
-            return value, keep_going
+            return value, True
         return value, False
 
     def _get_sqlparse_tokens(self, parsed) -> None:
