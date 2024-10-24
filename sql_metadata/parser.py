@@ -1035,9 +1035,9 @@ class Parser:  # pylint: disable=R0902
         """
         if index > 1:
             prev_value = self.non_empty_tokens[index - 1]
-            if not self._is_token_part_of_complex_identifier(prev_value, index-1):
+            if not self._is_token_part_of_complex_identifier(prev_value, index - 1):
                 return value, False
-            prev_value = str(prev_value).strip('`')
+            prev_value = str(prev_value).strip("`")
             value = f"{prev_value}{value}"
             return value, True
         return value, False
