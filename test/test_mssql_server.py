@@ -1,4 +1,35 @@
+import pytest
+
 from sql_metadata.parser import Parser
+
+
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        pytest.param(
+            "SELECT * FROM mydb..test_table",
+            ["mydb..test_table"],
+            id="Default schema, db qualified",
+        ),
+        pytest.param(
+            "SELECT * FROM ..test_table",
+            ["..test_table"],
+            id="Default schema, db unqualified",
+        ),
+        pytest.param(
+            "SELECT * FROM [mydb].[dbo].[test_table]",
+            ["[mydb].[dbo].[test_table]"],
+            id="With object identifier delimiters",
+        ),
+        pytest.param(
+            "SELECT * FROM [my_server].[mydb].[dbo].[test_table]",
+            ["[my_server].[mydb].[dbo].[test_table]"],
+            id="With linked-server and object identifier delimiters",
+        ),
+    ],
+)
+def test_simple_queries_tables(query, expected):
+    assert Parser(query).tables == expected
 
 
 def test_sql_server_cte():
