@@ -134,7 +134,8 @@ class Parser:  # pylint: disable=R0902
         if self._tokens is not None:
             return self._tokens
 
-        parsed = sqlparse.parse(self._query)
+        # allow parser to be overriden
+        parsed = self._parse(self._query)
         tokens = []
         # handle empty queries (#12)
         if not parsed:
@@ -1104,3 +1105,10 @@ class Parser:  # pylint: disable=R0902
             switch = "CREATEFUNCTION"
 
         return switch
+
+    @staticmethod
+    def _parse(sql: str) -> Tuple[sqlparse.sql.Statement]:
+        """
+        Parse the SQL query using sqlparse library
+        """
+        return sqlparse.parse(sql)
