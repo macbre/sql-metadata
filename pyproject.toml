@@ -13,7 +13,7 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.9"
 sqlparse = ">=0.4.1,<0.6.0"
 
 [tool.poetry.dev-dependencies]
@@ -22,7 +22,6 @@ coverage = {extras = ["toml"], version = "^6.5"}
 pylint = "^3.2.7"
 pytest = "^8.3.4"
 pytest-cov = "^5.0.0"
-coveralls = "^3.3.1"
 flake8 = "^5.0.4"
 
 [build-system]
