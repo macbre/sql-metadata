@@ -125,6 +125,7 @@ RELEVANT_KEYWORDS = {
     "RETURNING",
     "VALUES",
     "INDEX",
+    "KEY",
     "WITH",
     "WINDOW",
 }
