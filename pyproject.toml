@@ -22,7 +22,7 @@ coverage = {extras = ["toml"], version = "^7.9"}
 pylint = "^3.3.7"
 pytest = "^8.4.1"
 pytest-cov = "^6.2.1"
-flake8 = "^7.2.0"
+flake8 = "^7.3.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
