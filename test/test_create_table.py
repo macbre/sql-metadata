@@ -164,3 +164,15 @@ def test_create_if_not_exists_simple_name():
     assert parser.query_type == QueryType.CREATE
     assert parser.tables == ["analytics_table"]
     assert parser.columns == ["version", "created_date"]
+
+
+def test_create_temporary_table():
+    # https://dev.mysql.com/doc/refman/8.4/en/create-temporary-table.html
+    parser = Parser(
+        """
+    CREATE TEMPORARY TABLE new_tbl SELECT * FROM orig_tbl LIMIT 0;;
+    """
+    )
+    assert parser.query_type == QueryType.CREATE
+    assert parser.tables == ["new_tbl", "orig_tbl"]
+    assert parser.columns == ["*"]
