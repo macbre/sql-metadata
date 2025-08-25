@@ -65,6 +65,7 @@ COLUMNS_SECTIONS = {
     "INTO": "insert",
     "SET": "update",
     "GROUPBY": "group_by",
+    "INNERJOIN": "inner_join",
 }
 
 
