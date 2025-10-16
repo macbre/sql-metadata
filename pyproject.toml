@@ -21,7 +21,7 @@ black = "^25.9"
 coverage = {extras = ["toml"], version = "^7.10"}
 pylint = "^3.3.9"
 pytest = "^8.4.2"
-pytest-cov = "^6.3.0"
+pytest-cov = "^7.0.0"
 flake8 = "^7.3.0"
 
 [build-system]
