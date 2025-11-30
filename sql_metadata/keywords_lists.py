@@ -33,6 +33,7 @@ TABLE_ADJUSTMENT_KEYWORDS = {
     "INTO",
     "UPDATE",
     "TABLE",
+    "IFNOTEXISTS",
 }
 
 # next statement beginning after with statement
