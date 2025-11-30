@@ -1005,6 +1005,7 @@ class Parser:  # pylint: disable=R0902
                     and self._open_parentheses[-1].is_partition_clause_start
                 )
                 and not (token.normalized == "USING" and last_keyword == "SELECT")
+                and not (token.normalized == "IFNOTEXISTS")
             ):
                 last_keyword = token.normalized
         return last_keyword
