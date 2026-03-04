@@ -447,7 +447,7 @@ class Parser:  # pylint: disable=R0902
         return self._table_aliases
 
     @property
-    def with_names(self) -> List[str]:
+    def with_names(self) -> List[str]:  # noqa: C901
         """
         Returns with statements aliases list from a given query
 
@@ -474,6 +474,12 @@ class Parser:  # pylint: disable=R0902
                         )
                         if is_end_of_with_block:
                             self._is_in_with_block = False
+                        elif token.next_token and token.next_token.is_as_keyword:
+                            # Malformed SQL like "... AS (...) AS ..."
+                            raise ValueError("This query is wrong")
+                        else:
+                            # Advance token to prevent infinite loop
+                            token = token.next_token
                     else:
                         token = token.next_token
 

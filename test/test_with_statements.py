@@ -526,3 +526,15 @@ def test_as_was_preceded_by_with_query():
     parser = Parser(query)
     with pytest.raises(ValueError, match="This query is wrong"):
         parser.tables
+
+
+def test_malformed_with_query_hang():
+    # Test for issue #556 - malformed WITH query causes infinite loop
+    # https://github.com/macbre/sql-metadata/issues/556
+    query = """WITH a AS (SELECT  MAX(b) AS c
+        FROM    d
+        WHERE   domain =e''$.f') AS g
+    FROM    h;"""
+    parser = Parser(query)
+    with pytest.raises(ValueError, match="This query is wrong"):
+        parser.tables
