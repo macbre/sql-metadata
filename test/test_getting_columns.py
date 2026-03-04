@@ -541,3 +541,24 @@ def test_double_inner_join():
     parser = Parser(query)
     assert "loan.account_id" in parser.columns
     assert parser.tables == ["loan", "account"]
+
+
+def test_keyword_column_source():
+    """
+    https://github.com/macbre/sql-metadata/issues/594
+    """
+    # Test with 'source' as last column
+    parser = Parser("select foo, bar, source from my_table")
+    assert parser.columns == ["foo", "bar", "source"]
+
+    # Test with 'source' in the middle
+    parser = Parser("select foo, source, bar from my_table")
+    assert parser.columns == ["foo", "source", "bar"]
+
+    # Test with 'source' as first column
+    parser = Parser("select source, foo, bar from my_table")
+    assert parser.columns == ["source", "foo", "bar"]
+
+    # Test with 'source' as only column
+    parser = Parser("select source from my_table")
+    assert parser.columns == ["source"]

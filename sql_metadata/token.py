@@ -176,7 +176,7 @@ class SQLToken:  # pylint: disable=R0902, R0904
             self.is_keyword
             and self.normalized not in RELEVANT_KEYWORDS
             and self.previous_token.normalized in [",", "SELECT"]
-            and self.next_token.normalized in [",", "AS"]
+            and self.next_token.normalized in [",", "AS", "FROM"]
         )
 
     @property
