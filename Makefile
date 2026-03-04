@@ -5,7 +5,7 @@ test:
 	poetry run pytest -vv
 
 coverage:
-	poetry run pytest -vv --cov=sql_metadata --cov-report=term --cov-report=xml
+	poetry run pytest -vv --cov=sql_metadata --cov-report=term --cov-report=html
 
 lint:
 	poetry run flake8 sql_metadata

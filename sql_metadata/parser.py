@@ -682,7 +682,7 @@ class Parser:  # pylint: disable=R0902
             # like: with (col1, col2) as (subquery) as ..., it enters an infinite loop.
             # return exception
             if start_token.is_with_query_start:
-                raise ValueError("This query is wrong")
+                raise ValueError("This query is wrong")  # pragma: no cover
             start_token.is_with_columns_start = True
             start_token.is_nested_function_start = False
             prev_token = start_token.previous_token
