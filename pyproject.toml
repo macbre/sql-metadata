@@ -20,7 +20,7 @@ sqlparse = ">=0.4.1,<0.6.0"
 black = "^25.11"
 coverage = {extras = ["toml"], version = "^7.13"}
 pylint = "^3.3.9"
-pytest = "^8.4.2"
+pytest = "^9.0.2"
 pytest-cov = "^7.0.0"
 flake8 = "^7.3.0"
 
