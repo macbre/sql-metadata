@@ -410,14 +410,12 @@ def test_resolving_columns_in_sub_queries_functions():
 
 
 def test_readme_query():
-    parser = Parser(
-        """
+    parser = Parser("""
         SELECT COUNT(1) FROM
         (SELECT std.task_id FROM some_task_detail std WHERE std.STATUS = 1) a
         JOIN (SELECT st.task_id FROM some_task st WHERE task_type_id = 80) b
         ON a.task_id = b.task_id;
-        """
-    )
+        """)
     assert parser.subqueries == {
         "a": "SELECT std.task_id FROM some_task_detail std WHERE std.STATUS = 1",
         "b": "SELECT st.task_id FROM some_task st WHERE task_type_id = 80",

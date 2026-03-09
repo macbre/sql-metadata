@@ -39,8 +39,7 @@ def test_sql_server_cte():
     @see https://www.sqlservertutorial.net/sql-server-basics/sql-server-cte/
     """
 
-    parser = Parser(
-        """
+    parser = Parser("""
         WITH x AS (
             SELECT * FROM n
         )
@@ -48,15 +47,13 @@ def test_sql_server_cte():
             *
         FROM x
         JOIN y ON x.a = y.a
-        """
-    )
+        """)
     assert parser.tables == ["n", "y"]
     assert parser.with_names == ["x"]
     assert parser.with_queries == {"x": "SELECT * FROM n"}
     assert parser.columns == ["*", "a", "y.a"]
 
-    parser = Parser(
-        """
+    parser = Parser("""
             WITH x AS (
                 SELECT * FROM n
             )
@@ -64,28 +61,23 @@ def test_sql_server_cte():
                 *
             FROM x
             JOIN y ON x.a = y.a
-        """
-    )
+        """)
     assert parser.tables == ["n", "y"]
 
-    parser = Parser(
-        """
+    parser = Parser("""
         WITH foo AS (
             SELECT * FROM n
         )
         UPDATE z from foo set z.q = foo.y
-        """
-    )
+        """)
     assert parser.tables == ["n", "z"]
 
-    parser = Parser(
-        """
+    parser = Parser("""
         WITH foo AS (
              SELECT * FROM tab
         )
         DELETE FROM z JOIN foo ON z.a = foo.a
-        """
-    )
+        """)
     assert parser.tables == ["tab", "z"]
 
 
@@ -133,8 +125,7 @@ def test_sql_server_cte_sales_by_year():
 
 def test_partition_over_with_rank_and_one_order():
     """Test for #204"""
-    parser = Parser(
-        """
+    parser = Parser("""
         select t.RANKED, t.RANKED_two, t.test from (
         SELECT
         RANK() OVER (PARTITION BY col_one ORDER BY col_two) RANKED,
@@ -144,8 +135,7 @@ def test_partition_over_with_rank_and_one_order():
         where t.RANKED = 1
         and t.RANKED_two = 2
         order by test
-        """
-    )
+        """)
     assert parser.tables == ["nice_table"]
     assert parser.columns_aliases_names == ["RANKED", "RANKED_two", "test"]
     assert parser.columns_aliases == {
@@ -163,8 +153,7 @@ def test_partition_over_with_rank_and_one_order():
 
 def test_partition_over_with_row_number_and_many_orders():
     """Test for #204"""
-    parser = Parser(
-        """
+    parser = Parser("""
         select t.row_no, t.row_no_two, t.test from (
         SELECT
         ROW_NUMBER() OVER (
@@ -178,8 +167,7 @@ def test_partition_over_with_row_number_and_many_orders():
         where t.row_no = 1
         and t.row_no_two = 2
         order by t.row_no
-        """
-    )
+        """)
     assert parser.tables == ["nice_table"]
     assert parser.columns_aliases_names == ["row_no", "row_no_two", "test"]
     assert parser.columns_aliases == {

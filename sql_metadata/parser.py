@@ -2,6 +2,7 @@
 """
 This module provides SQL query parsing functions
 """
+
 import logging
 import re
 from typing import Dict, List, Optional, Set, Tuple, Union

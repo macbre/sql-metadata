@@ -100,14 +100,9 @@ def test_complex_query_tables():
 
     # test whitespaces in keywords
     # @see https://github.com/macbre/sql-metadata/issues/80
-    assert (
-        ["tab", "tab2"]
-        == Parser(
-            """SELECT a,b,c from tab
+    assert ["tab", "tab2"] == Parser("""SELECT a,b,c from tab
     full  outer \r\n\t  join tab2  on (col1 = col2) group
-\r\n   \t   by  a, b, c """
-        ).tables
-    )
+\r\n   \t   by  a, b, c """).tables
 
 
 def test_joins():
@@ -291,16 +286,11 @@ def test_table_name_with_group_by():
         == expected_tables
     )
 
-    assert (
-        Parser(
-            """
+    assert Parser("""
                     SELECT s.cust_id,count(s.cust_id) FROM SH.sales s
                     GROUP BY s.cust_id HAVING s.cust_id != '1660'
                     AND s.cust_id != '2'
-                    """.strip()
-        ).tables
-        == expected_tables
-    )
+                    """.strip()).tables == expected_tables
 
 
 def test_datasets():
@@ -344,31 +334,21 @@ def test_unions():
 
 
 def test_with_brackets():
-    assert (
-        ["database1.table1", "database2.table2"]
-        == Parser(
-            """
+    assert ["database1.table1", "database2.table2"] == Parser("""
 SELECT
 "xxxxx"
 FROM
 (database1.table1 alias
 LEFT JOIN database2.table2 ON ("tt"."ttt"."fff" = "xx"."xxx"))
-"""
-        ).tables
-    )
+""").tables
 
-    assert (
-        ["inner_table"]
-        == Parser(
-            """
+    assert ["inner_table"] == Parser("""
 SELECT
 t.foo
 FROM
 (SELECT foo FROM inner_table
 WHERE bar = '1') t
-"""
-        ).tables
-    )
+""").tables
 
 
 def test_db2_query():
@@ -725,16 +705,14 @@ def test_join_followed_by_tables():
     parser = Parser(query)
     assert parser.tables == ["web_sales", "web_returns", "date_dim", "web_site"]
 
-    parser = Parser(
-        """
+    parser = Parser("""
     SELECT * 
     FROM Sales 
         JOIN Customers 
             ON Sales.CustomerID = Customers.CustomerID, 
         (SELECT MAX(Revenue) FROM Sales),
         Stores
-    """
-    )
+    """)
     assert parser.tables == ["Sales", "Customers", "Stores"]
 
 

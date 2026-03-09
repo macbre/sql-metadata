@@ -92,15 +92,10 @@ def test_getting_columns():
         "test",
     ]
     assert Parser("SELECT /* a comment */ bar FROM test_table").columns == ["bar"]
-    assert (
-        Parser(
-            """
+    assert Parser("""
                 WITH foo AS (SELECT test_table.* FROM test_table)
                 SELECT foo.bar FROM foo
-            """
-        ).columns
-        == ["test_table.*", "bar"]
-    )
+            """).columns == ["test_table.*", "bar"]
 
 
 def test_columns_with_order_by():
@@ -273,11 +268,9 @@ def test_columns_with_comments():
         "order_by": ["cl_sortkey"],
     }
 
-    parser = Parser(
-        """WITH aa AS --sdfsdfsdf 
+    parser = Parser("""WITH aa AS --sdfsdfsdf 
         (SELECT C1, C2 FROM T1) 
-        SELECT C1, C2 FROM aa"""
-    )
+        SELECT C1, C2 FROM aa""")
     assert parser.columns == ["C1", "C2"]
     assert parser.columns_dict == {"select": ["C1", "C2"]}
 
