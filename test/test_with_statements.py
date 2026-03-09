@@ -5,8 +5,7 @@ from sql_metadata.keywords_lists import QueryType
 
 
 def test_with_statements():
-    parser = Parser(
-        """
+    parser = Parser("""
 WITH
 database1.tableFromWith AS (SELECT aa.* FROM table3 as aa
                             left join table4 on aa.col1=table4.col2),
@@ -16,8 +15,7 @@ SELECT
 FROM
 database1.tableFromWith alias
 LEFT JOIN database2.table2 ON ("tt"."ttt"."fff" = "xx"."xxx")
-"""
-    )
+""")
     assert parser.tables == ["table3", "table4", "database2.table2"]
     assert parser.with_names == ["database1.tableFromWith", "test"]
     assert parser.with_queries == {
@@ -25,8 +23,7 @@ LEFT JOIN database2.table2 ON ("tt"."ttt"."fff" = "xx"."xxx")
         "aa.col1 = table4.col2",
         "test": "SELECT * from table3",
     }
-    parser = Parser(
-        """
+    parser = Parser("""
 WITH
 database1.tableFromWith AS (SELECT * FROM table3),
 database1.tableFromWith2 AS (SELECT * FROM table4),
@@ -37,8 +34,7 @@ SELECT
 FROM
 database1.tableFromWith alias
 LEFT JOIN database2.table2 ON ("tt"."ttt"."fff" = "xx"."xxx")
-"""
-    )
+""")
 
     assert parser.with_names == [
         "database1.tableFromWith",
@@ -54,15 +50,13 @@ LEFT JOIN database2.table2 ON ("tt"."ttt"."fff" = "xx"."xxx")
     }
     assert parser.tables == ["table3", "table4", "table5", "table6", "database2.table2"]
 
-    parser = Parser(
-        """
+    parser = Parser("""
 WITH
 cte1 AS (SELECT a, b FROM table1),
 cte2 AS (SELECT c, d FROM table2)
 SELECT cte1.b, d FROM cte1 JOIN cte2
 WHERE cte1.a = cte2.c;
-"""
-    )
+""")
 
     assert parser.with_names == ["cte1", "cte2"]
     assert parser.with_queries == {

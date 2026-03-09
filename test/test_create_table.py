@@ -19,29 +19,25 @@ def test_is_create_table_query():
 
 
 def test_create_table():
-    parser = Parser(
-        """
+    parser = Parser("""
 CREATE TABLE `new_table` (
     `item_id` int(9) NOT NULL AUTO_INCREMENT,
     `foo` varchar(16) NOT NULL DEFAULT '',
     PRIMARY KEY (`item_id`,`foo`),
     KEY `idx_foo` (`foo`)
 ) CHARACTER SET utf8;
-    """
-    )
+    """)
     assert parser.query_type == QueryType.CREATE
     assert parser.tables == ["new_table"]
     assert parser.columns == ["item_id", "foo"]
 
 
 def test_simple_create_table_as_select():
-    parser = Parser(
-        """
+    parser = Parser("""
     CREATE table abc.foo
     as SELECT pqr.foo1 , ab.foo2
     FROM foo pqr, bar ab;
-    """
-    )
+    """)
     assert parser.query_type == QueryType.CREATE
     assert parser.tables == ["abc.foo", "foo", "bar"]
     assert parser.columns == ["foo.foo1", "bar.foo2"]
@@ -168,11 +164,9 @@ def test_create_if_not_exists_simple_name():
 
 def test_create_temporary_table():
     # https://dev.mysql.com/doc/refman/8.4/en/create-temporary-table.html
-    parser = Parser(
-        """
+    parser = Parser("""
     CREATE TEMPORARY TABLE new_tbl SELECT * FROM orig_tbl LIMIT 0;;
-    """
-    )
+    """)
     assert parser.query_type == QueryType.CREATE
     assert parser.tables == ["new_tbl", "orig_tbl"]
     assert parser.columns == ["*"]
