@@ -9,26 +9,28 @@ from sqlglot import exp
 from sql_metadata.utils import UniqueList
 
 
-def _table_full_name(table: exp.Table, raw_sql: str = "") -> str:
+def _table_full_name(
+    table: exp.Table, raw_sql: str = "", bracket_mode: bool = False
+) -> str:
     """Build fully-qualified table name from a Table node."""
-    parts = []
-    catalog = table.catalog
-    db = table.db
     name = table.name
 
-    # Handle MSSQL bracket notation
-    if raw_sql and "[" in raw_sql:
-        # Try to find the bracketed version in raw SQL
-        bracketed = _find_bracketed_table(table, raw_sql)
+    # Handle MSSQL bracket notation via AST identifiers
+    if bracket_mode:
+        bracketed = _bracketed_full_name(table)
         if bracketed:
             return bracketed
 
     # Check for double-dot notation in raw SQL (e.g., ..table or db..table)
     if raw_sql and name and f"..{name}" in raw_sql:
+        catalog = table.catalog
         if catalog:
             return f"{catalog}..{name}"
         return f"..{name}"
 
+    parts = []
+    catalog = table.catalog
+    db = table.db
     if catalog:
         parts.append(catalog)
     if db is not None:
@@ -43,43 +45,32 @@ def _table_full_name(table: exp.Table, raw_sql: str = "") -> str:
     return ".".join(parts)
 
 
-def _find_bracketed_table(table: exp.Table, raw_sql: str) -> str:
-    """Find the original bracketed table name from raw SQL."""
-    import re
+def _ident_str(node: exp.Identifier) -> str:
+    """Return identifier with [brackets] if it was quoted."""
+    return f"[{node.name}]" if node.quoted else node.name
 
-    name = table.name
-    db = table.db or ""
-    catalog = table.catalog or ""
 
-    # Try to find the original bracketed name in SQL
-    # Build possible patterns
+def _collect_node_parts(node, parts: list) -> None:
+    """Append bracketed identifier strings from an AST node."""
+    if isinstance(node, exp.Identifier):
+        parts.append(_ident_str(node))
+    elif isinstance(node, exp.Dot):
+        # 4-part names: Dot(schema, table)
+        for sub in [node.this, node.expression]:
+            if isinstance(sub, exp.Identifier):
+                parts.append(_ident_str(sub))
+    elif node == "":
+        parts.append("")
+
+
+def _bracketed_full_name(table: exp.Table) -> str:
+    """Build table name preserving [bracket] notation from AST Identifier nodes."""
     parts = []
-    for part in [catalog, db, name]:
-        if part:
-            # Try bracketed first, then plain
-            if f"[{part}]" in raw_sql:
-                parts.append(f"[{part}]")
-            else:
-                parts.append(part)
-        elif part == "" and parts:
-            # Empty schema (db..table)
-            parts.append("")
-
-    candidate = ".".join(parts)
-    if candidate in raw_sql:
-        return candidate
-
-    # Also try with dbo schema for MSSQL 4-part names
-    if catalog and db and name:
-        pattern = re.compile(
-            r"\[?" + re.escape(catalog) + r"\]?\.\[?" + re.escape(db)
-            + r"\]?\.\[?\w*\]?\.\[?" + re.escape(name) + r"\]?"
-        )
-        match = pattern.search(raw_sql)
-        if match:
-            return match.group(0)
-
-    return ""
+    for key in ["catalog", "db", "this"]:
+        node = table.args.get(key)
+        if node is not None:
+            _collect_node_parts(node, parts)
+    return ".".join(parts) if parts else ""
 
 
 def _is_word_char(c: str) -> bool:
@@ -164,6 +155,7 @@ def extract_tables(
     ast: exp.Expression,
     raw_sql: str = "",
     cte_names: Set[str] = None,
+    dialect=None,
 ) -> List[str]:
     """
     Extract table names from AST, excluding CTE names.
@@ -172,7 +164,12 @@ def extract_tables(
     if ast is None:
         return []
 
+    from sql_metadata._ast import _BracketedTableDialect
+
     cte_names = cte_names or set()
+    bracket_mode = isinstance(dialect, type) and issubclass(
+        dialect, _BracketedTableDialect
+    )
     tables = UniqueList()
 
     # Handle REPLACE INTO parsed as Command
@@ -190,14 +187,14 @@ def extract_tables(
                 else target
             )
             if target_table:
-                name = _table_full_name(target_table, raw_sql)
+                name = _table_full_name(target_table, raw_sql, bracket_mode)
                 if name and name not in cte_names:
                     create_target = name
 
     # Collect all tables from AST (including LATERAL VIEW aliases)
     collected = UniqueList()
     for table in ast.find_all(exp.Table):
-        full_name = _table_full_name(table, raw_sql)
+        full_name = _table_full_name(table, raw_sql, bracket_mode)
         if not full_name or full_name in cte_names:
             continue
         collected.append(full_name)

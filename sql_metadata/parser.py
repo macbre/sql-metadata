@@ -279,7 +279,8 @@ class Parser:  # pylint: disable=R0902
         for placeholder in self._ast_parser.cte_name_map:
             cte_names.add(placeholder)
         self._tables = extract_tables(
-            self._ast_parser.ast, self._raw_query, cte_names
+            self._ast_parser.ast, self._raw_query, cte_names,
+            dialect=self._ast_parser.dialect,
         )
         return self._tables
 

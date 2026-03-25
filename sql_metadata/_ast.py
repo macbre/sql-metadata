@@ -7,6 +7,7 @@ import re
 import sqlglot
 from sqlglot import Dialect
 from sqlglot import exp
+from sqlglot.dialects.tsql import TSQL
 from sqlglot.errors import ParseError, TokenError
 from sqlglot.tokens import Tokenizer
 
@@ -20,6 +21,12 @@ class _HashVarDialect(Dialect):
         SINGLE_TOKENS = {**Tokenizer.SINGLE_TOKENS}
         SINGLE_TOKENS.pop("#", None)
         VAR_SINGLE_TOKENS = {*Tokenizer.VAR_SINGLE_TOKENS, "#"}
+
+
+class _BracketedTableDialect(TSQL):
+    """TSQL dialect for queries with [bracketed] identifiers."""
+
+    pass
 
 
 def _strip_outer_parens(sql: str) -> str:
@@ -99,6 +106,12 @@ class ASTParser:
         self._parsed = True
         self._ast = self._parse(self._raw_sql)
         return self._ast
+
+    @property
+    def dialect(self):
+        """The dialect used for parsing (set after AST is built)."""
+        _ = self.ast
+        return self._dialect
 
     @property
     def cte_name_map(self) -> dict:
@@ -224,9 +237,9 @@ class ASTParser:
         if "`" in sql:
             return ["mysql", None]
         if "[" in sql:
-            return ["tsql", None, "mysql"]
+            return [_BracketedTableDialect, None, "mysql"]
         if " TOP " in upper:
-            return ["tsql", None, "mysql"]
+            return [_BracketedTableDialect, None, "mysql"]
         if " UNIQUE " in upper:
             return [None, "mysql", "oracle"]
         if "LATERAL VIEW" in upper:
