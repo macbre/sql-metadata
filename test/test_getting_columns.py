@@ -533,7 +533,7 @@ def test_double_inner_join():
 
     parser = Parser(query)
     assert "loan.account_id" in parser.columns
-    assert parser.tables == ["loan", "account"]
+    assert parser.tables == ["loan", "account", "district"]
 
 
 def test_keyword_column_source():

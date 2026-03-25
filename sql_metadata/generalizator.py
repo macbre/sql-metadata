@@ -3,7 +3,8 @@ Module used to produce generalized sql out of given query
 """
 
 import re
-import sqlparse
+
+from sql_metadata._comments import strip_comments
 
 
 class Generalizator:
@@ -47,10 +48,7 @@ class Generalizator:
 
         :rtype: str
         """
-        sql = sqlparse.format(self._raw_query, strip_comments=True)
-        sql = sql.replace("\n", " ")
-        sql = re.sub(r"[ \t]+", " ", sql)
-        return sql
+        return strip_comments(self._raw_query)
 
     @property
     def generalize(self) -> str:
