@@ -52,7 +52,7 @@ def test_getting_values():
         " '2021-02-27 03:21:52', 'test comment', 0, '0', "
         "'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv: 78.0) "
         "Gecko/20100101 Firefox/78.0', "
-        "'comment', 0, 0)',"
+        "'comment', 0, 0)"
     )
     assert parser.values == [
         1,
