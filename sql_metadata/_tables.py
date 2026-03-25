@@ -222,21 +222,10 @@ def extract_tables(
 
 
 def _extract_tables_from_command(raw_sql: str) -> List[str]:
-    """Extract tables from Command-parsed queries via regex."""
+    """Extract tables from Command-parsed queries (e.g. ALTER TABLE APPEND)."""
     import re
 
     tables = UniqueList()
-
-    # REPLACE/INSERT INTO table
-    match = re.search(
-        r"(?:REPLACE|INSERT)\s+(?:IGNORE\s+)?INTO\s+(\S+)",
-        raw_sql,
-        re.IGNORECASE,
-    )
-    if match:
-        table = match.group(1).strip("`").strip('"').strip("'").rstrip("(")
-        tables.append(table)
-        return tables
 
     # ALTER TABLE table APPEND FROM table
     match = re.search(

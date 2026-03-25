@@ -97,6 +97,7 @@ class ASTParser:
         self._ast = None
         self._dialect = None
         self._parsed = False
+        self._is_replace = False
         self._cte_name_map = {}  # placeholder → original qualified name
 
     @property
@@ -114,6 +115,12 @@ class ASTParser:
         return self._dialect
 
     @property
+    def is_replace(self) -> bool:
+        """Whether the original query was a REPLACE (rewritten as INSERT)."""
+        _ = self.ast
+        return self._is_replace
+
+    @property
     def cte_name_map(self) -> dict:
         """Map of placeholder names to original qualified CTE names."""
         # Ensure parsing has happened
@@ -123,6 +130,14 @@ class ASTParser:
     def _parse(self, sql: str) -> exp.Expression:
         if not sql or not sql.strip():
             return None
+
+        # Rewrite REPLACE INTO → INSERT INTO so sqlglot produces a real AST
+        if re.match(r"\s*REPLACE\b", sql, re.IGNORECASE):
+            sql = re.sub(
+                r"\bREPLACE\s+INTO\b", "INSERT INTO", sql, count=1,
+                flags=re.IGNORECASE,
+            )
+            self._is_replace = True
 
         # Strip comments for parsing (sqlglot handles most, but not # comments)
         clean_sql = _strip_comments(sql)
@@ -209,7 +224,7 @@ class ASTParser:
     def _is_expected_command(sql: str) -> bool:
         """Check if the SQL is expected to be parsed as a Command."""
         upper = sql.strip().upper()
-        return upper.startswith("REPLACE") or upper.startswith("CREATE FUNCTION")
+        return upper.startswith("CREATE FUNCTION")
 
     @staticmethod
     def _has_parse_issues(ast: exp.Expression, sql: str = "") -> bool:

@@ -13,9 +13,6 @@ from sql_metadata._comments import _choose_tokenizer
 
 def _choose_body_tokenizer(sql: str):
     """Choose tokenizer for body extraction: MySQL for backticks when safe."""
-    upper = sql.strip().upper()
-    if upper.startswith("REPLACE"):
-        return _choose_tokenizer(sql)
     if "`" in sql:
         from sqlglot.dialects.mysql import MySQL
         return MySQL.Tokenizer()

@@ -6,12 +6,10 @@ and subquery names in SQL-text order. Replaces _columns.py, _ctes.py,
 _subqueries.py.
 """
 
-import re
 from typing import Dict, List, Union
 
 from sqlglot import exp
 
-from sql_metadata.keywords_lists import QueryType
 from sql_metadata.utils import UniqueList
 
 
@@ -408,18 +406,6 @@ def _dfs(node: exp.Expression):
         yield from _dfs(child)
 
 
-def _extract_replace_columns(raw_query: str, c: _Collector) -> None:
-    """Extract columns from REPLACE INTO via regex (sqlglot parses as Command)."""
-    match = re.search(
-        r"REPLACE\s+INTO\s+\S+\s*\(([^)]+)\)", raw_query, re.IGNORECASE
-    )
-    if match:
-        for col in match.group(1).split(","):
-            col = col.strip().strip("`").strip('"').strip("'")
-            if col:
-                c.add_column(col, "insert")
-
-
 # ---------------------------------------------------------------------------
 # CTE / Subquery name extraction (also used standalone)
 # ---------------------------------------------------------------------------
@@ -463,8 +449,6 @@ def _collect_subqueries_postorder(node: exp.Expression, out: list) -> None:
 def extract_all(  # noqa: C901
     ast: exp.Expression,
     table_aliases: Dict[str, str],
-    query_type: str,
-    raw_query: str = "",
     cte_name_map: Dict = None,
 ) -> tuple:
     """
@@ -488,11 +472,6 @@ def extract_all(  # noqa: C901
         alias = cte.alias
         if alias:
             c.cte_names.append(reverse_map.get(alias, alias))
-
-    # Handle REPLACE (parsed as Command)
-    if query_type == QueryType.REPLACE:
-        _extract_replace_columns(raw_query, c)
-        return _result(c)
 
     # Handle CREATE TABLE with column defs (no SELECT)
     if isinstance(ast, exp.Create) and not ast.find(exp.Select):

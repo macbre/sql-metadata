@@ -13,6 +13,7 @@ from sql_metadata._bodies import extract_cte_bodies, extract_subquery_bodies
 from sql_metadata._comments import extract_comments, strip_comments
 from sql_metadata._extract import extract_all, extract_cte_names, extract_subquery_names
 from sql_metadata._query_type import extract_query_type
+from sql_metadata.keywords_lists import QueryType
 from sql_metadata._tables import extract_table_aliases, extract_tables
 from sql_metadata.token import tokenize
 from sql_metadata.generalizator import Generalizator
@@ -87,6 +88,8 @@ class Parser:  # pylint: disable=R0902
         except ValueError:
             ast = None
         self._query_type = extract_query_type(ast, self._raw_query)
+        if self._query_type == QueryType.INSERT and self._ast_parser.is_replace:
+            self._query_type = QueryType.REPLACE
         return self._query_type
 
     @property
@@ -107,7 +110,6 @@ class Parser:  # pylint: disable=R0902
 
         try:
             ast = self._ast_parser.ast
-            qt = self.query_type
             ta = self.tables_aliases
         except ValueError:
             cols = self._extract_columns_regex()
@@ -124,8 +126,6 @@ class Parser:  # pylint: disable=R0902
         ) = extract_all(
             ast=ast,
             table_aliases=ta,
-            query_type=qt,
-            raw_query=self._raw_query,
             cte_name_map=self._ast_parser.cte_name_map,
         )
 
@@ -416,13 +416,10 @@ class Parser:  # pylint: disable=R0902
         try:
             ast = self._ast_parser.ast
         except ValueError:
-            return self._extract_values_regex()
+            return []
 
         if ast is None:
             return []
-
-        if isinstance(ast, exp.Command):
-            return self._extract_values_regex()
 
         values_node = ast.find(exp.Values)
         if not values_node:
@@ -454,55 +451,6 @@ class Parser:  # pylint: disable=R0902
                     return -int(inner.this)
                 return -float(inner.this)
         return str(val)
-
-    def _extract_values_regex(self) -> List:
-        upper = self._raw_query.upper()
-        idx = upper.find("VALUES")
-        if idx == -1:
-            return []
-        paren_start = self._raw_query.find("(", idx)
-        if paren_start == -1:
-            return []
-        values = []
-        i = paren_start + 1
-        sql = self._raw_query
-        current = []
-        while i < len(sql):
-            char = sql[i]
-            if char == "'":
-                j = i + 1
-                while j < len(sql):
-                    if sql[j] == "'" and (j + 1 >= len(sql) or sql[j + 1] != "'"):
-                        break
-                    j += 1
-                values.append(sql[i + 1: j])
-                i = j + 1
-                current = []
-            elif char == ",":
-                val = "".join(current).strip()
-                if val:
-                    values.append(self._parse_value_string(val))
-                current = []
-                i += 1
-            elif char == ")":
-                val = "".join(current).strip()
-                if val:
-                    values.append(self._parse_value_string(val))
-                break
-            else:
-                current.append(char)
-                i += 1
-        return values
-
-    @staticmethod
-    def _parse_value_string(val: str):
-        try:
-            return int(val)
-        except ValueError:
-            try:
-                return float(val)
-            except ValueError:
-                return val
 
     def _extract_limit_regex(self) -> Optional[Tuple[int, int]]:
         sql = strip_comments(self._raw_query)

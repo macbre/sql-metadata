@@ -88,19 +88,13 @@ def _scan_gap(sql: str, start: int, end: int, out: list) -> None:
 def strip_comments_for_parsing(sql: str) -> str:
     """
     Strip ALL comments including # hash lines for sqlglot parsing.
-    Uses MySQL tokenizer which treats # as comment delimiter,
-    except for REPLACE queries where MySQL tokenizer fails.
+    Uses MySQL tokenizer which treats # as comment delimiter.
     """
     if not sql:
         return sql or ""
-    # MySQL tokenizer breaks on REPLACE INTO — use default for those
     # Skip MySQL tokenizer when # is used as variable (not comment)
     upper = sql.strip().upper()
-    if (
-        upper.startswith("REPLACE")
-        or upper.startswith("CREATE FUNCTION")
-        or _has_hash_variables(sql)
-    ):
+    if upper.startswith("CREATE FUNCTION") or _has_hash_variables(sql):
         tokenizer = Tokenizer()
     else:
         from sqlglot.dialects.mysql import MySQL

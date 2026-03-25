@@ -72,8 +72,6 @@ def extract_query_type(ast: exp.Expression, raw_query: str) -> QueryType:
     # Commands not fully parsed by sqlglot
     if node_type is exp.Command:
         expression_text = str(root.this).upper() if root.this else ""
-        if expression_text == "REPLACE":
-            return QueryType.REPLACE
         if expression_text == "ALTER":
             return QueryType.ALTER
         if expression_text == "CREATE":
