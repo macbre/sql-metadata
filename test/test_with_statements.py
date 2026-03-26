@@ -532,3 +532,89 @@ def test_malformed_with_query_hang():
     parser = Parser(query)
     with pytest.raises(ValueError, match="This query is wrong"):
         parser.tables
+
+
+def test_nested_cte_not_in_tables():
+    # solved: https://github.com/macbre/sql-metadata/issues/314
+    query = """
+    WITH CTE_ROOT_1 as (
+        WITH CTE_CHILD as (
+            SELECT a FROM table_1 as t
+        )
+        SELECT a FROM CTE_CHILD
+    ),
+    CTE_ROOT_2 as (
+        SELECT b FROM table_2
+    )
+    SELECT a, b, c
+    FROM table_3 t3
+    LEFT JOIN CTE_ROOT_1 cr1 on t3.id = cr1.id
+    LEFT JOIN CTE_ROOT_2 cr2 on t3.id = cr2.id
+    LEFT JOIN table_4 t4 on t3.id = t4.id
+    """
+    parser = Parser(query)
+    assert parser.tables == ["table_1", "table_2", "table_3", "table_4"]
+    assert parser.columns == [
+        "a", "b", "c",
+        "table_3.id", "cr1.id", "cr2.id", "table_4.id",
+    ]
+    assert parser.tables_aliases == {
+        "t3": "table_3", "t4": "table_4", "t": "table_1",
+    }
+
+
+def test_nested_with_name_not_table():
+    # solved: https://github.com/macbre/sql-metadata/issues/413
+    query = """
+    WITH
+    A as (
+        WITH intermediate_query as (
+            SELECT id, some_column FROM table_one
+        )
+        SELECT id, some_column FROM intermediate_query
+    ),
+    B as (
+        SELECT id, other_column FROM table_two
+    )
+    SELECT A.id, some_column, other_column
+    FROM A
+    INNER JOIN B ON A.id = B.id
+    """
+    parser = Parser(query)
+    assert parser.tables == ["table_one", "table_two"]
+    assert parser.columns == ["id", "some_column", "other_column"]
+
+
+def test_cte_alias_reuse():
+    # solved: https://github.com/macbre/sql-metadata/issues/262
+    query = """
+    WITH
+     cte_one AS (SELECT cte_id, cte_name FROM cte_one_table),
+     cte_two AS (SELECT B.cte_id FROM cte_one B),
+     cte_three AS (SELECT B.id FROM (SELECT id FROM table_two) B)
+    SELECT * FROM cte_two
+    """
+    parser = Parser(query)
+    assert parser.tables == ["cte_one_table", "table_two"]
+    assert "cte_id" in parser.columns
+    assert "cte_name" in parser.columns
+
+
+def test_group_by_not_table_alias_in_cte():
+    # solved: https://github.com/macbre/sql-metadata/issues/526
+    query = """
+    WITH [CTE1] AS (
+        SELECT [Col1], MAX([Col2]) AS [MaxCol2]
+        FROM [Table1]
+        GROUP BY [Col1]
+    )
+    SELECT t3.[Qty1], t4.[Code], t3.[DateCol]
+    FROM [Table1] t3
+    JOIN [CTE1] t1 ON t3.[Col1] = t1.[Col1] AND t3.[DateCol] = t1.[MaxCol2]
+    JOIN [Table2] t4 ON t4.[ID] = t3.[Col2]
+    """
+    parser = Parser(query)
+    aliases = parser.tables_aliases
+    assert "GROUP BY" not in aliases
+    assert "[Table1]" in parser.tables
+    assert "[Table2]" in parser.tables

@@ -102,6 +102,7 @@ class QueryType(str, Enum):
     ALTER = "ALTER TABLE"
     DROP = "DROP TABLE"
     TRUNCATE = "TRUNCATE TABLE"
+    MERGE = "MERGE"
 
 
 class TokenType(str, Enum):

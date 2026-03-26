@@ -256,6 +256,16 @@ class ASTParser:
             )
             self._is_replace = True
 
+        # Rewrite SELECT...INTO var1,var2 FROM → SELECT...FROM
+        # so sqlglot doesn't treat variables as tables.
+        sql = re.sub(
+            r"(?i)(\bSELECT\b.+?)\bINTO\b.+?\bFROM\b",
+            r"\1FROM",
+            sql,
+            count=1,
+            flags=re.DOTALL,
+        )
+
         clean_sql = _strip_comments(sql)
         if not clean_sql.strip():
             return None

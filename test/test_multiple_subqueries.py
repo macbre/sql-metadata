@@ -432,3 +432,71 @@ def test_readme_query():
         "select": ["some_task_detail.task_id", "some_task.task_id"],
         "where": ["some_task_detail.STATUS", "task_type_id"],
     }
+
+
+def test_subquery_extraction_with_case():
+    # solved: https://github.com/macbre/sql-metadata/issues/469
+    query = """
+    SELECT o_year,
+        sum(case when nation = 'KENYA' then volume else 0 end)
+        / sum(volume) as mkt_share
+    FROM (
+        SELECT extract(year from o_orderdate) as o_year,
+            l_extendedprice * (1 - l_discount) as volume,
+            n2.n_name as nation
+        FROM part, supplier, lineitem, orders, customer,
+             nation n1, nation n2, region
+        WHERE p_partkey = l_partkey
+            AND s_suppkey = l_suppkey
+            AND l_orderkey = o_orderkey
+            AND o_custkey = c_custkey
+            AND c_nationkey = n1.n_nationkey
+            AND n1.n_regionkey = r_regionkey
+            AND r_name = 'AFRICA'
+            AND s_nationkey = n2.n_nationkey
+            AND o_orderdate BETWEEN date '1995-01-01' AND date '1996-12-31'
+            AND p_type = 'PROMO POLISHED NICKEL'
+    ) as all_nations
+    GROUP BY o_year
+    ORDER BY o_year
+    """
+    parser = Parser(query)
+    assert "part" in parser.tables
+    assert "supplier" in parser.tables
+    assert "lineitem" in parser.tables
+    assert "orders" in parser.tables
+    assert "customer" in parser.tables
+    assert "nation" in parser.tables
+    assert "region" in parser.tables
+    assert "o_orderdate" in parser.columns
+
+
+def test_column_alias_same_as_subquery_alias():
+    # solved: https://github.com/macbre/sql-metadata/issues/306
+    query = """
+    SELECT a.id as a_id, b.name as b_name
+    FROM table_a AS a
+    LEFT JOIN (SELECT * FROM table_b) AS b_name ON 1=1
+    """
+    parser = Parser(query)
+    assert parser.tables == ["table_a", "table_b"]
+    assert "table_a.id" in parser.columns
+    assert "*" in parser.columns
+
+
+def test_subquery_in_select_closing_parens():
+    # solved: https://github.com/macbre/sql-metadata/issues/447
+    query = """
+    SELECT a.pt_no, b.pt_name,
+        (SELECT dept_name FROM depart d WHERE a.dept_cd = d.dept_cd),
+        a.c_no, a.cls
+    FROM clinmt a, tbamv b
+    """
+    parser = Parser(query)
+    assert parser.tables == ["depart", "clinmt", "tbamv"]
+    assert parser.tables_aliases == {"a": "clinmt", "b": "tbamv", "d": "depart"}
+    assert "clinmt.pt_no" in parser.columns
+    assert "tbamv.pt_name" in parser.columns
+    assert "dept_name" in parser.columns
+    assert "clinmt.c_no" in parser.columns
+    assert "clinmt.cls" in parser.columns

@@ -713,6 +713,22 @@ def _flat_columns_select_only(select: exp.Select, aliases: Dict[str, str]) -> li
     return cols
 
 
+# Functions whose first argument is a date-part unit keyword, not a column.
+_DATE_PART_FUNCTIONS = frozenset({
+    "dateadd", "datediff", "datepart", "datename", "date_add", "date_sub",
+    "date_diff", "date_trunc", "timestampadd", "timestampdiff",
+})
+
+
+def _is_date_part_unit(node: exp.Column) -> bool:
+    """Return True if *node* is the first arg of a date-part function."""
+    parent = node.parent
+    if isinstance(parent, exp.Anonymous) and parent.this.lower() in _DATE_PART_FUNCTIONS:
+        exprs = parent.expressions
+        return len(exprs) > 0 and exprs[0] is node
+    return False
+
+
 def _collect_column_from_dfs_node(
     child: exp.Expression, aliases: Dict[str, str], seen_stars: set
 ) -> Union[str, None]:
@@ -733,6 +749,8 @@ def _collect_column_from_dfs_node(
     :rtype: Union[str, None]
     """
     if isinstance(child, exp.Column):
+        if _is_date_part_unit(child):
+            return None
         star = child.find(exp.Star)
         if star:
             seen_stars.add(id(star))

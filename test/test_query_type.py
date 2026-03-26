@@ -121,3 +121,31 @@ def test_hive_create_function():
     """
     parser = Parser(query)
     assert parser.query_type == QueryType.CREATE
+
+
+def test_merge_into_query_type():
+    # solved: https://github.com/macbre/sql-metadata/issues/354
+    query = """
+    MERGE INTO wines w
+    USING (VALUES('Chateau Lafite 2003', '24')) v
+    ON v.column1 = w.winename
+    WHEN NOT MATCHED THEN INSERT VALUES(v.column1, v.column2)
+    WHEN MATCHED THEN UPDATE SET stock = stock + v.column2
+    """
+    parser = Parser(query)
+    assert parser.query_type == QueryType.MERGE
+    assert parser.tables == ["wines"]
+    assert parser.columns == [
+        "v.column1", "wines.winename", "v.column2", "stock",
+    ]
+    assert parser.tables_aliases == {"w": "wines"}
+
+
+def test_create_temporary_table():
+    # solved: https://github.com/macbre/sql-metadata/issues/439
+    query = "CREATE TEMPORARY TABLE tablname AS SELECT * FROM source_table"
+    parser = Parser(query)
+    assert parser.query_type == QueryType.CREATE
+    assert "tablname" in parser.tables
+    assert "source_table" in parser.tables
+    assert parser.columns == ["*"]

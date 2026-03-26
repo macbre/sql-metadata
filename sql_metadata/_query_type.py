@@ -32,6 +32,7 @@ _SIMPLE_TYPE_MAP = {
     exp.Alter: QueryType.ALTER,
     exp.Drop: QueryType.DROP,
     exp.TruncateTable: QueryType.TRUNCATE,
+    exp.Merge: QueryType.MERGE,
 }
 
 

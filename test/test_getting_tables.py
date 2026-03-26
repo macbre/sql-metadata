@@ -788,3 +788,140 @@ def test_joined_on_datetrunc():
     parser = Parser(query)
     assert parser.tables == ["test", "test_1"]
     assert parser.columns == ["*", "test.test_date", "test_1.test_date"]
+
+
+def test_ifnull_in_on_clause():
+    # solved: https://github.com/macbre/sql-metadata/issues/534
+    query = (
+        "SELECT * FROM table1 a "
+        "LEFT JOIN table2 b ON ifnull(a.col1, '') = ifnull(b.col1, '')"
+    )
+    parser = Parser(query)
+    assert parser.tables == ["table1", "table2"]
+    assert parser.columns == ["*", "table1.col1", "table2.col1"]
+    assert parser.tables_aliases == {"a": "table1", "b": "table2"}
+    assert parser.columns_dict == {
+        "select": ["*"],
+        "join": ["table1.col1", "table2.col1"],
+    }
+
+
+def test_nvl_in_join_condition():
+    # solved: https://github.com/macbre/sql-metadata/issues/446
+    query = "SELECT 1 FROM t1 JOIN t2 ON t1.t2_id = nvl(t2.id, t2.uid)"
+    parser = Parser(query)
+    assert parser.tables == ["t1", "t2"]
+    assert parser.columns == ["t1.t2_id", "t2.id", "t2.uid"]
+    assert parser.columns_dict == {"join": ["t1.t2_id", "t2.id", "t2.uid"]}
+
+
+def test_where_not_table_alias():
+    # solved: https://github.com/macbre/sql-metadata/issues/451
+    parser = Parser("SELECT name FROM employee WHERE age > 25")
+    assert parser.tables == ["employee"]
+    assert parser.columns == ["name", "age"]
+    assert parser.tables_aliases == {}
+    assert parser.columns_dict == {"select": ["name"], "where": ["age"]}
+
+
+def test_column_not_in_tables_with_not_in():
+    # solved: https://github.com/macbre/sql-metadata/issues/457
+    query = """
+    SELECT *
+    FROM TABLE1
+    WHERE
+        SNAPSHOTDATE = (SELECT MAX(SNAPSHOTDATE) FROM TABLE1)
+        AND (MTYPE NOT IN ('Item1', 'Item2'))
+    """
+    parser = Parser(query)
+    assert parser.tables == ["TABLE1"]
+    assert parser.columns == ["*", "SNAPSHOTDATE", "MTYPE"]
+    assert parser.columns_dict == {
+        "select": ["*", "SNAPSHOTDATE"],
+        "where": ["SNAPSHOTDATE", "MTYPE"],
+    }
+
+
+def test_update_alias_not_extra_table():
+    # solved: https://github.com/macbre/sql-metadata/issues/370
+    query = "UPDATE a SET b=1 FROM schema1.testtable AS a"
+    parser = Parser(query)
+    assert "schema1.testtable" in parser.tables
+    assert parser.tables_aliases == {"a": "schema1.testtable"}
+    assert parser.columns == ["b"]
+
+
+def test_select_into_vars_not_tables():
+    # solved: https://github.com/macbre/sql-metadata/issues/397
+    query = "SELECT C1, C2 INTO VAR1, VAR2 FROM TEST_TABLE"
+    parser = Parser(query)
+    assert parser.tables == ["TEST_TABLE"]
+    assert parser.columns == ["C1", "C2"]
+    assert parser.columns_dict == {"select": ["C1", "C2"]}
+
+
+def test_presto_unnest_not_table():
+    # solved: https://github.com/macbre/sql-metadata/issues/284
+    query = """
+    SELECT col_
+    FROM my_table
+    CROSS JOIN UNNEST(my_col) AS t(col_)
+    """
+    parser = Parser(query)
+    assert parser.tables == ["my_table"]
+    assert "col_" in parser.columns
+
+
+def test_from_order_does_not_affect_tables():
+    # solved: https://github.com/macbre/sql-metadata/issues/335
+    query1 = "SELECT aa FROM (SELECT bb FROM bbb GROUP BY bb) AS a, omg"
+    query2 = "SELECT aa FROM omg, (SELECT bb FROM bbb GROUP BY bb) AS a"
+    parser1 = Parser(query1)
+    parser2 = Parser(query2)
+    assert set(parser1.tables) == {"bbb", "omg"}
+    assert set(parser2.tables) == {"bbb", "omg"}
+    assert set(parser1.columns) == {"aa", "bb"}
+    assert set(parser2.columns) == {"aa", "bb"}
+
+
+def test_complex_subquery_join_tables():
+    # solved: https://github.com/macbre/sql-metadata/issues/324
+    query = """
+    SELECT * FROM
+    (   (SELECT a1, a2 FROM ta1) tt1
+        LEFT JOIN
+        (SELECT b1, b2 FROM tb1) tt2
+        ON tt1.a1 = tt2.b1) tt3
+    """
+    parser = Parser(query)
+    assert parser.tables == ["ta1", "tb1"]
+    assert parser.columns == ["*", "a1", "a2", "b1", "b2"]
+
+
+def test_on_keyword_not_table_alias():
+    # solved: https://github.com/macbre/sql-metadata/issues/537
+    parser = Parser(
+        """
+        WITH
+            database1.tableFromWith AS (SELECT aa.* FROM table3 as aa
+                                        left join table4 on aa.col1=table4.col2),
+            test as (SELECT * from table3)
+        SELECT "xxxxx"
+        FROM database1.tableFromWith alias
+        LEFT JOIN database2.table2 ON ("tt"."ttt"."fff" = "xx"."xxx")
+        """
+    )
+    assert parser.tables == ["table3", "table4", "database2.table2"]
+    assert "on" not in parser.tables_aliases
+    assert "ON" not in parser.tables_aliases
+    assert parser.tables_aliases == {"aa": "table3"}
+
+
+def test_unmatched_parentheses_graceful():
+    # solved: https://github.com/macbre/sql-metadata/issues/532
+    # Should not raise IndexError; graceful handling of malformed SQL
+    try:
+        parser = Parser("SELECT arrayJoin(tags.key)) FROM foo")
+        _ = parser.tables
+    except (ValueError, Exception):
+        pass

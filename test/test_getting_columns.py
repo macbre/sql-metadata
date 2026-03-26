@@ -614,3 +614,68 @@ def test_coalesce_in_joins():
         "my_db_name.ipps_wage_index_annual",
         "my_db_name.geo_county_cbsa",
     ]
+
+
+def test_uid_pad_parsed_as_columns():
+    # solved: https://github.com/macbre/sql-metadata/issues/412
+    parser = Parser("SELECT * FROM t1 WHERE uid = 4")
+    assert parser.tables == ["t1"]
+    assert parser.columns == ["*", "uid"]
+    assert parser.columns_dict == {"select": ["*"], "where": ["uid"]}
+
+    parser2 = Parser("SELECT * FROM t1 WHERE pad = 4")
+    assert parser2.tables == ["t1"]
+    assert parser2.columns == ["*", "pad"]
+    assert parser2.columns_dict == {"select": ["*"], "where": ["pad"]}
+
+
+def test_dateadd_unit_not_column():
+    # solved: https://github.com/macbre/sql-metadata/issues/411
+    query = """
+    SELECT
+        dateadd(dd, 30, DateReleased),
+        dateadd(WK, 2, DateReleased)
+    FROM test a
+    """
+    parser = Parser(query)
+    assert parser.tables == ["test"]
+    assert parser.columns == ["DateReleased"]
+    assert parser.tables_aliases == {"a": "test"}
+    assert parser.columns_dict == {"select": ["DateReleased"]}
+
+
+def test_backtick_column_with_operation():
+    # solved: https://github.com/macbre/sql-metadata/issues/448
+    query = "SELECT `col1 with space` / `col2_anything` FROM table1"
+    parser = Parser(query)
+    assert parser.tables == ["table1"]
+    assert parser.columns == ["col1 with space", "col2_anything"]
+    assert parser.columns_dict == {
+        "select": ["col1 with space", "col2_anything"],
+    }
+
+
+def test_separator_not_column():
+    # solved: https://github.com/macbre/sql-metadata/issues/400
+    query = """
+    SELECT JoinedMonth,
+      group_concat(
+      distinct FirstName
+      order by FirstName
+      separator '/') as FirstName
+    FROM customers
+    GROUP BY JoinedMonth
+    """
+    parser = Parser(query)
+    assert parser.columns == ["JoinedMonth", "FirstName"]
+    columns_lower = [c.lower() for c in parser.columns]
+    assert "separator" not in columns_lower
+
+
+def test_mssql_top_columns():
+    # solved: https://github.com/macbre/sql-metadata/issues/318
+    query = "SELECT TOP 10 id, name FROM foo"
+    parser = Parser(query)
+    assert parser.tables == ["foo"]
+    assert parser.columns == ["id", "name"]
+    assert parser.columns_dict == {"select": ["id", "name"]}

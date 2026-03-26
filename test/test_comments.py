@@ -161,3 +161,14 @@ def test_without_comments_for_multiline_query():
         WHERE table.id = '123'"""
     parser = Parser(query)
     assert parser.without_comments == """SELECT * FROM table WHERE table.id = '123'"""
+
+
+def test_table_after_comment_not_ignored():
+    # solved: https://github.com/macbre/sql-metadata/issues/251
+    query = """SELECT c1 FROM
+       --Comment--
+        d1, d2, d3"""
+    parser = Parser(query)
+    assert parser.tables == ["d1", "d2", "d3"]
+    assert parser.columns == ["c1"]
+    assert parser.columns_dict == {"select": ["c1"]}
