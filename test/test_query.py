@@ -7,10 +7,10 @@ def test_get_query_tokens():
     tokens = Parser("SELECT * FROM foo").tokens
 
     assert len(tokens) == 4
-    assert str(tokens[0]) == "SELECT"
-    assert tokens[1].is_wildcard
-    assert tokens[2].is_keyword
-    assert str(tokens[2]) == "FROM"
+    assert tokens[0] == "SELECT"
+    assert tokens[1] == "*"
+    assert tokens[2] == "FROM"
+    assert tokens[3] == "foo"
 
 
 def test_preprocessing():

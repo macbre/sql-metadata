@@ -777,3 +777,14 @@ def test_subquery_followed_by_tables():
         "customer_address",
         "customer",
     ]
+
+
+def test_joined_on_datetrunc():
+    # solved: https://github.com/macbre/sql-metadata/issues/555
+    query = """SELECT * 
+        FROM test t
+        join test_1 t1
+            on datetrunc('day', t.test_date) = datetrunc('day', t1.test_date)"""
+    parser = Parser(query)
+    assert parser.tables == ["test", "test_1"]
+    assert parser.columns == ["*", "test.test_date", "test_1.test_date"]

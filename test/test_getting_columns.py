@@ -555,3 +555,62 @@ def test_keyword_column_source():
     # Test with 'source' as only column
     parser = Parser("select source from my_table")
     assert parser.columns == ["source"]
+
+
+def test_sum_case_when_columns():
+    # solved: https://github.com/macbre/sql-metadata/issues/579
+    query = """
+    SELECT CAST(
+    SUM(CASE WHEN segment = 'Premium' THEN 1 ELSE 0 END) AS REAL) * 100 / 
+    COUNT(*) AS premiumpercentage 
+    FROM gasstations WHERE country = 'SVK'"""
+    parser = Parser(query)
+    assert parser.columns == ["segment", "country"]
+    assert parser.columns_dict == {"select": ["segment"], "where": ["country"]}
+    assert parser.tables == ["gasstations"]
+
+
+def test_quoted_column_with_whitespace():
+    # solved: https://github.com/macbre/sql-metadata/issues/578
+    query = (
+        """SELECT COUNT(*) FROM examination WHERE "Examination Date" > '1997-01-01'"""
+    )
+    parser = Parser(query)
+    assert parser.columns == ["Examination Date"]
+    assert parser.columns_dict == {"where": ["Examination Date"]}
+    assert parser.tables == ["examination"]
+
+
+def test_coalesce_in_joins():
+    # solved: https://github.com/macbre/sql-metadata/issues/559
+    query = """
+    select OPR.ID, OPR.year from operations OPR
+    INNER JOIN my_db_name.ipps_wage_index_annual WI ON OPR.year = WI.cms_year
+    INNER JOIN my_db_name.geo_county_cbsa CBS 
+    ON WI.cbsa_cd = COALESCE(CBS.metropolitan_division_code, CBS.cbsa_code, SUBSTRING(CBS.ssa_codes, 1, 2))"""
+    parser = Parser(query)
+    assert parser.columns == [
+        "operations.ID",
+        "operations.year",
+        "my_db_name.ipps_wage_index_annual.cms_year",
+        "my_db_name.ipps_wage_index_annual.cbsa_cd",
+        "my_db_name.geo_county_cbsa.metropolitan_division_code",
+        "my_db_name.geo_county_cbsa.cbsa_code",
+        "my_db_name.geo_county_cbsa.ssa_codes",
+    ]
+    assert parser.columns_dict == {
+        "join": [
+            "operations.year",
+            "my_db_name.ipps_wage_index_annual.cms_year",
+            "my_db_name.ipps_wage_index_annual.cbsa_cd",
+            "my_db_name.geo_county_cbsa.metropolitan_division_code",
+            "my_db_name.geo_county_cbsa.cbsa_code",
+            "my_db_name.geo_county_cbsa.ssa_codes",
+        ],
+        "select": ["operations.ID", "operations.year"],
+    }
+    assert parser.tables == [
+        "operations",
+        "my_db_name.ipps_wage_index_annual",
+        "my_db_name.geo_county_cbsa",
+    ]

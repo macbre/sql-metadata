@@ -1,8 +1,21 @@
-"""
-Module to extract and strip comments from SQL using sqlglot tokenizer.
+"""Extract and strip SQL comments using the sqlglot tokenizer.
 
-Uses sqlglot's tokenizer to identify comments (which are skipped during
-tokenization), then extracts them from the gaps between token positions.
+sqlglot's tokenizer skips comments during tokenization, which means
+comments live in the *gaps* between consecutive token positions.  This
+module exploits that property: it tokenizes the SQL, then scans each gap
+for comment delimiters (``--``, ``/* */``, ``#``).
+
+Two public entry points exist:
+
+* :func:`extract_comments` — returns the raw comment texts (delimiters
+  included) for inspection or logging.
+* :func:`strip_comments` — returns the SQL with all comments removed and
+  whitespace normalised, used by :class:`Parser` for the ``without_comments``
+  property.
+
+A third, internal variant :func:`strip_comments_for_parsing` is consumed
+by :mod:`_ast` before handing SQL to ``sqlglot.parse()``; it always uses
+the MySQL tokenizer so that ``#``-style comments are reliably stripped.
 """
 
 from typing import List
@@ -11,7 +24,18 @@ from sqlglot.tokens import Tokenizer
 
 
 def _choose_tokenizer(sql: str):
-    """Choose tokenizer: MySQL for # comments, default otherwise."""
+    """Select the appropriate sqlglot tokenizer for *sql*.
+
+    The default sqlglot tokenizer does **not** treat ``#`` as a comment
+    delimiter, but MySQL does.  When ``#`` appears in the SQL and is used
+    as a comment (not as a variable/template prefix), we switch to the
+    MySQL tokenizer so that ``#``-style comments are properly skipped.
+
+    :param sql: Raw SQL string to inspect.
+    :type sql: str
+    :returns: An instantiated tokenizer (MySQL or default).
+    :rtype: sqlglot.tokens.Tokenizer
+    """
     if "#" in sql and not _has_hash_variables(sql):
         from sqlglot.dialects.mysql import MySQL
 
@@ -20,7 +44,23 @@ def _choose_tokenizer(sql: str):
 
 
 def _has_hash_variables(sql: str) -> bool:
-    """Check if # is used as variable/template prefix (not comment)."""
+    """Determine whether ``#`` characters in *sql* are variable references.
+
+    MSSQL uses ``#table`` for temporary tables and some template engines
+    use ``#VAR#`` placeholders.  This function distinguishes those from
+    MySQL-style ``# comment`` lines so that :func:`_choose_tokenizer`
+    picks the right dialect.
+
+    Heuristics:
+
+    * ``#WORD#`` — bracketed template variable.
+    * ``= #WORD`` or ``(#WORD`` — assignment / parameter context.
+
+    :param sql: Raw SQL string.
+    :type sql: str
+    :returns: ``True`` if at least one ``#`` looks like a variable prefix.
+    :rtype: bool
+    """
     pos = sql.find("#")
     while pos >= 0:
         end = pos + 1
@@ -41,9 +81,19 @@ def _has_hash_variables(sql: str) -> bool:
 
 
 def extract_comments(sql: str) -> List[str]:
-    """
-    Extract all SQL comments with delimiters preserved.
-    Uses sqlglot tokenizer to find gaps where comments live.
+    """Return all comments found in *sql*, with delimiters preserved.
+
+    Tokenizes the SQL, then scans every gap between consecutive token
+    positions for comment delimiters.  Returned strings include the
+    opening delimiter (``--``, ``/*``, ``#``) and, for block comments,
+    the closing ``*/``.
+
+    Called by :attr:`Parser.comments`.
+
+    :param sql: Raw SQL string.
+    :type sql: str
+    :returns: List of comment strings in source order.
+    :rtype: List[str]
     """
     if not sql:
         return []
@@ -61,7 +111,29 @@ def extract_comments(sql: str) -> List[str]:
 
 
 def _scan_gap(sql: str, start: int, end: int, out: list) -> None:
-    """Scan text between token positions for comment delimiters."""
+    """Scan a slice of *sql* for comment delimiters and append matches.
+
+    Handles three comment styles:
+
+    * ``/* ... */`` — block comments (may be unterminated).
+    * ``-- ...``    — line comments up to the next newline.
+    * ``# ...``     — MySQL-style line comments.
+
+    Designed to be called repeatedly for each gap between token positions
+    discovered by :func:`extract_comments` and by :func:`tokenize` in
+    ``token.py``.
+
+    :param sql: The full SQL string (not just the gap).
+    :type sql: str
+    :param start: Start index of the gap to scan.
+    :type start: int
+    :param end: End index (exclusive) of the gap.
+    :type end: int
+    :param out: Mutable list to which discovered comment strings are appended.
+    :type out: list
+    :returns: Nothing — results are appended to *out* in place.
+    :rtype: None
+    """
     gap = sql[start:end]
     i = 0
     while i < len(gap):
@@ -86,9 +158,20 @@ def _scan_gap(sql: str, start: int, end: int, out: list) -> None:
 
 
 def strip_comments_for_parsing(sql: str) -> str:
-    """
-    Strip ALL comments including # hash lines for sqlglot parsing.
-    Uses MySQL tokenizer which treats # as comment delimiter.
+    """Strip **all** comments — including ``#`` lines — for sqlglot parsing.
+
+    Unlike :func:`strip_comments`, this always uses the MySQL tokenizer
+    (which treats ``#`` as a comment delimiter) so that hash-style
+    comments are removed before ``sqlglot.parse()`` sees the SQL.  The
+    only exceptions are ``CREATE FUNCTION`` bodies (which may contain
+    ``#`` in procedural code) and MSSQL ``#temp`` table references.
+
+    Called exclusively by :meth:`ASTParser._parse` in ``_ast.py``.
+
+    :param sql: Raw SQL string.
+    :type sql: str
+    :returns: SQL with all comments removed and whitespace collapsed.
+    :rtype: str
     """
     if not sql:
         return sql or ""
@@ -115,10 +198,20 @@ def strip_comments_for_parsing(sql: str) -> str:
 
 
 def strip_comments(sql: str) -> str:
-    """
-    Remove comments and normalize whitespace using sqlglot tokenizer.
-    Preserves original token spacing (no space added where none existed).
-    Preserves #VAR template variables (not treated as comments).
+    """Remove comments and normalise whitespace, preserving ``#VAR`` references.
+
+    Reconstructs the SQL from its token spans, inserting a single space
+    wherever a gap (comment or extra whitespace) existed between two
+    tokens.  Uses :func:`_choose_tokenizer` so that ``#VAR`` template
+    variables in MSSQL queries are kept intact.
+
+    Called by :attr:`Parser.without_comments` and
+    :attr:`Generalizator.without_comments`.
+
+    :param sql: Raw SQL string.
+    :type sql: str
+    :returns: SQL with comments removed and whitespace normalised.
+    :rtype: str
     """
     if not sql:
         return sql or ""

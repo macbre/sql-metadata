@@ -1,5 +1,22 @@
-"""
-Module wrapping sqlglot.parse() to produce an AST from SQL strings.
+"""Wrap ``sqlglot.parse()`` to produce an AST from raw SQL strings.
+
+This module is the single entry point for SQL parsing in the v3 pipeline.
+It handles dialect detection, comment stripping, malformed-query rejection,
+and ``REPLACE INTO`` rewriting so that downstream extractors always receive
+a clean ``sqlglot.exp.Expression`` tree (or ``None`` / ``ValueError``).
+
+Design notes:
+
+* **Multi-dialect retry** — :meth:`ASTParser._parse` tries several sqlglot
+  dialects in order (e.g. ``[None, "mysql"]``) and picks the first result
+  that is not degraded (no phantom tables, no unexpected ``Command`` nodes).
+* **REPLACE INTO rewrite** — sqlglot parses ``REPLACE INTO`` as an
+  ``exp.Command`` (opaque text), so we rewrite it to ``INSERT INTO``
+  before parsing and set a flag so the caller can restore the original
+  :class:`QueryType`.
+* **Qualified CTE names** — names like ``db.cte_name`` confuse sqlglot,
+  so :func:`_normalize_cte_names` replaces them with underscore-based
+  placeholders and returns a reverse map for later restoration.
 """
 
 import re
@@ -15,22 +32,52 @@ from sql_metadata._comments import strip_comments_for_parsing as _strip_comments
 
 
 class _HashVarDialect(Dialect):
-    """Dialect that treats #WORD as identifiers (MSSQL variables)."""
+    """Custom sqlglot dialect that treats ``#WORD`` as identifiers.
+
+    MSSQL uses ``#`` to prefix temporary table names (e.g. ``#temp``)
+    and some template engines use ``#VAR#`` placeholders.  The default
+    sqlglot tokenizer treats ``#`` as an unknown single-character token;
+    this dialect moves it into ``VAR_SINGLE_TOKENS`` so it becomes part
+    of a ``VAR`` token instead.
+
+    Used by :meth:`ASTParser._detect_dialects` when hash-variables are
+    detected in the SQL.
+    """
 
     class Tokenizer(Tokenizer):
+        """Tokenizer subclass that includes ``#`` in variable tokens."""
+
         SINGLE_TOKENS = {**Tokenizer.SINGLE_TOKENS}
         SINGLE_TOKENS.pop("#", None)
         VAR_SINGLE_TOKENS = {*Tokenizer.VAR_SINGLE_TOKENS, "#"}
 
 
 class _BracketedTableDialect(TSQL):
-    """TSQL dialect for queries with [bracketed] identifiers."""
+    """TSQL dialect for queries containing ``[bracketed]`` identifiers.
+
+    sqlglot's TSQL dialect correctly interprets square-bracket quoting,
+    which the default dialect does not.  This thin subclass exists so that
+    :meth:`ASTParser._detect_dialects` can return a concrete class that
+    :func:`extract_tables` in ``_tables.py`` can later ``isinstance``-check
+    to enable bracket-preserving table name construction.
+    """
 
     pass
 
 
 def _strip_outer_parens(sql: str) -> str:
-    """Strip redundant outer parentheses from SQL."""
+    """Strip redundant outer parentheses from *sql*.
+
+    Some SQL generators wrap entire statements in parentheses
+    (e.g. ``(SELECT 1)``).  sqlglot wraps these in an ``exp.Subquery``
+    node which confuses downstream extractors.  This function removes
+    the outermost balanced pair(s) before parsing.
+
+    :param sql: SQL string, possibly wrapped in parentheses.
+    :type sql: str
+    :returns: SQL with redundant outer parentheses removed.
+    :rtype: str
+    """
     stripped = sql.strip()
     while stripped.startswith("(") and stripped.endswith(")"):
         # Verify these parens are balanced (not part of inner expression)
@@ -52,9 +99,17 @@ def _strip_outer_parens(sql: str) -> str:
 
 
 def _normalize_cte_names(sql: str) -> tuple:
-    """
-    Replace qualified CTE names (e.g., db.cte_name) with simple placeholders.
-    Returns (modified_sql, {placeholder: original_name}).
+    """Replace qualified CTE names with simple placeholders.
+
+    sqlglot cannot parse ``WITH db.cte_name AS (...)`` because it
+    interprets ``db.cte_name`` as a table reference.  This function
+    rewrites such names to ``db__DOT__cte_name`` and returns a mapping
+    so that the original qualified names can be restored after extraction.
+
+    :param sql: SQL string that may contain qualified CTE names.
+    :type sql: str
+    :returns: A 2-tuple of ``(modified_sql, {placeholder: original_name})``.
+    :rtype: tuple
     """
     name_map = {}
     # Find WITH ... AS patterns with qualified names
@@ -88,11 +143,24 @@ def _normalize_cte_names(sql: str) -> tuple:
 
 
 class ASTParser:
-    """
-    Wraps sqlglot.parse() with error handling.
+    """Lazy wrapper around ``sqlglot.parse()`` with dialect auto-detection.
+
+    Instantiated once per :class:`Parser` with the raw SQL string.  The
+    actual parsing is deferred until :attr:`ast` is first accessed, at
+    which point the SQL is cleaned (comments stripped, ``REPLACE INTO``
+    rewritten, qualified CTE names normalised) and parsed through one or
+    more sqlglot dialects until a satisfactory AST is obtained.
+
+    :param sql: Raw SQL query string.
+    :type sql: str
     """
 
     def __init__(self, sql: str) -> None:
+        """Initialise the parser without triggering SQL parsing.
+
+        :param sql: Raw SQL query string.
+        :type sql: str
+        """
         self._raw_sql = sql
         self._ast = None
         self._dialect = None
@@ -102,6 +170,12 @@ class ASTParser:
 
     @property
     def ast(self) -> exp.Expression:
+        """The sqlglot AST for the query, lazily parsed on first access.
+
+        :returns: Root AST node, or ``None`` for empty/comment-only queries.
+        :rtype: exp.Expression
+        :raises ValueError: If the SQL is malformed and cannot be parsed.
+        """
         if self._parsed:
             return self._ast
         self._parsed = True
@@ -110,125 +184,263 @@ class ASTParser:
 
     @property
     def dialect(self):
-        """The dialect used for parsing (set after AST is built)."""
+        """The sqlglot dialect that produced the current AST.
+
+        Set as a side-effect of :attr:`ast` access.  May be ``None``
+        (default dialect), a string like ``"mysql"``, or a custom
+        :class:`Dialect` subclass such as :class:`_HashVarDialect`.
+
+        :returns: The dialect used, or ``None`` for the default dialect.
+        :rtype: Optional[Union[str, type]]
+        """
         _ = self.ast
         return self._dialect
 
     @property
     def is_replace(self) -> bool:
-        """Whether the original query was a REPLACE (rewritten as INSERT)."""
+        """Whether the original query was a ``REPLACE INTO`` statement.
+
+        ``REPLACE INTO`` is rewritten to ``INSERT INTO`` before parsing
+        (sqlglot otherwise produces an opaque ``Command`` node).  This
+        flag allows :attr:`Parser.query_type` to restore the correct
+        :class:`QueryType.REPLACE` value.
+
+        :returns: ``True`` if the query was rewritten from ``REPLACE``.
+        :rtype: bool
+        """
         _ = self.ast
         return self._is_replace
 
     @property
     def cte_name_map(self) -> dict:
-        """Map of placeholder names to original qualified CTE names."""
+        """Map of placeholder CTE names back to their original qualified form.
+
+        Populated by :func:`_normalize_cte_names` during parsing.  Keys
+        are underscore-separated placeholders (``db__DOT__name``), values
+        are the original dotted names (``db.name``).
+
+        :returns: Placeholder-to-original mapping (may be empty).
+        :rtype: dict
+        """
         # Ensure parsing has happened
         _ = self.ast
         return self._cte_name_map
 
-    def _parse(self, sql: str) -> exp.Expression:
-        if not sql or not sql.strip():
-            return None
+    def _preprocess_sql(self, sql: str) -> str:
+        """Apply all preprocessing steps to raw SQL before dialect parsing.
 
-        # Rewrite REPLACE INTO → INSERT INTO so sqlglot produces a real AST
+        Steps (in order):
+
+        1. Rewrite ``REPLACE INTO`` → ``INSERT INTO`` (sets
+           ``self._is_replace``).
+        2. Strip comments.
+        3. Normalise qualified CTE names (sets ``self._cte_name_map``).
+        4. Strip DB2 isolation-level clauses.
+        5. Detect malformed ``WITH...AS(...)  AS`` patterns.
+        6. Strip redundant outer parentheses.
+
+        :param sql: Raw SQL string.
+        :type sql: str
+        :returns: Cleaned SQL ready for dialect parsing, or ``None`` if
+            the input is effectively empty after preprocessing.
+        :rtype: Optional[str]
+        :raises ValueError: If a malformed WITH pattern is detected.
+        """
         if re.match(r"\s*REPLACE\b", sql, re.IGNORECASE):
             sql = re.sub(
-                r"\bREPLACE\s+INTO\b", "INSERT INTO", sql, count=1,
+                r"\bREPLACE\s+INTO\b",
+                "INSERT INTO",
+                sql,
+                count=1,
                 flags=re.IGNORECASE,
             )
             self._is_replace = True
 
-        # Strip comments for parsing (sqlglot handles most, but not # comments)
         clean_sql = _strip_comments(sql)
         if not clean_sql.strip():
             return None
 
-        # Normalize qualified CTE names (e.g., database1.tableFromWith → placeholder)
         clean_sql, self._cte_name_map = _normalize_cte_names(clean_sql)
-
-        # Strip DB2 isolation level clause
         clean_sql = re.sub(
             r"\bwith\s+(ur|cs|rs|rr)\s*$", "", clean_sql, flags=re.IGNORECASE
         ).strip()
 
-        # Detect malformed WITH...AS(...)  AS (extra AS after CTE body)
-        if re.match(r"\s*WITH\b", clean_sql, re.IGNORECASE):
-            _MAIN_KW = r"(?:SELECT|INSERT|UPDATE|DELETE)"
-            # Pattern: ) AS <keyword> or ) AS <word> <keyword>
-            if re.search(
-                r"\)\s+AS\s+" + _MAIN_KW + r"\b", clean_sql, re.IGNORECASE
-            ) or re.search(
-                r"\)\s+AS\s+\w+\s+" + _MAIN_KW + r"\b",
-                clean_sql,
-                re.IGNORECASE,
-            ):
-                raise ValueError("This query is wrong")
+        self._detect_malformed_with(clean_sql)
 
-        # Strip redundant outer parentheses
         clean_sql = _strip_outer_parens(clean_sql)
-        if not clean_sql.strip():
-            return None
+        return clean_sql if clean_sql.strip() else None
 
-        # Determine dialect order based on SQL features
-        dialects = self._detect_dialects(clean_sql)
+    @staticmethod
+    def _detect_malformed_with(clean_sql: str) -> None:
+        """Raise ``ValueError`` if the SQL contains a malformed WITH pattern.
+
+        Detects ``WITH...AS(...)  AS <keyword>`` or
+        ``WITH...AS(...)  AS <word> <keyword>`` — an extra ``AS`` token
+        after the CTE body that indicates malformed SQL.
+
+        :param clean_sql: Preprocessed SQL string.
+        :type clean_sql: str
+        :raises ValueError: If a malformed WITH pattern is found.
+        """
+        if not re.match(r"\s*WITH\b", clean_sql, re.IGNORECASE):
+            return
+        main_kw = r"(?:SELECT|INSERT|UPDATE|DELETE)"
+        if re.search(
+            r"\)\s+AS\s+" + main_kw + r"\b", clean_sql, re.IGNORECASE
+        ) or re.search(r"\)\s+AS\s+\w+\s+" + main_kw + r"\b", clean_sql, re.IGNORECASE):
+            raise ValueError("This query is wrong")
+
+    def _is_degraded_result(self, result: exp.Expression, clean_sql: str) -> bool:
+        """Check whether a parse result is degraded.
+
+        Returns ``True`` when a better dialect should be tried.
+
+        A result is degraded if it is an unexpected ``exp.Command`` or
+        if :meth:`_has_parse_issues` detects structural problems.
+
+        :param result: Parsed AST node.
+        :type result: exp.Expression
+        :param clean_sql: Preprocessed SQL string.
+        :type clean_sql: str
+        :returns: ``True`` if the result is degraded.
+        :rtype: bool
+        """
+        if isinstance(result, exp.Command) and not self._is_expected_command(clean_sql):
+            return True
+        return self._has_parse_issues(result, clean_sql)
+
+    def _try_parse_dialects(self, clean_sql: str, dialects: list) -> exp.Expression:
+        """Try parsing *clean_sql* with each dialect, returning the best result.
+
+        Iterates over *dialects* in order, returning the first
+        non-degraded parse result.  A result is considered degraded if
+        it is an unexpected ``exp.Command`` or has parse issues detected
+        by :meth:`_has_parse_issues`.
+
+        :param clean_sql: Preprocessed SQL string.
+        :type clean_sql: str
+        :param dialects: Ordered list of dialect identifiers to try.
+        :type dialects: list
+        :returns: Root AST node.
+        :rtype: exp.Expression
+        :raises ValueError: If all dialect attempts fail.
+        """
         last_result = None
         for dialect in dialects:
             try:
-                import logging
-
-                # Capture parse errors at WARN level
-                logger = logging.getLogger("sqlglot")
-                old_level = logger.level
-                logger.setLevel(logging.CRITICAL)
-                try:
-                    results = sqlglot.parse(
-                        clean_sql,
-                        dialect=dialect,
-                        error_level=sqlglot.ErrorLevel.WARN,
-                    )
-                finally:
-                    logger.setLevel(old_level)
-
-                if results and results[0] is not None:
-                    result = results[0]
-                    # Unwrap Subquery wrapper from parenthesized queries
-                    if isinstance(result, exp.Subquery) and not result.alias:
-                        result = result.this
-
-                    last_result = result
-
-                    # Check if parse result is degraded - try next dialect
-                    if dialect != dialects[-1]:
-                        if (
-                            isinstance(result, exp.Command)
-                            and not self._is_expected_command(clean_sql)
-                        ):
-                            continue
-                        # Check for degraded parse results
-                        if self._has_parse_issues(result, clean_sql):
-                            continue
-                    self._dialect = dialect
-                    return result
+                result = self._parse_with_dialect(clean_sql, dialect)
+                if result is None:
+                    continue
+                last_result = result
+                is_last = dialect == dialects[-1]
+                if not is_last and self._is_degraded_result(result, clean_sql):
+                    continue
+                self._dialect = dialect
+                return result
             except (ParseError, TokenError):
                 if dialect is not None and dialect == dialects[-1]:
                     raise ValueError("This query is wrong")
                 continue
 
-        # Return last successful result if any
         if last_result is not None:
             return last_result
         raise ValueError("This query is wrong")
 
     @staticmethod
+    def _parse_with_dialect(clean_sql: str, dialect) -> exp.Expression:
+        """Parse *clean_sql* with a single dialect, suppressing warnings.
+
+        :param clean_sql: Preprocessed SQL string.
+        :type clean_sql: str
+        :param dialect: sqlglot dialect identifier.
+        :returns: Parsed AST node (unwrapped from Subquery if needed),
+            or ``None`` if parsing produced no result.
+        :rtype: Optional[exp.Expression]
+        """
+        import logging
+
+        logger = logging.getLogger("sqlglot")
+        old_level = logger.level
+        logger.setLevel(logging.CRITICAL)
+        try:
+            results = sqlglot.parse(
+                clean_sql,
+                dialect=dialect,
+                error_level=sqlglot.ErrorLevel.WARN,
+            )
+        finally:
+            logger.setLevel(old_level)
+
+        if not results or results[0] is None:
+            return None
+        result = results[0]
+        if isinstance(result, exp.Subquery) and not result.alias:
+            result = result.this
+        return result
+
+    def _parse(self, sql: str) -> exp.Expression:
+        """Parse *sql* into a sqlglot AST, trying multiple dialects.
+
+        Applies preprocessing (comment stripping, CTE normalisation,
+        REPLACE INTO rewriting, etc.) then iterates over candidate
+        dialects, returning the first non-degraded result.
+
+        :param sql: Raw SQL string (may include comments).
+        :type sql: str
+        :returns: Root AST node, or ``None`` for empty input.
+        :rtype: Optional[exp.Expression]
+        :raises ValueError: If all dialect attempts fail or the SQL is
+            detected as malformed.
+        """
+        if not sql or not sql.strip():
+            return None
+
+        clean_sql = self._preprocess_sql(sql)
+        if clean_sql is None:
+            return None
+
+        dialects = self._detect_dialects(clean_sql)
+        return self._try_parse_dialects(clean_sql, dialects)
+
+    @staticmethod
     def _is_expected_command(sql: str) -> bool:
-        """Check if the SQL is expected to be parsed as a Command."""
+        """Check whether *sql* is legitimately parsed as an ``exp.Command``.
+
+        Some statements (e.g. ``CREATE FUNCTION``) are intentionally left
+        unparsed by sqlglot and returned as ``exp.Command``.  This method
+        distinguishes those from statements that *should* have produced a
+        richer AST node.
+
+        :param sql: Cleaned SQL string (comments already stripped).
+        :type sql: str
+        :returns: ``True`` if ``Command`` is the expected parse result.
+        :rtype: bool
+        """
         upper = sql.strip().upper()
         return upper.startswith("CREATE FUNCTION")
 
     @staticmethod
     def _has_parse_issues(ast: exp.Expression, sql: str = "") -> bool:
-        """Check if AST has signs of failed/degraded parse."""
+        """Detect signs of a degraded or incorrect parse.
+
+        Checks for:
+
+        * Table nodes with empty or keyword-like names (``IGNORE``, ``""``).
+        * Column nodes whose name is a SQL keyword (``UNIQUE``, ``DISTINCT``)
+          without a table qualifier — usually means the parser misidentified
+          a keyword as a column.
+
+        Called during the dialect-retry loop to decide whether to try the
+        next dialect.
+
+        :param ast: Root AST node to inspect.
+        :type ast: exp.Expression
+        :param sql: Original SQL (currently unused, reserved for future
+            heuristics).
+        :type sql: str
+        :returns: ``True`` if the AST looks degraded.
+        :rtype: bool
+        """
         _BAD_TABLE_NAMES = {"IGNORE", ""}
         for table in ast.find_all(exp.Table):
             if table.name in _BAD_TABLE_NAMES:
@@ -242,7 +454,26 @@ class ASTParser:
 
     @staticmethod
     def _detect_dialects(sql: str) -> list:
-        """Detect which dialects to try based on SQL features."""
+        """Choose an ordered list of sqlglot dialects to try for *sql*.
+
+        Inspects the SQL for dialect-specific syntax and returns a list
+        of dialect identifiers (``None`` = default, ``"mysql"``, or a
+        custom :class:`Dialect` subclass) to try in order.  The first
+        dialect whose result passes :meth:`_has_parse_issues` wins.
+
+        Heuristics:
+
+        * ``#WORD`` → :class:`_HashVarDialect` (MSSQL temp tables).
+        * Back-ticks → ``"mysql"``.
+        * Square brackets or ``TOP`` → :class:`_BracketedTableDialect`.
+        * ``UNIQUE`` → try default, MySQL, Oracle.
+        * ``LATERAL VIEW`` → ``"spark"`` (Hive).
+
+        :param sql: Cleaned SQL string.
+        :type sql: str
+        :returns: Ordered list of dialects to attempt.
+        :rtype: list
+        """
         from sql_metadata._comments import _has_hash_variables
 
         upper = sql.upper()
