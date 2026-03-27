@@ -26,12 +26,12 @@ order by 1, 2;
     assert parser.tables == ["data_contracts_report"]
     assert parser.subqueries_names == ["sq2", "sq"]
     assert parser.subqueries == {
-        "sq": "SELECT count(C2) as C2Count, BusinessSource, yearweek(Start1) Start1, "
-        "yearweek(End1) End1 from (SELECT ContractID as C2, BusinessSource, "
-        "StartDate as Start1, EndDate as End1 from data_contracts_report) sq2 "
-        "group by 2, 3, 4",
-        "sq2": "SELECT ContractID as C2, BusinessSource, StartDate as Start1, EndDate "
-        "as End1 from data_contracts_report",
+        "sq": "SELECT COUNT(C2) AS C2Count, BusinessSource, YEARWEEK(Start1) AS Start1, "
+        "YEARWEEK(End1) AS End1 FROM (SELECT ContractID AS C2, BusinessSource, "
+        "StartDate AS Start1, EndDate AS End1 FROM data_contracts_report) AS sq2 "
+        "GROUP BY 2, 3, 4",
+        "sq2": "SELECT ContractID AS C2, BusinessSource, StartDate AS Start1, EndDate "
+        "AS End1 FROM data_contracts_report",
     }
     assert parser.columns == [
         "SignDate",

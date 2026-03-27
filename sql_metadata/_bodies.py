@@ -1,10 +1,9 @@
-"""Extract original SQL text for CTE and subquery bodies.
+"""Extract CTE and subquery body SQL from the sqlglot AST.
 
-Uses the sqlglot tokenizer for structure discovery and a pre-computed
-parenthesis map for O(1) body extraction.  The key design goal is to
-**preserve original casing and quoting** — sqlglot's ``exp.sql()`` method
-normalises casing, so instead we reconstruct the body from the raw SQL
-string using token start/end positions.
+Uses ``exp.sql()`` via a custom :class:`_PreservingGenerator` that uppercases
+keywords and function names but preserves function signatures (e.g. keeps
+``IFNULL`` instead of rewriting to ``COALESCE``, keeps ``DIV`` instead of
+``CAST``).
 
 Two public entry points:
 
@@ -12,237 +11,84 @@ Two public entry points:
 * :func:`extract_subquery_bodies` — called by :attr:`Parser.subqueries`.
 """
 
-from typing import Dict, List, Optional, Tuple
+import copy
+from typing import Dict, List, Optional
 
 from sqlglot import exp
-from sqlglot.tokens import TokenType
-
-from sql_metadata._comments import _choose_tokenizer
-
-#: Shorthand token type aliases used throughout this module to keep the
-#: body-extraction logic concise.
-_VAR = TokenType.VAR
-_IDENT = TokenType.IDENTIFIER
-_LPAREN = TokenType.L_PAREN
-_RPAREN = TokenType.R_PAREN
-_ALIAS = TokenType.ALIAS
+from sqlglot.generator import Generator
 
 
-def _choose_body_tokenizer(sql: str):
-    """Select a tokenizer for body extraction.
+class _PreservingGenerator(Generator):
+    """Custom SQL generator that preserves function signatures.
 
-    Uses the MySQL tokenizer when backticks are present (so that
-    backtick-quoted identifiers are properly tokenized), otherwise
-    delegates to :func:`_choose_tokenizer` from ``_comments.py``.
-
-    :param sql: Raw SQL string.
-    :type sql: str
-    :returns: An instantiated sqlglot tokenizer.
-    :rtype: sqlglot.tokens.Tokenizer
+    sqlglot normalises certain functions when rendering SQL (e.g.
+    ``IFNULL`` → ``COALESCE``, ``DIV`` → ``CAST(… / … AS INT)``).
+    This generator overrides those transformations so that the output
+    only differs from the input in keyword/function-name casing and
+    explicit ``AS`` insertion.
     """
-    if "`" in sql:
-        from sqlglot.dialects.mysql import MySQL
 
-        return MySQL.Tokenizer()
-    return _choose_tokenizer(sql)
+    TRANSFORMS = {
+        **Generator.TRANSFORMS,
+        exp.CurrentDate: lambda self, e: "CURRENT_DATE()",
+        exp.IntDiv: lambda self, e: (
+            f"{self.sql(e, 'this')} DIV {self.sql(e, 'expression')}"
+        ),
+    }
 
+    def coalesce_sql(self, expression):
+        args = [expression.this] + expression.expressions
+        if len(args) == 2:
+            return f"IFNULL({self.sql(args[0])}, {self.sql(args[1])})"
+        return super().coalesce_sql(expression)
 
-# ---------------------------------------------------------------------------
-# Token reconstruction (preserves original casing and quoting)
-# ---------------------------------------------------------------------------
+    def dateadd_sql(self, expression):
+        return (
+            f"DATE_ADD({self.sql(expression, 'this')}, "
+            f"{self.sql(expression, 'expression')})"
+        )
 
-#: Token types where a left parenthesis does **not** need a preceding
-#: space (i.e. it's a keyword followed by ``(``).  All other token types
-#: are assumed to be function names where the ``(`` attaches directly.
-_KW_BEFORE_PAREN = {
-    TokenType.WHERE,
-    TokenType.IN,
-    TokenType.ON,
-    TokenType.AND,
-    TokenType.OR,
-    TokenType.NOT,
-    TokenType.HAVING,
-    TokenType.FROM,
-    TokenType.JOIN,
-    TokenType.VALUES,
-    TokenType.SET,
-    TokenType.BETWEEN,
-    TokenType.WHEN,
-    TokenType.THEN,
-    TokenType.ELSE,
-    TokenType.USING,
-    TokenType.INTO,
-    TokenType.TABLE,
-    TokenType.OVER,
-    TokenType.PARTITION_BY,
-    TokenType.ORDER_BY,
-    TokenType.GROUP_BY,
-    TokenType.WINDOW,
-    TokenType.EXISTS,
-    TokenType.SELECT,
-    TokenType.INNER,
-    TokenType.OUTER,
-    TokenType.LEFT,
-    TokenType.RIGHT,
-    TokenType.CROSS,
-    TokenType.FULL,
-    TokenType.NATURAL,
-    TokenType.INSERT,
-    TokenType.UPDATE,
-    TokenType.DELETE,
-    TokenType.WITH,
-    TokenType.RETURNING,
-    TokenType.UNION,
-    TokenType.LIMIT,
-    TokenType.OFFSET,
-    TokenType.DISTINCT,
-}
+    def datesub_sql(self, expression):
+        return (
+            f"DATE_SUB({self.sql(expression, 'this')}, "
+            f"{self.sql(expression, 'expression')})"
+        )
+
+    def tsordsadd_sql(self, expression):
+        this = self.sql(expression, "this")
+        expr_node = expression.expression
+        # Detect negated expression pattern from date_sub → TsOrDsAdd(x, y * -1)
+        if isinstance(expr_node, exp.Mul):
+            right = expr_node.expression
+            if (
+                isinstance(right, exp.Neg)
+                and isinstance(right.this, exp.Literal)
+                and right.this.this == "1"
+            ):
+                left = self.sql(expr_node, "this")
+                return f"DATE_SUB({this}, {left})"
+        return f"DATE_ADD({this}, {self.sql(expression, 'expression')})"
+
+    def not_sql(self, expression):
+        child = expression.this
+        # Rewrite NOT x IS NULL → x IS NOT NULL
+        if isinstance(child, exp.Is) and isinstance(child.expression, exp.Null):
+            return f"{self.sql(child, 'this')} IS NOT NULL"
+        # Rewrite NOT x IN (...) → x NOT IN (...)
+        if isinstance(child, exp.In):
+            return f"{self.sql(child, 'this')} NOT IN ({self.expressions(child)})"
+        return super().not_sql(expression)
 
 
-def _no_space(prev, curr) -> bool:
-    """Decide whether *prev* and *curr* tokens should have no space between them.
-
-    Encodes the spacing rules needed to reconstruct SQL from tokens:
-    no space around dots, before commas/right-parens, after left-parens,
-    and before a left-paren that follows a non-keyword (function call).
-
-    :param prev: The preceding token.
-    :type prev: sqlglot token
-    :param curr: The current token.
-    :type curr: sqlglot token
-    :returns: ``True`` if no space should be inserted between them.
-    :rtype: bool
-    """
-    if prev.token_type == TokenType.DOT or curr.token_type == TokenType.DOT:
-        return True
-    if curr.token_type in (TokenType.COMMA, TokenType.SEMICOLON, _RPAREN):
-        return True
-    if prev.token_type == _LPAREN:
-        return True
-    if curr.token_type == _LPAREN:
-        if prev.token_type in _KW_BEFORE_PAREN or prev.token_type in (
-            TokenType.STAR,
-            TokenType.COMMA,
-        ):
-            return False
-        return True
-    return False
+_GENERATOR = _PreservingGenerator()
 
 
-def _reconstruct(tokens, sql: str) -> str:
-    """Reconstruct SQL from a slice of tokens, preserving original casing.
-
-    For each token the original text is extracted from *sql* using the
-    token's ``start`` and ``end`` positions.  Spacing between tokens is
-    determined by :func:`_no_space`.
-
-    :param tokens: Slice of sqlglot tokens to reconstruct.
-    :type tokens: list
-    :param sql: The full original SQL string (used for positional slicing).
-    :type sql: str
-    :returns: Reconstructed SQL fragment.
-    :rtype: str
-    """
-    if not tokens:
-        return ""
-
-    def _text(tok):
-        """Extract the original text for a single token.
-
-        :param tok: A sqlglot token.
-        :returns: Original SQL text for this token position.
-        :rtype: str
-        """
-        if tok.token_type == _IDENT:
-            return tok.text  # strip backticks
-        return sql[tok.start : tok.end + 1]
-
-    parts = [_text(tokens[0])]
-    for i in range(1, len(tokens)):
-        if not _no_space(tokens[i - 1], tokens[i]):
-            parts.append(" ")
-        parts.append(_text(tokens[i]))
-    return "".join(parts)
-
-
-# ---------------------------------------------------------------------------
-# Paren map: pre-compute matching parentheses in a single pass
-# ---------------------------------------------------------------------------
-
-
-def _build_paren_maps(
-    tokens,
-) -> Tuple[Dict[int, int], Dict[int, int]]:
-    """Pre-compute matching parenthesis indices in O(n) time.
-
-    Returns two dictionaries: one mapping each left-paren index to its
-    matching right-paren, and the reverse.  This allows O(1) lookups
-    during body extraction instead of scanning for matching parens each
-    time.
-
-    :param tokens: List of sqlglot tokens.
-    :type tokens: list
-    :returns: A 2-tuple of ``(l_to_r, r_to_l)`` index mappings.
-    :rtype: Tuple[Dict[int, int], Dict[int, int]]
-    """
-    stack: list = []
-    l_to_r: Dict[int, int] = {}
-    r_to_l: Dict[int, int] = {}
-    for i, tok in enumerate(tokens):
-        if tok.token_type == _LPAREN:
-            stack.append(i)
-        elif tok.token_type == _RPAREN and stack:
-            o = stack.pop()
-            l_to_r[o] = i
-            r_to_l[i] = o
-    return l_to_r, r_to_l
-
-
-# ---------------------------------------------------------------------------
-# Body extraction
-# ---------------------------------------------------------------------------
-
-
-def _extract_single_cte_body(
-    tokens: list, idx: int, l_to_r: Dict[int, int], raw_sql: str
-) -> tuple:
-    """Extract the body of a single CTE starting at the name token.
-
-    Skips optional column definitions (using the paren map), expects
-    an ``AS`` keyword, then extracts tokens between the body's
-    parentheses.
-
-    :param tokens: Full token list.
-    :type tokens: list
-    :param idx: Index of the CTE name token.
-    :type idx: int
-    :param l_to_r: Left-paren → right-paren index mapping.
-    :type l_to_r: Dict[int, int]
-    :param raw_sql: Original SQL string for reconstruction.
-    :type raw_sql: str
-    :returns: ``(body_sql, next_index)`` or ``(None, idx + 1)`` on failure.
-    :rtype: tuple
-    """
-    j = idx + 1
-    # Skip optional column definitions
-    if j < len(tokens) and tokens[j].token_type == _LPAREN:
-        j = l_to_r.get(j, j) + 1
-    # Expect AS keyword
-    if not (
-        j < len(tokens)
-        and tokens[j].token_type == _ALIAS
-        and tokens[j].text.upper() == "AS"
-    ):
-        return None, idx + 1
-    j += 1
-    # Extract body between parens
-    if j < len(tokens) and tokens[j].token_type == _LPAREN:
-        close = l_to_r.get(j)
-        if close is not None:
-            body_tokens = tokens[j + 1 : close]
-            if body_tokens:
-                return _reconstruct(body_tokens, raw_sql), close + 1
-    return None, idx + 1
+def _body_sql(node: exp.Expression) -> str:
+    """Render an AST node to SQL, stripping identifier quoting."""
+    body = copy.deepcopy(node)
+    for ident in body.find_all(exp.Identifier):
+        ident.set("quoted", False)
+    return _GENERATOR.generate(body)
 
 
 def extract_cte_bodies(
@@ -253,79 +99,50 @@ def extract_cte_bodies(
 ) -> Dict[str, str]:
     """Extract CTE body SQL for each name in *cte_names*.
 
-    Scans the token stream for each CTE name, skips optional column
-    definitions (using the paren map), expects an ``AS`` keyword, and
-    then extracts the tokens between the body's opening and closing
-    parentheses.  The body is reconstructed via :func:`_reconstruct`
-    to preserve original casing and quoting.
+    Walks the AST for ``exp.CTE`` nodes, matches each alias against
+    *cte_names*, and renders the body via :func:`_body_sql`.
 
-    Called by :attr:`Parser.with_queries`.
-
-    :param ast: Root AST node (used only for the guard check).
-    :type ast: Optional[exp.Expression]
-    :param raw_sql: Original SQL string.
-    :type raw_sql: str
+    :param ast: Root AST node.
+    :param raw_sql: Original SQL string (kept for API compatibility).
     :param cte_names: Ordered list of CTE names to extract bodies for.
-    :type cte_names: List[str]
     :param cte_name_map: Placeholder → original qualified name mapping.
-    :type cte_name_map: Optional[dict]
     :returns: Mapping of ``{cte_name: body_sql}``.
-    :rtype: Dict[str, str]
     """
-    if not ast or not raw_sql or not cte_names:
-        return {}
-    try:
-        tokens = list(_choose_body_tokenizer(raw_sql).tokenize(raw_sql))
-    except Exception:
+    if not ast or not cte_names:
         return {}
 
-    l_to_r, _ = _build_paren_maps(tokens)
-    token_name_map = {n.split(".")[-1].upper(): n for n in cte_names}
+    # Build mapping from AST alias (which may be a __DOT__ placeholder)
+    # back to the original qualified CTE name in cte_names.
+    alias_to_name: Dict[str, str] = {}
+    for name in cte_names:
+        # The AST alias may be the placeholder form (e.g. "db__DOT__cte")
+        placeholder = name.replace(".", "__DOT__")
+        alias_to_name[placeholder.upper()] = name
+        alias_to_name[name.upper()] = name
+        # Also match just the short name (last segment)
+        alias_to_name[name.split(".")[-1].upper()] = name
+
     results: Dict[str, str] = {}
+    for cte in ast.find_all(exp.CTE):
+        alias = cte.alias
+        if alias.upper() in alias_to_name:
+            original_name = alias_to_name[alias.upper()]
+            results[original_name] = _body_sql(cte.this)
 
-    i = 0
-    while i < len(tokens):
-        tok = tokens[i]
-        if tok.token_type in (_VAR, _IDENT) and tok.text.upper() in token_name_map:
-            cte_name = token_name_map[tok.text.upper()]
-            body, next_i = _extract_single_cte_body(tokens, i, l_to_r, raw_sql)
-            if body is not None:
-                results[cte_name] = body
-            i = next_i
-        else:
-            i += 1
     return results
 
 
-def _extract_single_subquery_body(
-    tokens: list, idx: int, r_to_l: Dict[int, int], raw_sql: str
-) -> str:
-    """Extract the body of a single subquery by walking backward from its alias.
-
-    Skips an optional ``AS`` keyword, then uses the paren map to find
-    the matching opening parenthesis and reconstructs the body tokens.
-
-    :param tokens: Full token list.
-    :type tokens: list
-    :param idx: Index of the subquery alias name token.
-    :type idx: int
-    :param r_to_l: Right-paren → left-paren index mapping.
-    :type r_to_l: Dict[int, int]
-    :param raw_sql: Original SQL string for reconstruction.
-    :type raw_sql: str
-    :returns: Body SQL string, or ``None`` if extraction failed.
-    :rtype: Optional[str]
-    """
-    j = idx - 1
-    if j >= 0 and tokens[j].token_type == _ALIAS:
-        j -= 1
-    if j >= 0 and tokens[j].token_type == _RPAREN:
-        open_idx = r_to_l.get(j)
-        if open_idx is not None:
-            body_tokens = tokens[open_idx + 1 : j]
-            if body_tokens:
-                return _reconstruct(body_tokens, raw_sql)
-    return None
+def _collect_subqueries_postorder(
+    node: exp.Expression, names_upper: Dict[str, str], out: Dict[str, str]
+) -> None:
+    """Recursively collect subquery bodies in post-order."""
+    for child in node.iter_expressions():
+        _collect_subqueries_postorder(child, names_upper, out)
+    if isinstance(node, exp.Subquery) and node.alias:
+        alias_upper = node.alias.upper()
+        if alias_upper in names_upper:
+            original_name = names_upper[alias_upper]
+            out[original_name] = _body_sql(node.this)
 
 
 def extract_subquery_bodies(
@@ -335,37 +152,18 @@ def extract_subquery_bodies(
 ) -> Dict[str, str]:
     """Extract subquery body SQL for each name in *subquery_names*.
 
-    Scans the token stream for each subquery alias name, walks backward
-    past an optional ``AS`` keyword, then uses the paren map to jump to
-    the matching left parenthesis and extracts the body tokens between
-    them.
+    Uses a post-order AST walk so that inner subqueries appear before
+    outer ones, matching the order from :func:`extract_subquery_names`.
 
-    Called by :attr:`Parser.subqueries`.
-
-    :param ast: Root AST node (used only for the guard check).
-    :type ast: Optional[exp.Expression]
-    :param raw_sql: Original SQL string.
-    :type raw_sql: str
+    :param ast: Root AST node.
+    :param raw_sql: Original SQL string (kept for API compatibility).
     :param subquery_names: List of subquery alias names to extract.
-    :type subquery_names: List[str]
     :returns: Mapping of ``{subquery_name: body_sql}``.
-    :rtype: Dict[str, str]
     """
-    if not ast or not raw_sql or not subquery_names:
-        return {}
-    try:
-        tokens = list(_choose_body_tokenizer(raw_sql).tokenize(raw_sql))
-    except Exception:
+    if not ast or not subquery_names:
         return {}
 
-    _, r_to_l = _build_paren_maps(tokens)
     names_upper = {n.upper(): n for n in subquery_names}
     results: Dict[str, str] = {}
-
-    for i, tok in enumerate(tokens):
-        if tok.token_type in (_VAR, _IDENT) and tok.text.upper() in names_upper:
-            original_name = names_upper[tok.text.upper()]
-            body = _extract_single_subquery_body(tokens, i, r_to_l, raw_sql)
-            if body is not None:
-                results[original_name] = body
+    _collect_subqueries_postorder(ast, names_upper, results)
     return results

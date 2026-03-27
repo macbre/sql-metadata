@@ -135,87 +135,87 @@ from (
         "presentation.job_request_id",
     ]
     assert parser.subqueries == {
-        "days_final_qry": "SELECT PROJECT_ID, days_to_offer, (SELECT count(distinct "
-        "jro.job_request_application_id) from job_request_offer jro "
-        "left join job_request_application jra2 on "
-        "jro.job_request_application_id = jra2.id where "
-        "jra2.job_request_id = PROJECT_ID and "
-        "jro.first_presented_date is not null and "
-        "jro.first_presented_date <= InitialChangeDate) as RowNo "
-        "from (SELECT jr.id as PROJECT_ID, 5 * "
+        "days_final_qry": "SELECT PROJECT_ID, days_to_offer, (SELECT COUNT(DISTINCT "
+        "jro.job_request_application_id) FROM job_request_offer AS jro "
+        "LEFT JOIN job_request_application AS jra2 ON "
+        "jro.job_request_application_id = jra2.id WHERE "
+        "jra2.job_request_id = PROJECT_ID AND "
+        "jro.first_presented_date IS NOT NULL AND "
+        "jro.first_presented_date <= InitialChangeDate) AS RowNo "
+        "FROM (SELECT jr.id AS PROJECT_ID, 5 * "
         "(DATEDIFF(jro.first_presented_date, jr.creation_date) DIV "
         "7) + "
         "MID('0123444401233334012222340111123400001234000123440', 7 "
         "* WEEKDAY(jr.creation_date) + "
-        "WEEKDAY(jro.first_presented_date) + 1, 1) as "
+        "WEEKDAY(jro.first_presented_date) + 1, 1) AS "
         "days_to_offer, jro.job_request_application_id, "
-        "jro.first_presented_date as InitialChangeDate from "
-        "presentation pr left join presentation_job_request_offer "
-        "pjro on pr.id = pjro.presentation_id left join "
-        "job_request_offer jro on pjro.job_request_offer_id = "
-        "jro.id left join job_request jr on pr.job_request_id = "
-        "jr.id where jro.first_presented_date is not null) "
+        "jro.first_presented_date AS InitialChangeDate FROM "
+        "presentation AS pr LEFT JOIN presentation_job_request_offer "
+        "AS pjro ON pr.id = pjro.presentation_id LEFT JOIN "
+        "job_request_offer AS jro ON pjro.job_request_offer_id = "
+        "jro.id LEFT JOIN job_request AS jr ON pr.job_request_id = "
+        "jr.id WHERE jro.first_presented_date IS NOT NULL) AS "
         "days_sqry",
-        "days_sqry": "SELECT jr.id as PROJECT_ID, 5 * "
+        "days_sqry": "SELECT jr.id AS PROJECT_ID, 5 * "
         "(DATEDIFF(jro.first_presented_date, jr.creation_date) DIV 7) + "
         "MID('0123444401233334012222340111123400001234000123440', 7 * "
         "WEEKDAY(jr.creation_date) + WEEKDAY(jro.first_presented_date) + "
-        "1, 1) as days_to_offer, jro.job_request_application_id, "
-        "jro.first_presented_date as InitialChangeDate from presentation "
-        "pr left join presentation_job_request_offer pjro on pr.id = "
-        "pjro.presentation_id left join job_request_offer jro on "
-        "pjro.job_request_offer_id = jro.id left join job_request jr on "
-        "pr.job_request_id = jr.id where jro.first_presented_date is not "
-        "null",
-        "jrah2": "SELECT jro2.job_request_application_id, max(case when "
-        "jro2.first_interview_scheduled_date is not null then 1 else 0 end) "
-        "as IS_INTERVIEW, max(case when jro2.first_presented_date is not "
-        "null then 1 else 0 end) as IS_PRESENTATION from job_request_offer "
-        "jro2 group by 1",
-        "main_qry": "SELECT jr.id as PROJECT_ID, 5 * "
-        "(DATEDIFF(ifnull(lc.creation_date, now()), jr.creation_date) DIV "
+        "1, 1) AS days_to_offer, jro.job_request_application_id, "
+        "jro.first_presented_date AS InitialChangeDate FROM presentation "
+        "AS pr LEFT JOIN presentation_job_request_offer AS pjro ON pr.id = "
+        "pjro.presentation_id LEFT JOIN job_request_offer AS jro ON "
+        "pjro.job_request_offer_id = jro.id LEFT JOIN job_request AS jr ON "
+        "pr.job_request_id = jr.id WHERE jro.first_presented_date IS NOT "
+        "NULL",
+        "jrah2": "SELECT jro2.job_request_application_id, MAX(CASE WHEN "
+        "jro2.first_interview_scheduled_date IS NOT NULL THEN 1 ELSE 0 END) "
+        "AS IS_INTERVIEW, MAX(CASE WHEN jro2.first_presented_date IS NOT "
+        "NULL THEN 1 ELSE 0 END) AS IS_PRESENTATION FROM job_request_offer "
+        "AS jro2 GROUP BY 1",
+        "main_qry": "SELECT jr.id AS PROJECT_ID, 5 * "
+        "(DATEDIFF(IFNULL(lc.creation_date, NOW()), jr.creation_date) DIV "
         "7) + MID('0123444401233334012222340111123400001234000123440', 7 "
-        "* WEEKDAY(jr.creation_date) + WEEKDAY(ifnull(lc.creation_date, "
-        "now())) + 1, 1) as LIFETIME, count(distinct case when "
-        "jra.application_source = 'VERAMA' then jra.id else null end) "
-        "NUM_APPLICATIONS, count(distinct jra.id) NUM_CANDIDATES, "
-        "sum(case when jro.stage = 'DEAL' then 1 else 0 end) as "
-        "NUM_CONTRACTED, sum(ifnull(IS_INTERVIEW, 0)) as NUM_INTERVIEWED, "
-        "sum(ifnull(IS_PRESENTATION, 0)) as NUM_OFFERED from job_request "
-        "jr left join job_request_application jra on jr.id = "
-        "jra.job_request_id left join job_request_offer jro on "
-        "jro.job_request_application_id = jra.id left join lifecycle lc "
-        "on lc.object_id = jr.id and lc.lifecycle_object_type = "
-        "'JOB_REQUEST' and lc.event = 'JOB_REQUEST_CLOSED' left join "
-        "(SELECT jro2.job_request_application_id, max(case when "
-        "jro2.first_interview_scheduled_date is not null then 1 else 0 "
-        "end) as IS_INTERVIEW, max(case when jro2.first_presented_date is "
-        "not null then 1 else 0 end) as IS_PRESENTATION from "
-        "job_request_offer jro2 group by 1) jrah2 on jra.id = "
-        "jrah2.job_request_application_id left join client u on "
-        "jr.client_id = u.id where jr.from_point_break = 0 and u.name not "
-        "in ('Test', 'Demo Client') group by 1, 2",
-        "subdays": "SELECT PROJECT_ID, sum(case when RowNo = 1 then days_to_offer "
-        "else null end) as DAYS_OFFER1, sum(case when RowNo = 2 then "
-        "days_to_offer else null end) as DAYS_OFFER2, sum(case when RowNo "
-        "= 3 then days_to_offer else null end) as DAYS_OFFER3 from (SELECT "
-        "PROJECT_ID, days_to_offer, (SELECT count(distinct "
-        "jro.job_request_application_id) from job_request_offer jro left "
-        "join job_request_application jra2 on "
-        "jro.job_request_application_id = jra2.id where "
-        "jra2.job_request_id = PROJECT_ID and jro.first_presented_date is "
-        "not null and jro.first_presented_date <= InitialChangeDate) as "
-        "RowNo from (SELECT jr.id as PROJECT_ID, 5 * "
+        "* WEEKDAY(jr.creation_date) + WEEKDAY(IFNULL(lc.creation_date, "
+        "NOW())) + 1, 1) AS LIFETIME, COUNT(DISTINCT CASE WHEN "
+        "jra.application_source = 'VERAMA' THEN jra.id ELSE NULL END) "
+        "AS NUM_APPLICATIONS, COUNT(DISTINCT jra.id) AS NUM_CANDIDATES, "
+        "SUM(CASE WHEN jro.stage = 'DEAL' THEN 1 ELSE 0 END) AS "
+        "NUM_CONTRACTED, SUM(IFNULL(IS_INTERVIEW, 0)) AS NUM_INTERVIEWED, "
+        "SUM(IFNULL(IS_PRESENTATION, 0)) AS NUM_OFFERED FROM job_request "
+        "AS jr LEFT JOIN job_request_application AS jra ON jr.id = "
+        "jra.job_request_id LEFT JOIN job_request_offer AS jro ON "
+        "jro.job_request_application_id = jra.id LEFT JOIN lifecycle AS lc "
+        "ON lc.object_id = jr.id AND lc.lifecycle_object_type = "
+        "'JOB_REQUEST' AND lc.event = 'JOB_REQUEST_CLOSED' LEFT JOIN "
+        "(SELECT jro2.job_request_application_id, MAX(CASE WHEN "
+        "jro2.first_interview_scheduled_date IS NOT NULL THEN 1 ELSE 0 "
+        "END) AS IS_INTERVIEW, MAX(CASE WHEN jro2.first_presented_date IS "
+        "NOT NULL THEN 1 ELSE 0 END) AS IS_PRESENTATION FROM "
+        "job_request_offer AS jro2 GROUP BY 1) AS jrah2 ON jra.id = "
+        "jrah2.job_request_application_id LEFT JOIN client AS u ON "
+        "jr.client_id = u.id WHERE jr.from_point_break = 0 AND u.name NOT "
+        "IN ('Test', 'Demo Client') GROUP BY 1, 2",
+        "subdays": "SELECT PROJECT_ID, SUM(CASE WHEN RowNo = 1 THEN days_to_offer "
+        "ELSE NULL END) AS DAYS_OFFER1, SUM(CASE WHEN RowNo = 2 THEN "
+        "days_to_offer ELSE NULL END) AS DAYS_OFFER2, SUM(CASE WHEN RowNo "
+        "= 3 THEN days_to_offer ELSE NULL END) AS DAYS_OFFER3 FROM (SELECT "
+        "PROJECT_ID, days_to_offer, (SELECT COUNT(DISTINCT "
+        "jro.job_request_application_id) FROM job_request_offer AS jro LEFT "
+        "JOIN job_request_application AS jra2 ON "
+        "jro.job_request_application_id = jra2.id WHERE "
+        "jra2.job_request_id = PROJECT_ID AND jro.first_presented_date IS "
+        "NOT NULL AND jro.first_presented_date <= InitialChangeDate) AS "
+        "RowNo FROM (SELECT jr.id AS PROJECT_ID, 5 * "
         "(DATEDIFF(jro.first_presented_date, jr.creation_date) DIV 7) + "
         "MID('0123444401233334012222340111123400001234000123440', 7 * "
         "WEEKDAY(jr.creation_date) + WEEKDAY(jro.first_presented_date) + "
-        "1, 1) as days_to_offer, jro.job_request_application_id, "
-        "jro.first_presented_date as InitialChangeDate from presentation "
-        "pr left join presentation_job_request_offer pjro on pr.id = "
-        "pjro.presentation_id left join job_request_offer jro on "
-        "pjro.job_request_offer_id = jro.id left join job_request jr on "
-        "pr.job_request_id = jr.id where jro.first_presented_date is not "
-        "null) days_sqry) days_final_qry group by PROJECT_ID",
+        "1, 1) AS days_to_offer, jro.job_request_application_id, "
+        "jro.first_presented_date AS InitialChangeDate FROM presentation "
+        "AS pr LEFT JOIN presentation_job_request_offer AS pjro ON pr.id = "
+        "pjro.presentation_id LEFT JOIN job_request_offer AS jro ON "
+        "pjro.job_request_offer_id = jro.id LEFT JOIN job_request AS jr ON "
+        "pr.job_request_id = jr.id WHERE jro.first_presented_date IS NOT "
+        "NULL) AS days_sqry) AS days_final_qry GROUP BY PROJECT_ID",
     }
 
 
@@ -259,9 +259,9 @@ task_type_id = 80
     }
 
     assert parser.subqueries == {
-        "a": "SELECT std.task_id as new_task_id "
-        "FROM some_task_detail std WHERE std.STATUS = 1",
-        "b": "SELECT st.task_id FROM some_task st WHERE task_type_id = 80",
+        "a": "SELECT std.task_id AS new_task_id "
+        "FROM some_task_detail AS std WHERE std.STATUS = 1",
+        "b": "SELECT st.task_id FROM some_task AS st WHERE task_type_id = 80",
     }
 
     parser2 = Parser(parser.subqueries["a"])
@@ -417,8 +417,8 @@ def test_readme_query():
         ON a.task_id = b.task_id;
         """)
     assert parser.subqueries == {
-        "a": "SELECT std.task_id FROM some_task_detail std WHERE std.STATUS = 1",
-        "b": "SELECT st.task_id FROM some_task st WHERE task_type_id = 80",
+        "a": "SELECT std.task_id FROM some_task_detail AS std WHERE std.STATUS = 1",
+        "b": "SELECT st.task_id FROM some_task AS st WHERE task_type_id = 80",
     }
     assert parser.subqueries_names == ["a", "b"]
     assert parser.columns == [

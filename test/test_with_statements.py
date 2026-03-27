@@ -19,9 +19,9 @@ LEFT JOIN database2.table2 ON ("tt"."ttt"."fff" = "xx"."xxx")
     assert parser.tables == ["table3", "table4", "database2.table2"]
     assert parser.with_names == ["database1.tableFromWith", "test"]
     assert parser.with_queries == {
-        "database1.tableFromWith": "SELECT aa.* FROM table3 as aa left join table4 on "
+        "database1.tableFromWith": "SELECT aa.* FROM table3 AS aa LEFT JOIN table4 ON "
         "aa.col1 = table4.col2",
-        "test": "SELECT * from table3",
+        "test": "SELECT * FROM table3",
     }
     parser = Parser("""
 WITH
@@ -143,12 +143,12 @@ def test_complicated_with():
     assert parser.query_type == QueryType.SELECT
     assert parser.with_names == ["uisd_filter_table"]
     assert parser.with_queries == {
-        "uisd_filter_table": "select session_id, srch_id, srch_ci, srch_co, srch_los, "
-        "srch_sort_type, impr_list from uisd where datem <= "
-        "date_sub(date_add(current_date(), 92), 7 * 52) and "
-        "lower(srch_sort_type) in ('expertpicks', 'recommended') "
-        "and srch_ci <= date_sub(date_add(current_date(), 92), 7 "
-        "* 52) and srch_co >= date_sub(date_add(current_date(), "
+        "uisd_filter_table": "SELECT session_id, srch_id, srch_ci, srch_co, srch_los, "
+        "srch_sort_type, impr_list FROM uisd WHERE datem <= "
+        "DATE_SUB(DATE_ADD(CURRENT_DATE(), 92), 7 * 52) AND "
+        "LOWER(srch_sort_type) IN ('expertpicks', 'recommended') "
+        "AND srch_ci <= DATE_SUB(DATE_ADD(CURRENT_DATE(), 92), 7 "
+        "* 52) AND srch_co >= DATE_SUB(DATE_ADD(CURRENT_DATE(), "
         "1), 7 * 52)"
     }
     assert parser.tables == [
@@ -268,9 +268,9 @@ def test_resolving_with_columns_with_nested_tables_prefixes():
     parser = Parser(query)
     assert parser.with_names == ["query1", "query2"]
     assert parser.with_queries == {
-        "query1": "SELECT t5.c1, t5.c2, t6.c4 FROM t5 left join t6 on t5.link1 = "
+        "query1": "SELECT t5.c1, t5.c2, t6.c4 FROM t5 LEFT JOIN t6 ON t5.link1 = "
         "t6.link2",
-        "query2": "SELECT c3, c7 FROM t7 union all select c4, c12 from t8",
+        "query2": "SELECT c3, c7 FROM t7 UNION ALL SELECT c4, c12 FROM t8",
     }
     assert parser.tables == ["t5", "t6", "t7", "t8"]
     assert parser.columns_aliases == {}
@@ -353,12 +353,12 @@ def test_nested_with_statement_in_create_table():
     assert parser.with_names == ["sub", "abc"]
     assert parser.subqueries_names == ["table_a"]
     assert parser.with_queries == {
-        "abc": "select * from other_table",
-        "sub": "select it_id from internal_table",
+        "abc": "SELECT * FROM other_table",
+        "sub": "SELECT it_id FROM internal_table",
     }
     assert parser.subqueries == {
-        "table_a": "with abc as(select * from other_table) select name, age, it_id "
-        "from table_z join abc on (table_z.it_id = abc.it_id)"
+        "table_a": "WITH abc AS (SELECT * FROM other_table) SELECT name, age, it_id "
+        "FROM table_z JOIN abc ON (table_z.it_id = abc.it_id)"
     }
 
     assert parser.query_type == QueryType.CREATE
@@ -444,7 +444,7 @@ def test_window_in_with():
     assert parser.with_names == ["cte_1"]
     assert parser.columns == ["column_1", "column_2"]
     assert parser.with_queries == {
-        "cte_1": "SELECT column_1, column_2 FROM table_1 WINDOW window_1 AS(PARTITION BY column_2)"
+        "cte_1": "SELECT column_1, column_2 FROM table_1 WINDOW window_1 AS (PARTITION BY column_2)"
     }
     assert parser.tables == ["table_1"]
 
