@@ -1,21 +1,17 @@
 """Extract the query type from a sqlglot AST root node.
 
-Maps the top-level ``sqlglot.exp.Expression`` subclass to a
-:class:`QueryType` enum value.  Handles edge cases like parenthesised
-queries (``exp.Paren`` / ``exp.Subquery`` wrappers), set operations
-(``UNION`` / ``INTERSECT`` / ``EXCEPT`` → ``SELECT``), and opaque
-``exp.Command`` nodes produced by sqlglot for statements it does not
-fully parse (e.g. ``ALTER TABLE APPEND``, ``CREATE FUNCTION``).
+The :class:`QueryTypeExtractor` class maps the top-level AST node to a
+:class:`QueryType` enum value, handling parenthesised wrappers, set
+operations, and opaque ``Command`` nodes.
 """
 
 import logging
+from typing import Optional
 
 from sqlglot import exp
 
 from sql_metadata.keywords_lists import QueryType
 
-#: Module-level logger.  An error is logged (and ``ValueError`` raised)
-#: when the query type is not recognised.
 logger = logging.getLogger(__name__)
 
 
@@ -36,94 +32,87 @@ _SIMPLE_TYPE_MAP = {
 }
 
 
-def _unwrap_parens(ast: exp.Expression) -> exp.Expression:
-    """Remove ``Paren`` and ``Subquery`` wrappers to reach the real statement.
+class QueryTypeExtractor:
+    """Determine the query type from a sqlglot AST root node.
 
-    :param ast: The root AST node, possibly wrapped.
-    :type ast: exp.Expression
-    :returns: The innermost non-wrapper node.
-    :rtype: exp.Expression
+    :param ast: Root AST node (may be ``None``).
+    :param raw_query: Original SQL string (for error messages).
     """
-    root = ast
-    while isinstance(root, (exp.Paren, exp.Subquery)):
-        root = root.this
-    return root
+
+    def __init__(
+        self,
+        ast: Optional[exp.Expression],
+        raw_query: str,
+    ):
+        self._ast = ast
+        self._raw_query = raw_query
+
+    def extract(self) -> QueryType:
+        """Determine the :class:`QueryType` for the parsed SQL.
+
+        :returns: The detected query type.
+        :raises ValueError: If the query is empty, malformed, or
+            unsupported.
+        """
+        if self._ast is None:
+            self._raise_for_none_ast()
+
+        root = self._unwrap_parens(self._ast)
+        node_type = type(root)
+
+        if node_type is exp.With:
+            raise ValueError("This query is wrong")
+
+        simple = _SIMPLE_TYPE_MAP.get(node_type)
+        if simple is not None:
+            return simple
+
+        if node_type is exp.Command:
+            result = self._resolve_command_type(root)
+            if result is not None:
+                return result
+
+        shorten_query = " ".join(self._raw_query.split(" ")[:3])
+        logger.error("Not supported query type: %s", shorten_query)
+        raise ValueError("Not supported query type!")
+
+    @staticmethod
+    def _unwrap_parens(ast: exp.Expression) -> exp.Expression:
+        """Remove Paren and Subquery wrappers to reach the real statement."""
+        root = ast
+        while isinstance(root, (exp.Paren, exp.Subquery)):
+            root = root.this
+        return root
+
+    @staticmethod
+    def _resolve_command_type(root: exp.Expression) -> Optional[QueryType]:
+        """Determine query type for an opaque Command node."""
+        expression_text = str(root.this).upper() if root.this else ""
+        if expression_text == "ALTER":
+            return QueryType.ALTER
+        if expression_text == "CREATE":
+            return QueryType.CREATE
+        return None
+
+    def _raise_for_none_ast(self) -> None:
+        """Raise an appropriate error when the AST is None."""
+        from sql_metadata._comments import strip_comments
+
+        stripped = (
+            strip_comments(self._raw_query) if self._raw_query else ""
+        )
+        if stripped.strip():
+            raise ValueError("This query is wrong")
+        raise ValueError("Empty queries are not supported!")
 
 
-def _resolve_command_type(root: exp.Expression) -> QueryType:
-    """Determine the query type for an opaque ``Command`` node.
-
-    sqlglot produces ``exp.Command`` for statements it does not fully
-    parse (e.g. ``ALTER TABLE APPEND``, ``CREATE FUNCTION``).  This
-    helper inspects the command text to map it to a known type.
-
-    :param root: A ``Command`` AST node.
-    :type root: exp.Expression
-    :returns: The detected query type, or ``None`` if unrecognised.
-    :rtype: Optional[QueryType]
-    """
-    expression_text = str(root.this).upper() if root.this else ""
-    if expression_text == "ALTER":
-        return QueryType.ALTER
-    if expression_text == "CREATE":
-        return QueryType.CREATE
-    return None
+# -------------------------------------------------------------------
+# Backward-compatible module-level function
+# -------------------------------------------------------------------
 
 
-def _raise_for_none_ast(raw_query: str) -> None:
-    """Raise an appropriate error when the AST is ``None``.
-
-    Distinguishes between empty input (comment-only or blank) and
-    genuinely malformed SQL by stripping comments first.
-
-    :param raw_query: The original SQL string.
-    :type raw_query: str
-    :raises ValueError: Always — either "empty" or "wrong".
-    """
-    from sql_metadata._comments import strip_comments
-
-    stripped = strip_comments(raw_query) if raw_query else ""
-    if stripped.strip():
-        raise ValueError("This query is wrong")
-    raise ValueError("Empty queries are not supported!")
-
-
-def extract_query_type(ast: exp.Expression, raw_query: str) -> QueryType:
-    """Determine the :class:`QueryType` for a parsed SQL statement.
-
-    Called by :attr:`Parser.query_type`.  If the AST is ``None`` the
-    function distinguishes between empty input (comment-only or blank)
-    and genuinely malformed SQL by stripping comments first.
-
-    :param ast: Root AST node returned by :attr:`ASTParser.ast`, or
-        ``None`` if parsing produced no tree.
-    :type ast: Optional[exp.Expression]
-    :param raw_query: The original SQL string, used as a fallback for
-        ``Command`` nodes and for error messages.
-    :type raw_query: str
-    :returns: The detected query type.
-    :rtype: QueryType
-    :raises ValueError: If the query is empty, malformed, or of an
-        unsupported type.
-    """
-    if ast is None:
-        _raise_for_none_ast(raw_query)
-
-    root = _unwrap_parens(ast)
-    node_type = type(root)
-
-    if node_type is exp.With:
-        raise ValueError("This query is wrong")
-
-    simple = _SIMPLE_TYPE_MAP.get(node_type)
-    if simple is not None:
-        return simple
-
-    if node_type is exp.Command:
-        result = _resolve_command_type(root)
-        if result is not None:
-            return result
-
-    shorten_query = " ".join(raw_query.split(" ")[:3])
-    logger.error("Not supported query type: %s", shorten_query)
-    raise ValueError("Not supported query type!")
+def extract_query_type(
+    ast: Optional[exp.Expression], raw_query: str
+) -> QueryType:
+    """Backward-compat wrapper for QueryTypeExtractor.extract."""
+    return QueryTypeExtractor(ast, raw_query).extract()

@@ -18,6 +18,7 @@ by :mod:`_ast` before handing SQL to ``sqlglot.parse()``; it always uses
 the MySQL tokenizer so that ``#``-style comments are reliably stripped.
 """
 
+import re
 from typing import List
 
 from sqlglot.tokens import Tokenizer
@@ -51,7 +52,7 @@ def _has_hash_variables(sql: str) -> bool:
     MySQL-style ``# comment`` lines so that :func:`_choose_tokenizer`
     picks the right dialect.
 
-    Heuristics:
+    Heuristics (checked via regex):
 
     * ``#WORD#`` — bracketed template variable.
     * ``= #WORD`` or ``(#WORD`` — assignment / parameter context.
@@ -61,22 +62,12 @@ def _has_hash_variables(sql: str) -> bool:
     :returns: ``True`` if at least one ``#`` looks like a variable prefix.
     :rtype: bool
     """
-    pos = sql.find("#")
-    while pos >= 0:
-        end = pos + 1
-        while end < len(sql) and (sql[end].isalnum() or sql[end] == "_"):
-            end += 1
-        if end > pos + 1:
-            # #WORD# template variable
-            if end < len(sql) and sql[end] == "#":
-                return True
-            # = #WORD or (#WORD variable reference
-            before = pos - 1
-            while before >= 0 and sql[before] in " \t":
-                before -= 1
-            if before >= 0 and sql[before] in "=(":
-                return True
-        pos = sql.find("#", max(end, pos + 1))
+    # #WORD# template variable (e.g. #VAR#)
+    if re.search(r"#\w+#", sql):
+        return True
+    # = #WORD or (#WORD with optional whitespace before #
+    if re.search(r"[=(]\s*#\w", sql):
+        return True
     return False
 
 
@@ -110,51 +101,20 @@ def extract_comments(sql: str) -> List[str]:
     return comments
 
 
+#: Matches all three SQL comment styles in a single pass:
+#: ``/* ... */`` (block, possibly unterminated), ``-- ...``, and ``# ...``.
+_COMMENT_RE = re.compile(r"/\*.*?\*/|/\*.*$|--[^\n]*\n?|#[^\n]*\n?", re.DOTALL)
+
+
 def _scan_gap(sql: str, start: int, end: int, out: list) -> None:
     """Scan a slice of *sql* for comment delimiters and append matches.
 
-    Handles three comment styles:
-
-    * ``/* ... */`` — block comments (may be unterminated).
-    * ``-- ...``    — line comments up to the next newline.
-    * ``# ...``     — MySQL-style line comments.
-
-    Designed to be called repeatedly for each gap between token positions
-    discovered by :func:`extract_comments` and by :func:`tokenize` in
-    ``token.py``.
-
     :param sql: The full SQL string (not just the gap).
-    :type sql: str
     :param start: Start index of the gap to scan.
-    :type start: int
     :param end: End index (exclusive) of the gap.
-    :type end: int
     :param out: Mutable list to which discovered comment strings are appended.
-    :type out: list
-    :returns: Nothing — results are appended to *out* in place.
-    :rtype: None
     """
-    gap = sql[start:end]
-    i = 0
-    while i < len(gap):
-        if gap[i : i + 2] == "/*":
-            close = gap.find("*/", i + 2)
-            if close >= 0:
-                out.append(gap[i : close + 2])
-                i = close + 2
-            else:
-                out.append(gap[i:])
-                return
-        elif gap[i : i + 2] == "--":
-            nl = gap.find("\n", i)
-            out.append(gap[i : nl + 1] if nl >= 0 else gap[i:])
-            i = nl + 1 if nl >= 0 else len(gap)
-        elif gap[i] == "#":
-            nl = gap.find("\n", i)
-            out.append(gap[i : nl + 1] if nl >= 0 else gap[i:])
-            i = nl + 1 if nl >= 0 else len(gap)
-        else:
-            i += 1
+    out.extend(_COMMENT_RE.findall(sql[start:end]))
 
 
 def strip_comments_for_parsing(sql: str) -> str:

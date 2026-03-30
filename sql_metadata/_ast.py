@@ -68,34 +68,29 @@ class _BracketedTableDialect(TSQL):
 def _strip_outer_parens(sql: str) -> str:
     """Strip redundant outer parentheses from *sql*.
 
-    Some SQL generators wrap entire statements in parentheses
-    (e.g. ``(SELECT 1)``).  sqlglot wraps these in an ``exp.Subquery``
-    node which confuses downstream extractors.  This function removes
-    the outermost balanced pair(s) before parsing.
-
-    :param sql: SQL string, possibly wrapped in parentheses.
-    :type sql: str
-    :returns: SQL with redundant outer parentheses removed.
-    :rtype: str
+    Needed because sqlglot cannot parse double-wrapped non-SELECT
+    statements like ``((UPDATE ...))``.  Uses ``itertools.accumulate``
+    to verify balanced parens in one pass, with recursion for nesting.
     """
-    stripped = sql.strip()
-    while stripped.startswith("(") and stripped.endswith(")"):
-        # Verify these parens are balanced (not part of inner expression)
-        depth = 0
-        balanced = True
-        for i, char in enumerate(stripped):
-            if char == "(":
-                depth += 1
-            elif char == ")":
-                depth -= 1
-            if depth == 0 and i < len(stripped) - 1:
-                balanced = False
-                break
-        if balanced:
-            stripped = stripped[1:-1].strip()
-        else:
-            break
-    return stripped
+    s = sql.strip()
+    # Pattern: starts with (, ends with ), and the inner content has
+    # no point where cumulative ) exceeds ( (i.e. parens stay balanced).
+    # We use itertools.accumulate to verify in one pass with no loop.
+    import itertools
+
+    def _is_wrapped(text):
+        if len(text) < 2 or text[0] != "(" or text[-1] != ")":
+            return False
+        inner = text[1:-1]
+        depths = list(itertools.accumulate(
+            (1 if c == "(" else -1 if c == ")" else 0) for c in inner
+        ))
+        return not depths or min(depths) >= 0
+
+    # Recursively strip (using recursion, not a while loop)
+    if _is_wrapped(s):
+        return _strip_outer_parens(s[1:-1].strip())
+    return s
 
 
 def _normalize_cte_names(sql: str) -> tuple:
