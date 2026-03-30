@@ -117,6 +117,18 @@ def _scan_gap(sql: str, start: int, end: int, out: list) -> None:
     out.extend(_COMMENT_RE.findall(sql[start:end]))
 
 
+def _reconstruct_from_tokens(sql: str, tokens: list) -> str:
+    """Rebuild SQL from token spans, collapsing gaps to single spaces."""
+    if not tokens:
+        return ""
+    parts = [sql[tokens[0].start : tokens[0].end + 1]]
+    for i in range(1, len(tokens)):
+        if tokens[i].start > tokens[i - 1].end + 1:
+            parts.append(" ")
+        parts.append(sql[tokens[i].start : tokens[i].end + 1])
+    return "".join(parts).strip()
+
+
 def strip_comments_for_parsing(sql: str) -> str:
     """Strip **all** comments — including ``#`` lines — for sqlglot parsing.
 
@@ -147,14 +159,7 @@ def strip_comments_for_parsing(sql: str) -> str:
         tokens = list(tokenizer.tokenize(sql))
     except Exception:
         return sql.strip()
-    if not tokens:
-        return ""
-    parts = [sql[tokens[0].start : tokens[0].end + 1]]
-    for i in range(1, len(tokens)):
-        if tokens[i].start > tokens[i - 1].end + 1:
-            parts.append(" ")
-        parts.append(sql[tokens[i].start : tokens[i].end + 1])
-    return "".join(parts).strip()
+    return _reconstruct_from_tokens(sql, tokens)
 
 
 def strip_comments(sql: str) -> str:
@@ -179,11 +184,4 @@ def strip_comments(sql: str) -> str:
         tokens = list(_choose_tokenizer(sql).tokenize(sql))
     except Exception:
         return sql.strip()
-    if not tokens:
-        return ""
-    parts = [sql[tokens[0].start : tokens[0].end + 1]]
-    for i in range(1, len(tokens)):
-        if tokens[i].start > tokens[i - 1].end + 1:
-            parts.append(" ")
-        parts.append(sql[tokens[i].start : tokens[i].end + 1])
-    return "".join(parts).strip()
+    return _reconstruct_from_tokens(sql, tokens)

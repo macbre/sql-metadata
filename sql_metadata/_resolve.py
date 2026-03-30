@@ -409,29 +409,3 @@ class NestedResolver:
                     return column_name
             return original_ref
         return [subparser.columns[idx]]
-
-
-# ---------------------------------------------------------------------------
-# Backward-compatible module-level functions (from _bodies.py)
-# ---------------------------------------------------------------------------
-
-
-def extract_cte_bodies(
-    ast: Optional[exp.Expression],
-    raw_sql: str,
-    cte_names: List[str],
-    cte_name_map: Optional[dict] = None,
-) -> Dict[str, str]:
-    """Backward-compatible wrapper for :meth:`NestedResolver.extract_cte_bodies`."""
-    resolver = NestedResolver(ast, cte_name_map)
-    return resolver.extract_cte_bodies(cte_names)
-
-
-def extract_subquery_bodies(
-    ast: Optional[exp.Expression],
-    raw_sql: str,
-    subquery_names: List[str],
-) -> Dict[str, str]:
-    """Backward-compat wrapper for NestedResolver.extract_subquery_bodies."""
-    resolver = NestedResolver(ast)
-    return resolver.extract_subquery_bodies(subquery_names)

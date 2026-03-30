@@ -13,51 +13,29 @@ class UniqueList(list):
 
     Used throughout the extraction pipeline (``_extract.py``, ``parser.py``)
     to collect columns, tables, aliases, CTE names, and subquery names while
-    guaranteeing uniqueness and preserving first-insertion order.  This avoids
-    the need for a separate ``set`` plus an ordered container.
-
-    Inherits from :class:`list` so it is JSON-serialisable and supports
-    indexing, but overrides :meth:`append` and :meth:`extend` to enforce the
-    uniqueness invariant.
+    guaranteeing uniqueness and preserving first-insertion order.  Maintains
+    an internal ``set`` for O(1) membership checks.
     """
 
-    def append(self, item: Any) -> None:
-        """Append *item* only if it is not already present.
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._seen: set = set(self)
 
-        :param item: The value to append.
-        :type item: Any
-        :returns: Nothing.
-        :rtype: None
-        """
-        if item not in self:
+    def append(self, item: Any) -> None:
+        """Append *item* only if it is not already present (O(1) check)."""
+        if item not in self._seen:
+            self._seen.add(item)
             super().append(item)
 
     def extend(self, items: Sequence[Any]) -> None:
-        """Extend the list with *items*, skipping duplicates.
-
-        Delegates to :meth:`append` for each element so the uniqueness
-        invariant is maintained.
-
-        :param items: Iterable of values to add.
-        :type items: Sequence[Any]
-        :returns: Nothing.
-        :rtype: None
-        """
+        """Extend the list with *items*, skipping duplicates."""
         for item in items:
             self.append(item)
 
     def __sub__(self, other) -> List:
-        """Return a plain list of elements in *self* that are not in *other*.
-
-        Used by the parser to subtract known alias names or CTE names from
-        a collected column list.
-
-        :param other: Collection of items to exclude.
-        :type other: list
-        :returns: Filtered list (not a ``UniqueList``).
-        :rtype: List
-        """
-        return [x for x in self if x not in other]
+        """Return a plain list of elements in *self* that are not in *other*."""
+        other_set = set(other)
+        return [x for x in self if x not in other_set]
 
 
 def flatten_list(input_list: List) -> List[str]:

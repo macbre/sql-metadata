@@ -19,6 +19,7 @@ Design notes:
   placeholders and returns a reverse map for later restoration.
 """
 
+import itertools
 import re
 
 import sqlglot
@@ -29,6 +30,12 @@ from sqlglot.errors import ParseError, TokenError
 from sqlglot.tokens import Tokenizer
 
 from sql_metadata._comments import strip_comments_for_parsing as _strip_comments
+
+#: Table names that indicate a degraded parse result.
+_BAD_TABLE_NAMES = frozenset({"IGNORE", ""})
+
+#: SQL keywords that should not appear as bare column names.
+_BAD_COLUMN_NAMES = frozenset({"UNIQUE", "DISTINCT", "SELECT", "FROM", "WHERE"})
 
 
 class _HashVarDialect(Dialect):
@@ -73,10 +80,6 @@ def _strip_outer_parens(sql: str) -> str:
     to verify balanced parens in one pass, with recursion for nesting.
     """
     s = sql.strip()
-    # Pattern: starts with (, ends with ), and the inner content has
-    # no point where cumulative ) exceeds ( (i.e. parens stay balanced).
-    # We use itertools.accumulate to verify in one pass with no loop.
-    import itertools
 
     def _is_wrapped(text):
         if len(text) < 2 or text[0] != "(" or text[-1] != ")":
@@ -446,14 +449,11 @@ class ASTParser:
         :returns: ``True`` if the AST looks degraded.
         :rtype: bool
         """
-        _BAD_TABLE_NAMES = {"IGNORE", ""}
         for table in ast.find_all(exp.Table):
             if table.name in _BAD_TABLE_NAMES:
                 return True
-        # Check if a SQL keyword appears as a column name (likely wrong parse)
-        _SQL_KEYWORDS = {"UNIQUE", "DISTINCT", "SELECT", "FROM", "WHERE"}
         for col in ast.find_all(exp.Column):
-            if col.name.upper() in _SQL_KEYWORDS and not col.table:
+            if col.name.upper() in _BAD_COLUMN_NAMES and not col.table:
                 return True
         return False
 

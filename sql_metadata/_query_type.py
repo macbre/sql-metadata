@@ -79,10 +79,9 @@ class QueryTypeExtractor:
     @staticmethod
     def _unwrap_parens(ast: exp.Expression) -> exp.Expression:
         """Remove Paren and Subquery wrappers to reach the real statement."""
-        root = ast
-        while isinstance(root, (exp.Paren, exp.Subquery)):
-            root = root.this
-        return root
+        if isinstance(ast, (exp.Paren, exp.Subquery)):
+            return QueryTypeExtractor._unwrap_parens(ast.this)
+        return ast
 
     @staticmethod
     def _resolve_command_type(root: exp.Expression) -> Optional[QueryType]:

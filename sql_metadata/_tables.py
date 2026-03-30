@@ -8,6 +8,7 @@ reading order.  CTE names are excluded from the result so that only *real*
 tables are reported.
 """
 
+import re
 from typing import Dict, List, Set
 
 from sqlglot import exp
@@ -212,35 +213,31 @@ class TableExtractor:
         pos = self._find_word(name_upper)
         return pos if pos >= 0 else len(self._raw_sql)
 
+    @staticmethod
+    def _word_pattern(name_upper: str):
+        """Build a regex matching *name_upper* as a whole word."""
+        escaped = re.escape(name_upper)
+        return re.compile(
+            r"(?<![A-Za-z0-9_])" + escaped + r"(?![A-Za-z0-9_])"
+        )
+
     def _find_word(self, name_upper: str, start: int = 0) -> int:
         """Find *name_upper* as a whole word in the upper-cased SQL."""
-        pos = start
-        while True:
-            pos = self._upper_sql.find(name_upper, pos)
-            if pos < 0:
-                return -1
-            before_ok = pos == 0 or not _is_word_char(self._upper_sql[pos - 1])
-            after_pos = pos + len(name_upper)
-            after_ok = after_pos >= len(self._upper_sql) or not _is_word_char(
-                self._upper_sql[after_pos]
-            )
-            if before_ok and after_ok:
-                return pos
-            pos += 1
+        match = self._word_pattern(name_upper).search(
+            self._upper_sql, start
+        )
+        return match.start() if match else -1
 
     def _find_word_in_table_context(self, name_upper: str) -> int:
         """Find a table name that appears after a table-introducing keyword."""
-        pos = 0
-        while True:
-            pos = self._find_word(name_upper, pos)
-            if pos < 0:
-                return -1
+        for match in self._word_pattern(name_upper).finditer(self._upper_sql):
+            pos = match.start()
             before = self._upper_sql[:pos].rstrip()
             if _ends_with_table_keyword(before):
                 return pos
             if before.endswith(",") and _is_in_comma_list_after_keyword(before):
                 return pos
-            pos += 1
+        return -1
 
     # -------------------------------------------------------------------
     # Collection helpers

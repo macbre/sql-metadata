@@ -118,6 +118,13 @@ def _is_date_part_unit(node: exp.Column) -> bool:
     return False
 
 
+def _make_reverse_cte_map(cte_name_map: Dict) -> Dict[str, str]:
+    """Build reverse mapping from placeholder CTE names to originals."""
+    reverse = {v.replace(".", "__DOT__"): v for v in cte_name_map.values()}
+    reverse.update(cte_name_map)
+    return reverse
+
+
 # ---------------------------------------------------------------------------
 # Collector — accumulates results during AST walk
 # ---------------------------------------------------------------------------
@@ -258,8 +265,7 @@ class ColumnExtractor:
         if ast is None:
             return []
         cte_name_map = cte_name_map or {}
-        reverse_map = {v.replace(".", "__DOT__"): v for v in cte_name_map.values()}
-        reverse_map.update(cte_name_map)
+        reverse_map = _make_reverse_cte_map(cte_name_map)
         names = UniqueList()
         for cte in ast.find_all(exp.CTE):
             alias = cte.alias
@@ -293,11 +299,7 @@ class ColumnExtractor:
 
     def _build_reverse_cte_map(self) -> Dict[str, str]:
         """Build reverse mapping from placeholder CTE names to originals."""
-        reverse_map = {
-            v.replace(".", "__DOT__"): v for v in self._cte_name_map.values()
-        }
-        reverse_map.update(self._cte_name_map)
-        return reverse_map
+        return _make_reverse_cte_map(self._cte_name_map)
 
     def _seed_cte_names(self) -> None:
         """Pre-populate CTE names in the collector for alias detection."""
