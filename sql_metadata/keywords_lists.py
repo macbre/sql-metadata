@@ -90,7 +90,7 @@ class QueryType(str, Enum):
 
     Inherits from :class:`str` so that values are directly comparable to
     plain strings (``parser.query_type == "SELECT"``).  Returned by
-    :attr:`Parser.query_type` and by :func:`_query_type.extract_query_type`.
+    :attr:`Parser.query_type` and by :class:`_query_type.QueryTypeExtractor`.
     """
 
     INSERT = "INSERT"

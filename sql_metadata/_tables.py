@@ -290,12 +290,8 @@ class TableExtractor:
         tables = UniqueList()
         if create_target:
             tables.append(create_target)
-            for t in collected_sorted:
-                if t != create_target:
-                    tables.append(t)
-        else:
-            for t in collected_sorted:
-                tables.append(t)
+        for t in collected_sorted:
+            tables.append(t)
         return tables
 
     def _extract_tables_from_command(self) -> List[str]:

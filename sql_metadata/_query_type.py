@@ -104,14 +104,3 @@ class QueryTypeExtractor:
             raise ValueError("This query is wrong")
         raise ValueError("Empty queries are not supported!")
 
-
-# -------------------------------------------------------------------
-# Backward-compatible module-level function
-# -------------------------------------------------------------------
-
-
-def extract_query_type(
-    ast: Optional[exp.Expression], raw_query: str
-) -> QueryType:
-    """Backward-compat wrapper for QueryTypeExtractor.extract."""
-    return QueryTypeExtractor(ast, raw_query).extract()

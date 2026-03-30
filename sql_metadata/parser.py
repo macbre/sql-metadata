@@ -17,12 +17,8 @@ from typing import Dict, List, Optional, Tuple, Union
 
 from sql_metadata._ast import ASTParser
 from sql_metadata._comments import extract_comments, strip_comments
-from sql_metadata._extract import (
-    extract_all,
-    extract_cte_names,
-    extract_subquery_names,
-)
-from sql_metadata._query_type import extract_query_type
+from sql_metadata._extract import ColumnExtractor, ExtractionResult
+from sql_metadata._query_type import QueryTypeExtractor
 from sql_metadata.keywords_lists import QueryType
 from sql_metadata._resolve import NestedResolver
 from sql_metadata._tables import TableExtractor
@@ -127,7 +123,7 @@ class Parser:  # pylint: disable=R0902
             ast = self._ast_parser.ast
         except ValueError:
             ast = None
-        self._query_type = extract_query_type(ast, self._raw_query)
+        self._query_type = QueryTypeExtractor(ast, self._raw_query).extract()
         if self._query_type == QueryType.INSERT and self._ast_parser.is_replace:
             self._query_type = QueryType.REPLACE
         return self._query_type
@@ -177,31 +173,20 @@ class Parser:  # pylint: disable=R0902
             self._columns_aliases = {}
             return self._columns
 
-        (
-            columns,
-            columns_dict,
-            alias_names,
-            alias_dict,
-            alias_map,
-            with_names,
-            subquery_names,
-        ) = extract_all(
-            ast=ast,
-            table_aliases=ta,
-            cte_name_map=self._ast_parser.cte_name_map,
-        )
+        extractor = ColumnExtractor(ast, ta, self._ast_parser.cte_name_map)
+        result = extractor.extract()
 
-        self._columns = columns
-        self._columns_dict = columns_dict
-        self._columns_aliases_names = alias_names
-        self._columns_aliases_dict = alias_dict
-        self._columns_aliases = alias_map if alias_map else {}
+        self._columns = result.columns
+        self._columns_dict = result.columns_dict
+        self._columns_aliases_names = result.alias_names
+        self._columns_aliases_dict = result.alias_dict
+        self._columns_aliases = result.alias_map if result.alias_map else {}
 
         # Cache CTE/subquery names from the same extraction
         if self._with_names is None:
-            self._with_names = with_names
+            self._with_names = result.cte_names
         if self._subqueries_names is None:
-            self._subqueries_names = subquery_names
+            self._subqueries_names = result.subquery_names
 
         # Resolve subquery/CTE column references via NestedResolver
         resolver = self._get_resolver()
@@ -300,7 +285,7 @@ class Parser:  # pylint: disable=R0902
         """Return the CTE (Common Table Expression) names from the query."""
         if self._with_names is not None:
             return self._with_names
-        self._with_names = extract_cte_names(
+        self._with_names = ColumnExtractor.extract_cte_names(
             self._ast_parser.ast, self._ast_parser.cte_name_map
         )
         return self._with_names
@@ -328,7 +313,7 @@ class Parser:  # pylint: disable=R0902
         """Return the alias names of all subqueries (innermost first)."""
         if self._subqueries_names is not None:
             return self._subqueries_names
-        self._subqueries_names = extract_subquery_names(self._ast_parser.ast)
+        self._subqueries_names = ColumnExtractor.extract_subquery_names(self._ast_parser.ast)
         return self._subqueries_names
 
     # -------------------------------------------------------------------
