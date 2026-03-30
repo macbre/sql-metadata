@@ -322,32 +322,3 @@ class TableExtractor:
         return tables
 
 
-# ---------------------------------------------------------------------------
-# Backward-compatible module-level functions
-# ---------------------------------------------------------------------------
-
-
-def extract_tables(
-    ast: exp.Expression,
-    raw_sql: str = "",
-    cte_names: Set[str] = None,
-    dialect=None,
-) -> List[str]:
-    """Backward-compatible wrapper around :class:`TableExtractor`.
-
-    Called by :attr:`Parser.tables`.
-    """
-    extractor = TableExtractor(ast, raw_sql, cte_names, dialect)
-    return extractor.extract()
-
-
-def extract_table_aliases(
-    ast: exp.Expression,
-    tables: List[str],
-) -> Dict[str, str]:
-    """Backward-compatible wrapper around :meth:`TableExtractor.extract_aliases`.
-
-    Called by :attr:`Parser.tables_aliases`.
-    """
-    extractor = TableExtractor(ast)
-    return extractor.extract_aliases(tables)

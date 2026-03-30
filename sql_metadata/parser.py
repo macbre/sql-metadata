@@ -25,7 +25,7 @@ from sql_metadata._extract import (
 from sql_metadata._query_type import extract_query_type
 from sql_metadata.keywords_lists import QueryType
 from sql_metadata._resolve import NestedResolver
-from sql_metadata._tables import extract_table_aliases, extract_tables
+from sql_metadata._tables import TableExtractor
 from sql_metadata.generalizator import Generalizator
 from sql_metadata.utils import UniqueList
 
@@ -273,12 +273,13 @@ class Parser:  # pylint: disable=R0902
         cte_names = set(self.with_names)
         for placeholder in self._ast_parser.cte_name_map:
             cte_names.add(placeholder)
-        self._tables = extract_tables(
+        extractor = TableExtractor(
             self._ast_parser.ast,
             self._raw_query,
             cte_names,
             dialect=self._ast_parser.dialect,
         )
+        self._tables = extractor.extract()
         return self._tables
 
     @property
@@ -286,7 +287,8 @@ class Parser:  # pylint: disable=R0902
         """Return the table alias mapping for this query."""
         if self._table_aliases is not None:
             return self._table_aliases
-        self._table_aliases = extract_table_aliases(self._ast_parser.ast, self.tables)
+        extractor = TableExtractor(self._ast_parser.ast)
+        self._table_aliases = extractor.extract_aliases(self.tables)
         return self._table_aliases
 
     # -------------------------------------------------------------------
