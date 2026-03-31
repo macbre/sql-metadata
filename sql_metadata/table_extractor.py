@@ -13,7 +13,7 @@ from typing import Dict, List, Optional, Set
 
 from sqlglot import exp
 
-from sql_metadata.utils import UniqueList
+from sql_metadata.utils import UniqueList, last_segment
 
 # ---------------------------------------------------------------------------
 # Pure static helpers (no instance state needed)
@@ -127,6 +127,7 @@ class TableExtractor:
         self._bracket_mode = isinstance(dialect, type) and issubclass(
             dialect, BracketedTableDialect
         )
+        self._cached_table_nodes: Optional[List[exp.Table]] = None
 
     # -------------------------------------------------------------------
     # Public API
@@ -152,6 +153,13 @@ class TableExtractor:
         collected_sorted = sorted(collected, key=lambda t: self._first_position(t))
         return self._place_tables_in_order(create_target, collected_sorted)
 
+    def _table_nodes(self) -> List[exp.Table]:
+        """Return all ``exp.Table`` nodes from the AST (cached)."""
+        if self._cached_table_nodes is None:
+            assert self._ast is not None
+            self._cached_table_nodes = list(self._ast.find_all(exp.Table))
+        return self._cached_table_nodes
+
     def extract_aliases(self, tables: List[str]) -> Dict[str, str]:
         """Extract table alias mappings from the AST.
 
@@ -162,7 +170,7 @@ class TableExtractor:
             return {}
 
         aliases = {}
-        for table in self._ast.find_all(exp.Table):
+        for table in self._table_nodes():
             alias = table.alias
             if not alias:
                 continue
@@ -203,7 +211,7 @@ class TableExtractor:
         if pos >= 0:
             return pos
 
-        last_part = name_upper.split(".")[-1]
+        last_part = last_segment(name_upper)
         pos = self._find_word_in_table_context(last_part)
         if pos >= 0:
             return pos
@@ -211,11 +219,17 @@ class TableExtractor:
         pos = self._find_word(name_upper)
         return pos if pos >= 0 else len(self._raw_sql)
 
+    _pattern_cache: Dict[str, re.Pattern[str]] = {}
+
     @staticmethod
     def _word_pattern(name_upper: str) -> re.Pattern[str]:
-        """Build a regex matching *name_upper* as a whole word."""
-        escaped = re.escape(name_upper)
-        return re.compile(r"(?<![A-Za-z0-9_])" + escaped + r"(?![A-Za-z0-9_])")
+        """Build a regex matching *name_upper* as a whole word (cached)."""
+        pat = TableExtractor._pattern_cache.get(name_upper)
+        if pat is None:
+            escaped = re.escape(name_upper)
+            pat = re.compile(r"(?<![A-Za-z0-9_])" + escaped + r"(?![A-Za-z0-9_])")
+            TableExtractor._pattern_cache[name_upper] = pat
+        return pat
 
     def _find_word(self, name_upper: str, start: int = 0) -> int:
         """Find *name_upper* as a whole word in the upper-cased SQL."""
@@ -271,7 +285,7 @@ class TableExtractor:
         """Collect table names from Table and Lateral AST nodes."""
         assert self._ast is not None
         collected = UniqueList()
-        for table in self._ast.find_all(exp.Table):
+        for table in self._table_nodes():
             full_name = self._table_full_name(table)
             if full_name and full_name not in self._cte_names:
                 collected.append(full_name)

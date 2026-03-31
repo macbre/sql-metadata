@@ -16,7 +16,7 @@ from typing import Any, Dict, Optional, Union
 
 from sqlglot import exp
 
-from sql_metadata.utils import UniqueList, _make_reverse_cte_map
+from sql_metadata.utils import UniqueList, _make_reverse_cte_map, last_segment
 
 # ---------------------------------------------------------------------------
 # Result dataclass
@@ -516,10 +516,10 @@ class ColumnExtractor:
             for col in inner_cols:
                 c.add_column(col, clause)
 
-            unique_inner = list(dict.fromkeys(inner_cols))
+            unique_inner = UniqueList(inner_cols)
             is_self_alias = len(unique_inner) == 1 and (
                 unique_inner[0] == alias_name
-                or unique_inner[0].split(".")[-1] == alias_name
+                or last_segment(unique_inner[0]) == alias_name
             )
             is_direct = isinstance(inner, exp.Column)
 

@@ -17,7 +17,13 @@ if TYPE_CHECKING:
 from sqlglot import exp
 from sqlglot.generator import Generator
 
-from sql_metadata.utils import UniqueList, _make_reverse_cte_map, flatten_list
+from sql_metadata.utils import (
+    DOT_PLACEHOLDER,
+    UniqueList,
+    _make_reverse_cte_map,
+    flatten_list,
+    last_segment,
+)
 
 # ---------------------------------------------------------------------------
 # Custom SQL generator — preserves function signatures
@@ -119,6 +125,7 @@ class NestedResolver:
         self._subqueries_parsers: Dict = {}
         self._with_parsers: Dict = {}
         self._columns_aliases: Dict = {}
+        self._cached_cte_nodes: Optional[list] = None
 
         # Set by resolve() caller
         self._subqueries_names: List[str] = []
@@ -130,21 +137,29 @@ class NestedResolver:
     # Name extraction (CTE and subquery names from the AST)
     # -------------------------------------------------------------------
 
-    @staticmethod
+    def _cte_nodes(self) -> list:
+        """Return all ``exp.CTE`` nodes from the AST (cached)."""
+        if self._cached_cte_nodes is None:
+            if self._ast is None:
+                self._cached_cte_nodes = []
+            else:
+                self._cached_cte_nodes = list(self._ast.find_all(exp.CTE))
+        return self._cached_cte_nodes
+
     def extract_cte_names(
-        ast: Optional[exp.Expression],
+        self,
         cte_name_map: Optional[Dict] = None,
     ) -> List[str]:
         """Extract CTE names from the AST.
 
         Called by :attr:`Parser.with_names`.
         """
-        if ast is None:
+        if self._ast is None:
             return []
         cte_name_map = cte_name_map or {}
         reverse_map = _make_reverse_cte_map(cte_name_map)
         names = UniqueList()
-        for cte in ast.find_all(exp.CTE):
+        for cte in self._cte_nodes():
             alias = cte.alias
             if alias:
                 names.append(reverse_map.get(alias, alias))
@@ -196,13 +211,13 @@ class NestedResolver:
 
         alias_to_name: Dict[str, str] = {}
         for name in cte_names:
-            placeholder = name.replace(".", "__DOT__")
+            placeholder = name.replace(".", DOT_PLACEHOLDER)
             alias_to_name[placeholder.upper()] = name
             alias_to_name[name.upper()] = name
-            alias_to_name[name.split(".")[-1].upper()] = name
+            alias_to_name[last_segment(name).upper()] = name
 
         results: Dict[str, str] = {}
-        for cte in self._ast.find_all(exp.CTE):
+        for cte in self._cte_nodes():
             alias = cte.alias
             if alias.upper() in alias_to_name:
                 original_name = alias_to_name[alias.upper()]
@@ -312,42 +327,34 @@ class NestedResolver:
             final.append(col)
         return final
 
+    def _nested_sources(self) -> list:
+        """Return the (names, defs, cache) tuples for subqueries then CTEs."""
+        return [
+            (self._subqueries_names, self._subqueries, self._subqueries_parsers),
+            (self._with_names, self._with_queries, self._with_parsers),
+        ]
+
     def _resolve_sub_queries(self, column: str) -> Union[str, List[str]]:
         """Resolve a ``subquery.column`` reference to actual column(s)."""
-        result = self._resolve_nested_query(
-            subquery_alias=column,
-            nested_queries_names=self._subqueries_names,
-            nested_queries=self._subqueries,
-            already_parsed=self._subqueries_parsers,
-        )
-        if isinstance(result, str):
-            result = self._resolve_nested_query(
-                subquery_alias=result,
-                nested_queries_names=self._with_names,
-                nested_queries=self._with_queries,
-                already_parsed=self._with_parsers,
-            )
+        result: Union[str, List[str]] = column
+        for names, defs, cache in self._nested_sources():
+            if isinstance(result, str):
+                result = self._resolve_nested_query(
+                    subquery_alias=result,
+                    nested_queries_names=names,
+                    nested_queries=defs,
+                    already_parsed=cache,
+                )
         return result if isinstance(result, list) else [result]
 
     def _resolve_bare_through_nested(self, col_name: str) -> Union[str, List[str]]:
         """Resolve a bare column name through subquery/CTE alias definitions."""
-        result = self._lookup_alias_in_nested(
-            col_name,
-            self._subqueries_names,
-            self._subqueries,
-            self._subqueries_parsers,
-            check_columns=True,
-        )
-        if result is not None:
-            return result
-        result = self._lookup_alias_in_nested(
-            col_name,
-            self._with_names,
-            self._with_queries,
-            self._with_parsers,
-        )
-        if result is not None:
-            return result
+        for i, (names, defs, cache) in enumerate(self._nested_sources()):
+            result = self._lookup_alias_in_nested(
+                col_name, names, defs, cache, check_columns=(i == 0)
+            )
+            if result is not None:
+                return result
         return col_name
 
     def _lookup_alias_in_nested(
@@ -447,7 +454,7 @@ class NestedResolver:
     ) -> Union[str, List[str]]:
         """Find a column by name in the subparser with wildcard fallbacks."""
         try:
-            idx = [x.split(".")[-1] for x in subparser.columns].index(column_name)
+            idx = [last_segment(x) for x in subparser.columns].index(column_name)
         except ValueError:
             if "*" in subparser.columns:
                 return column_name

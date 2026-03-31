@@ -298,8 +298,9 @@ class Parser:
         """Return the CTE (Common Table Expression) names from the query."""
         if self._with_names is not None:
             return self._with_names
-        self._with_names = NestedResolver.extract_cte_names(
-            self._ast_parser.ast, self._ast_parser.cte_name_map
+        resolver = self._get_resolver()
+        self._with_names = resolver.extract_cte_names(
+            self._ast_parser.cte_name_map
         )
         return self._with_names
 

@@ -11,6 +11,7 @@ import re
 from typing import NamedTuple, Optional
 
 from sql_metadata.comments import strip_comments_for_parsing as _strip_comments
+from sql_metadata.utils import DOT_PLACEHOLDER
 
 
 class CleanResult(NamedTuple):
@@ -70,7 +71,7 @@ def _normalize_cte_names(sql: str) -> tuple:
         prefix = match.group(1)
         qualified_name = match.group(2)
         suffix = match.group(3)
-        placeholder = qualified_name.replace(".", "__DOT__")
+        placeholder = qualified_name.replace(".", DOT_PLACEHOLDER)
         name_map[placeholder] = qualified_name
         return f"{prefix}{placeholder}{suffix}"
 
