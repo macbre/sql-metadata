@@ -15,7 +15,6 @@ from sqlglot import exp
 
 from sql_metadata.utils import UniqueList
 
-
 # ---------------------------------------------------------------------------
 # Pure static helpers (no instance state needed)
 # ---------------------------------------------------------------------------
@@ -122,10 +121,10 @@ class TableExtractor:
         self._upper_sql = raw_sql.upper()
         self._cte_names = cte_names or set()
 
-        from sql_metadata._ast import _BracketedTableDialect
+        from sql_metadata.dialects import BracketedTableDialect
 
         self._bracket_mode = isinstance(dialect, type) and issubclass(
-            dialect, _BracketedTableDialect
+            dialect, BracketedTableDialect
         )
 
     # -------------------------------------------------------------------
@@ -149,9 +148,7 @@ class TableExtractor:
             create_target = self._extract_create_target()
 
         collected = self._collect_all()
-        collected_sorted = sorted(
-            collected, key=lambda t: self._first_position(t)
-        )
+        collected_sorted = sorted(collected, key=lambda t: self._first_position(t))
         return self._place_tables_in_order(create_target, collected_sorted)
 
     def extract_aliases(self, tables: List[str]) -> Dict[str, str]:
@@ -217,15 +214,11 @@ class TableExtractor:
     def _word_pattern(name_upper: str):
         """Build a regex matching *name_upper* as a whole word."""
         escaped = re.escape(name_upper)
-        return re.compile(
-            r"(?<![A-Za-z0-9_])" + escaped + r"(?![A-Za-z0-9_])"
-        )
+        return re.compile(r"(?<![A-Za-z0-9_])" + escaped + r"(?![A-Za-z0-9_])")
 
     def _find_word(self, name_upper: str, start: int = 0) -> int:
         """Find *name_upper* as a whole word in the upper-cased SQL."""
-        match = self._word_pattern(name_upper).search(
-            self._upper_sql, start
-        )
+        match = self._word_pattern(name_upper).search(self._upper_sql, start)
         return match.start() if match else -1
 
     def _find_word_in_table_context(self, name_upper: str) -> int:
@@ -316,5 +309,3 @@ class TableExtractor:
             tables.append(from_match.group(1).strip("`").strip('"'))
 
         return tables
-
-

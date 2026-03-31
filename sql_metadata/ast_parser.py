@@ -23,53 +23,17 @@ import itertools
 import re
 
 import sqlglot
-from sqlglot import Dialect
 from sqlglot import exp
-from sqlglot.dialects.tsql import TSQL
 from sqlglot.errors import ParseError, TokenError
-from sqlglot.tokens import Tokenizer
 
-from sql_metadata._comments import strip_comments_for_parsing as _strip_comments
+from sql_metadata.comments import strip_comments_for_parsing as _strip_comments
+from sql_metadata.dialects import detect_dialects
 
 #: Table names that indicate a degraded parse result.
 _BAD_TABLE_NAMES = frozenset({"IGNORE", ""})
 
 #: SQL keywords that should not appear as bare column names.
 _BAD_COLUMN_NAMES = frozenset({"UNIQUE", "DISTINCT", "SELECT", "FROM", "WHERE"})
-
-
-class _HashVarDialect(Dialect):
-    """Custom sqlglot dialect that treats ``#WORD`` as identifiers.
-
-    MSSQL uses ``#`` to prefix temporary table names (e.g. ``#temp``)
-    and some template engines use ``#VAR#`` placeholders.  The default
-    sqlglot tokenizer treats ``#`` as an unknown single-character token;
-    this dialect moves it into ``VAR_SINGLE_TOKENS`` so it becomes part
-    of a ``VAR`` token instead.
-
-    Used by :meth:`ASTParser._detect_dialects` when hash-variables are
-    detected in the SQL.
-    """
-
-    class Tokenizer(Tokenizer):
-        """Tokenizer subclass that includes ``#`` in variable tokens."""
-
-        SINGLE_TOKENS = {**Tokenizer.SINGLE_TOKENS}
-        SINGLE_TOKENS.pop("#", None)
-        VAR_SINGLE_TOKENS = {*Tokenizer.VAR_SINGLE_TOKENS, "#"}
-
-
-class _BracketedTableDialect(TSQL):
-    """TSQL dialect for queries containing ``[bracketed]`` identifiers.
-
-    sqlglot's TSQL dialect correctly interprets square-bracket quoting,
-    which the default dialect does not.  This thin subclass exists so that
-    :meth:`ASTParser._detect_dialects` can return a concrete class that
-    :func:`extract_tables` in ``_tables.py`` can later ``isinstance``-check
-    to enable bracket-preserving table name construction.
-    """
-
-    pass
 
 
 def _strip_outer_parens(sql: str) -> str:
@@ -85,9 +49,11 @@ def _strip_outer_parens(sql: str) -> str:
         if len(text) < 2 or text[0] != "(" or text[-1] != ")":
             return False
         inner = text[1:-1]
-        depths = list(itertools.accumulate(
-            (1 if c == "(" else -1 if c == ")" else 0) for c in inner
-        ))
+        depths = list(
+            itertools.accumulate(
+                (1 if c == "(" else -1 if c == ")" else 0) for c in inner
+            )
+        )
         return not depths or min(depths) >= 0
 
     # Recursively strip (using recursion, not a while loop)
@@ -186,7 +152,7 @@ class ASTParser:
 
         Set as a side-effect of :attr:`ast` access.  May be ``None``
         (default dialect), a string like ``"mysql"``, or a custom
-        :class:`Dialect` subclass such as :class:`_HashVarDialect`.
+        :class:`Dialect` subclass such as :class:`HashVarDialect`.
 
         :returns: The dialect used, or ``None`` for the default dialect.
         :rtype: Optional[Union[str, type]]
@@ -407,7 +373,7 @@ class ASTParser:
         if clean_sql is None:
             return None
 
-        dialects = self._detect_dialects(clean_sql)
+        dialects = detect_dialects(clean_sql)
         return self._try_parse_dialects(clean_sql, dialects)
 
     @staticmethod
@@ -456,43 +422,3 @@ class ASTParser:
             if col.name.upper() in _BAD_COLUMN_NAMES and not col.table:
                 return True
         return False
-
-    @staticmethod
-    def _detect_dialects(sql: str) -> list:
-        """Choose an ordered list of sqlglot dialects to try for *sql*.
-
-        Inspects the SQL for dialect-specific syntax and returns a list
-        of dialect identifiers (``None`` = default, ``"mysql"``, or a
-        custom :class:`Dialect` subclass) to try in order.  The first
-        dialect whose result passes :meth:`_has_parse_issues` wins.
-
-        Heuristics:
-
-        * ``#WORD`` → :class:`_HashVarDialect` (MSSQL temp tables).
-        * Back-ticks → ``"mysql"``.
-        * Square brackets or ``TOP`` → :class:`_BracketedTableDialect`.
-        * ``UNIQUE`` → try default, MySQL, Oracle.
-        * ``LATERAL VIEW`` → ``"spark"`` (Hive).
-
-        :param sql: Cleaned SQL string.
-        :type sql: str
-        :returns: Ordered list of dialects to attempt.
-        :rtype: list
-        """
-        from sql_metadata._comments import _has_hash_variables
-
-        upper = sql.upper()
-        # #WORD variables (MSSQL) — use custom dialect that treats # as identifier
-        if _has_hash_variables(sql):
-            return [_HashVarDialect, None, "mysql"]
-        if "`" in sql:
-            return ["mysql", None]
-        if "[" in sql:
-            return [_BracketedTableDialect, None, "mysql"]
-        if " TOP " in upper:
-            return [_BracketedTableDialect, None, "mysql"]
-        if " UNIQUE " in upper:
-            return [None, "mysql", "oracle"]
-        if "LATERAL VIEW" in upper:
-            return ["spark", None, "mysql"]
-        return [None, "mysql"]

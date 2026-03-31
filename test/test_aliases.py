@@ -16,9 +16,9 @@ def test_get_query_table_aliases():
     assert Parser(
         "SELECT bar AS value FROM foo AS f INNER JOIN dimensions AS d ON f.id = d.id"
     ).tables_aliases == {"f": "foo", "d": "dimensions"}
-    assert (
-        Parser("SELECT e.foo FROM (SELECT * FROM bar) AS e").tables_aliases == {}
-    ), "Sub-query aliases are ignored"
+    assert Parser("SELECT e.foo FROM (SELECT * FROM bar) AS e").tables_aliases == {}, (
+        "Sub-query aliases are ignored"
+    )
     assert Parser(
         "SELECT a.* FROM product_a AS a "
         "JOIN product_b AS b ON a.ip_address = b.ip_address"

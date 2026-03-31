@@ -62,12 +62,12 @@ def test_unsupported_query(caplog):
 
         # assert the SQL query is not logged
         # https://docs.pytest.org/en/stable/how-to/logging.html#caplog-fixture
-        assert (
-            f"Not supported query type: {query}" not in caplog.text
-        ), "The SQL query should not be logged"
-        assert (
-            f"Not supported query type: {query[:8]}" in caplog.text
-        ), "The SQL query should be trimmed when logged"
+        assert f"Not supported query type: {query}" not in caplog.text, (
+            "The SQL query should not be logged"
+        )
+        assert f"Not supported query type: {query[:8]}" in caplog.text, (
+            "The SQL query should be trimmed when logged"
+        )
 
 
 def test_empty_query():
@@ -136,7 +136,10 @@ def test_merge_into_query_type():
     assert parser.query_type == QueryType.MERGE
     assert parser.tables == ["wines"]
     assert parser.columns == [
-        "v.column1", "wines.winename", "v.column2", "stock",
+        "v.column1",
+        "wines.winename",
+        "v.column2",
+        "stock",
     ]
     assert parser.tables_aliases == {"w": "wines"}
 

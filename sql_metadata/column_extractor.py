@@ -12,11 +12,11 @@ and friends.
 """
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Union
+from typing import Dict, Optional, Union
 
 from sqlglot import exp
 
-from sql_metadata.utils import UniqueList
+from sql_metadata.utils import UniqueList, _make_reverse_cte_map
 
 # ---------------------------------------------------------------------------
 # Result dataclass
@@ -100,10 +100,20 @@ def _dfs(node: exp.Expression):
 
 
 #: Functions whose first argument is a date-part unit keyword, not a column.
-_DATE_PART_FUNCTIONS = frozenset({
-    "dateadd", "datediff", "datepart", "datename", "date_add", "date_sub",
-    "date_diff", "date_trunc", "timestampadd", "timestampdiff",
-})
+_DATE_PART_FUNCTIONS = frozenset(
+    {
+        "dateadd",
+        "datediff",
+        "datepart",
+        "datename",
+        "date_add",
+        "date_sub",
+        "date_diff",
+        "date_trunc",
+        "timestampadd",
+        "timestampdiff",
+    }
+)
 
 
 def _is_date_part_unit(node: exp.Column) -> bool:
@@ -116,13 +126,6 @@ def _is_date_part_unit(node: exp.Column) -> bool:
         exprs = parent.expressions
         return len(exprs) > 0 and exprs[0] is node
     return False
-
-
-def _make_reverse_cte_map(cte_name_map: Dict) -> Dict[str, str]:
-    """Build reverse mapping from placeholder CTE names to originals."""
-    reverse = {v.replace(".", "__DOT__"): v for v in cte_name_map.values()}
-    reverse.update(cte_name_map)
-    return reverse
 
 
 # ---------------------------------------------------------------------------
@@ -249,49 +252,6 @@ class ColumnExtractor:
             cte_names=final_cte,
             subquery_names=self._build_subquery_names(),
         )
-
-    # -------------------------------------------------------------------
-    # Static/class methods (also called independently by Parser)
-    # -------------------------------------------------------------------
-
-    @staticmethod
-    def extract_cte_names(
-        ast: exp.Expression, cte_name_map: Dict = None
-    ) -> List[str]:
-        """Extract CTE names from the AST.
-
-        Called by :attr:`Parser.with_names`.
-        """
-        if ast is None:
-            return []
-        cte_name_map = cte_name_map or {}
-        reverse_map = _make_reverse_cte_map(cte_name_map)
-        names = UniqueList()
-        for cte in ast.find_all(exp.CTE):
-            alias = cte.alias
-            if alias:
-                names.append(reverse_map.get(alias, alias))
-        return names
-
-    @staticmethod
-    def extract_subquery_names(ast: exp.Expression) -> List[str]:
-        """Extract aliased subquery names from the AST in post-order.
-
-        Called by :attr:`Parser.subqueries_names`.
-        """
-        if ast is None:
-            return []
-        names = UniqueList()
-        ColumnExtractor._collect_subqueries_postorder(ast, names)
-        return names
-
-    @staticmethod
-    def _collect_subqueries_postorder(node: exp.Expression, out: list) -> None:
-        """Recursively collect subquery aliases in post-order."""
-        for child in node.iter_expressions():
-            ColumnExtractor._collect_subqueries_postorder(child, out)
-        if isinstance(node, exp.Subquery) and node.alias:
-            out.append(node.alias)
 
     # -------------------------------------------------------------------
     # Internal helpers
@@ -661,4 +621,3 @@ class ColumnExtractor:
             if name is not None:
                 cols.append(name)
         return cols
-

@@ -95,12 +95,9 @@ class QueryTypeExtractor:
 
     def _raise_for_none_ast(self) -> None:
         """Raise an appropriate error when the AST is None."""
-        from sql_metadata._comments import strip_comments
+        from sql_metadata.comments import strip_comments
 
-        stripped = (
-            strip_comments(self._raw_query) if self._raw_query else ""
-        )
+        stripped = strip_comments(self._raw_query) if self._raw_query else ""
         if stripped.strip():
             raise ValueError("This query is wrong")
         raise ValueError("Empty queries are not supported!")
-

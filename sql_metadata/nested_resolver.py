@@ -12,8 +12,7 @@ from typing import Dict, List, Optional, Set, Union
 from sqlglot import exp
 from sqlglot.generator import Generator
 
-from sql_metadata.utils import UniqueList, flatten_list
-
+from sql_metadata.utils import UniqueList, _make_reverse_cte_map, flatten_list
 
 # ---------------------------------------------------------------------------
 # Custom SQL generator — preserves function signatures
@@ -123,7 +122,48 @@ class NestedResolver:
         self._with_queries: Dict = {}
 
     # -------------------------------------------------------------------
-    # Body extraction (from _bodies.py)
+    # Name extraction (CTE and subquery names from the AST)
+    # -------------------------------------------------------------------
+
+    @staticmethod
+    def extract_cte_names(ast: exp.Expression, cte_name_map: Dict = None) -> List[str]:
+        """Extract CTE names from the AST.
+
+        Called by :attr:`Parser.with_names`.
+        """
+        if ast is None:
+            return []
+        cte_name_map = cte_name_map or {}
+        reverse_map = _make_reverse_cte_map(cte_name_map)
+        names = UniqueList()
+        for cte in ast.find_all(exp.CTE):
+            alias = cte.alias
+            if alias:
+                names.append(reverse_map.get(alias, alias))
+        return names
+
+    @staticmethod
+    def extract_subquery_names(ast: exp.Expression) -> List[str]:
+        """Extract aliased subquery names from the AST in post-order.
+
+        Called by :attr:`Parser.subqueries_names`.
+        """
+        if ast is None:
+            return []
+        names = UniqueList()
+        NestedResolver._collect_subquery_names_postorder(ast, names)
+        return names
+
+    @staticmethod
+    def _collect_subquery_names_postorder(node: exp.Expression, out: list) -> None:
+        """Recursively collect subquery aliases in post-order."""
+        for child in node.iter_expressions():
+            NestedResolver._collect_subquery_names_postorder(child, out)
+        if isinstance(node, exp.Subquery) and node.alias:
+            out.append(node.alias)
+
+    # -------------------------------------------------------------------
+    # Body extraction
     # -------------------------------------------------------------------
 
     @staticmethod
@@ -346,8 +386,7 @@ class NestedResolver:
         visited = visited or set()
         if isinstance(alias, list):
             return [
-                self._resolve_column_alias(x, columns_aliases, visited)
-                for x in alias
+                self._resolve_column_alias(x, columns_aliases, visited) for x in alias
             ]
         while alias in columns_aliases and alias not in visited:
             visited.add(alias)

@@ -555,11 +555,18 @@ def test_nested_cte_not_in_tables():
     parser = Parser(query)
     assert parser.tables == ["table_1", "table_2", "table_3", "table_4"]
     assert parser.columns == [
-        "a", "b", "c",
-        "table_3.id", "cr1.id", "cr2.id", "table_4.id",
+        "a",
+        "b",
+        "c",
+        "table_3.id",
+        "cr1.id",
+        "cr2.id",
+        "table_4.id",
     ]
     assert parser.tables_aliases == {
-        "t3": "table_3", "t4": "table_4", "t": "table_1",
+        "t3": "table_3",
+        "t4": "table_4",
+        "t": "table_1",
     }
 
 

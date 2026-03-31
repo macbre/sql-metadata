@@ -9,7 +9,7 @@ that structurally identical queries can be grouped for analysis
 
 import re
 
-from sql_metadata._comments import strip_comments
+from sql_metadata.comments import strip_comments
 
 
 class Generalizator:

@@ -18,16 +18,24 @@ sqlparse = ">=0.4.1,<0.6.0"
 sqlglot = "^30.0.3"
 
 [tool.poetry.group.dev.dependencies]
-black = "^26.3"
 coverage = {extras = ["toml"], version = "^7.13"}
-pylint = "^4.0.5"
 pytest = "^9.0.2"
 pytest-cov = "^7.1.0"
-flake8 = "^7.3.0"
+ruff = "^0.11"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "C90", "I"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 8
 
 [tool.coverage.run]
 relative_files = true

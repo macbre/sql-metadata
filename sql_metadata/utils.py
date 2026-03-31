@@ -5,7 +5,7 @@ tables, aliases, and CTE names while preserving insertion order, and
 ``flatten_list`` for normalising nested alias resolution results.
 """
 
-from typing import Any, List, Sequence
+from typing import Any, Dict, List, Sequence
 
 
 class UniqueList(list):
@@ -36,6 +36,13 @@ class UniqueList(list):
         """Return a plain list of elements in *self* that are not in *other*."""
         other_set = set(other)
         return [x for x in self if x not in other_set]
+
+
+def _make_reverse_cte_map(cte_name_map: Dict) -> Dict[str, str]:
+    """Build reverse mapping from placeholder CTE names to originals."""
+    reverse = {v.replace(".", "__DOT__"): v for v in cte_name_map.values()}
+    reverse.update(cte_name_map)
+    return reverse
 
 
 def flatten_list(input_list: List) -> List[str]:

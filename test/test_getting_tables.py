@@ -286,11 +286,16 @@ def test_table_name_with_group_by():
         == expected_tables
     )
 
-    assert Parser("""
+    assert (
+        Parser(
+            """
                     SELECT s.cust_id,count(s.cust_id) FROM SH.sales s
                     GROUP BY s.cust_id HAVING s.cust_id != '1660'
                     AND s.cust_id != '2'
-                    """.strip()).tables == expected_tables
+                    """.strip()
+        ).tables
+        == expected_tables
+    )
 
 
 def test_datasets():

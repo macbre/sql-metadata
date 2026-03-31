@@ -2,31 +2,31 @@
 
 Thin facade that composes the specialised extractors via lazy properties:
 
-* :class:`~_ast.ASTParser` — AST construction and dialect detection.
-* :class:`~_extract.ColumnExtractor` — single-pass column/alias/CTE extraction.
-* :class:`~_tables.TableExtractor` — table extraction with position sorting.
-* :class:`~_resolve.NestedResolver` — CTE/subquery body extraction and
+* :class:`~ast_parser.ASTParser` — AST construction and dialect detection.
+* :class:`~column_extractor.ColumnExtractor` — single-pass column/alias extraction.
+* :class:`~table_extractor.TableExtractor` — table extraction with position sorting.
+* :class:`~nested_resolver.NestedResolver` — CTE/subquery name and body extraction,
   nested column resolution.
-* :mod:`_query_type` — query type detection.
-* :mod:`_comments` — comment extraction.
+* :mod:`query_type_extractor` — query type detection.
+* :mod:`comments` — comment extraction.
 """
 
 import logging
 import re
 from typing import Dict, List, Optional, Tuple, Union
 
-from sql_metadata._ast import ASTParser
-from sql_metadata._comments import extract_comments, strip_comments
-from sql_metadata._extract import ColumnExtractor, ExtractionResult
-from sql_metadata._query_type import QueryTypeExtractor
-from sql_metadata.keywords_lists import QueryType
-from sql_metadata._resolve import NestedResolver
-from sql_metadata._tables import TableExtractor
+from sql_metadata.ast_parser import ASTParser
+from sql_metadata.column_extractor import ColumnExtractor
+from sql_metadata.comments import extract_comments, strip_comments
 from sql_metadata.generalizator import Generalizator
+from sql_metadata.keywords_lists import QueryType
+from sql_metadata.nested_resolver import NestedResolver
+from sql_metadata.query_type_extractor import QueryTypeExtractor
+from sql_metadata.table_extractor import TableExtractor
 from sql_metadata.utils import UniqueList
 
 
-class Parser:  # pylint: disable=R0902
+class Parser:
     """Parse a SQL query and extract metadata.
 
     The primary public interface of the ``sql-metadata`` library.  Given a
@@ -140,7 +140,7 @@ class Parser:  # pylint: disable=R0902
         if not self._raw_query or not self._raw_query.strip():
             self._tokens = []
             return self._tokens
-        from sql_metadata._comments import _choose_tokenizer
+        from sql_metadata.comments import _choose_tokenizer
 
         try:
             sg_tokens = list(
@@ -285,7 +285,7 @@ class Parser:  # pylint: disable=R0902
         """Return the CTE (Common Table Expression) names from the query."""
         if self._with_names is not None:
             return self._with_names
-        self._with_names = ColumnExtractor.extract_cte_names(
+        self._with_names = NestedResolver.extract_cte_names(
             self._ast_parser.ast, self._ast_parser.cte_name_map
         )
         return self._with_names
@@ -313,7 +313,9 @@ class Parser:  # pylint: disable=R0902
         """Return the alias names of all subqueries (innermost first)."""
         if self._subqueries_names is not None:
             return self._subqueries_names
-        self._subqueries_names = ColumnExtractor.extract_subquery_names(self._ast_parser.ast)
+        self._subqueries_names = NestedResolver.extract_subquery_names(
+            self._ast_parser.ast
+        )
         return self._subqueries_names
 
     # -------------------------------------------------------------------
@@ -483,9 +485,7 @@ class Parser:  # pylint: disable=R0902
                 cols.append(col)
         return cols
 
-    def _resolve_column_alias(
-        self, alias: Union[str, List[str]]
-    ) -> Union[str, List]:
+    def _resolve_column_alias(self, alias: Union[str, List[str]]) -> Union[str, List]:
         """Recursively resolve a column alias (delegates to NestedResolver)."""
         resolver = self._get_resolver()
         return resolver.resolve_column_alias(alias, self.columns_aliases)
