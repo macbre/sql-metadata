@@ -25,12 +25,13 @@ This file contains important information about the sql-metadata repository for A
 sql-metadata/
 ├── sql_metadata/                  # Main package
 │   ├── parser.py                 # Public facade — Parser class
-│   ├── ast_parser.py             # ASTParser — SQL preprocessing, AST construction
+│   ├── ast_parser.py             # ASTParser — thin orchestrator, composes SqlCleaner + DialectParser
+│   ├── sql_cleaner.py            # SqlCleaner — raw SQL preprocessing (no sqlglot dependency)
+│   ├── dialect_parser.py         # DialectParser — dialect detection, parsing, quality validation
 │   ├── column_extractor.py       # ColumnExtractor — single-pass DFS column/alias extraction
 │   ├── table_extractor.py        # TableExtractor — table extraction with position sorting
 │   ├── nested_resolver.py        # NestedResolver — CTE/subquery names, bodies, resolution
 │   ├── query_type_extractor.py   # QueryTypeExtractor — query type detection
-│   ├── dialects.py               # Custom sqlglot dialects and detection heuristics
 │   ├── comments.py               # Comment extraction/stripping (pure functions)
 │   ├── keywords_lists.py         # QueryType/TokenType enums, keyword sets
 │   ├── utils.py                  # UniqueList, flatten_list, shared helpers
@@ -54,8 +55,9 @@ The v3 architecture uses sqlglot to build an AST, then walks it with specialised
 ### Pipeline
 
 ```
-Raw SQL → ASTParser (preprocessing, dialect detection, sqlglot.parse())
-       → sqlglot AST
+Raw SQL → SqlCleaner (preprocessing)
+       → DialectParser (dialect detection, sqlglot.parse())
+       → sqlglot AST (cached by ASTParser)
        → TableExtractor (tables, table aliases)
        → ColumnExtractor (columns, column aliases — single-pass DFS)
        → NestedResolver (CTE/subquery names + bodies, column resolution)
@@ -75,7 +77,9 @@ Raw SQL → ASTParser (preprocessing, dialect detection, sqlglot.parse())
 | Class | Owns | Does NOT own |
 |-------|------|-------------|
 | `Parser` | Facade, caching, regex fallbacks, value extraction | No extraction logic |
-| `ASTParser` | Preprocessing, AST construction | No metadata extraction |
+| `ASTParser` | Orchestration, lazy AST caching | No preprocessing, no parsing |
+| `SqlCleaner` | Raw SQL preprocessing (REPLACE rewrite, comment strip, CTE normalisation) | No AST, no sqlglot |
+| `DialectParser` | Dialect detection, sqlglot parsing, parse-quality validation | No preprocessing |
 | `ColumnExtractor` | Column names, column aliases (during DFS walk) | CTE/subquery name extraction (standalone) |
 | `TableExtractor` | Table names, table aliases, position sorting | Nothing else |
 | `NestedResolver` | CTE/subquery names, CTE/subquery bodies, column resolution | Column extraction |

@@ -121,7 +121,7 @@ class TableExtractor:
         self._upper_sql = raw_sql.upper()
         self._cte_names = cte_names or set()
 
-        from sql_metadata.dialects import BracketedTableDialect
+        from sql_metadata.dialect_parser import BracketedTableDialect
 
         self._bracket_mode = isinstance(dialect, type) and issubclass(
             dialect, BracketedTableDialect

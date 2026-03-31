@@ -7,12 +7,13 @@ sql-metadata v3 is a Python library that parses SQL queries and extracts metadat
 | Module | Role | Key Class/Function |
 |--------|------|--------------------|
 | [`parser.py`](sql_metadata/parser.py) | Public facade — composes all extractors via lazy properties | `Parser` |
-| [`ast_parser.py`](sql_metadata/ast_parser.py) | SQL preprocessing, dialect detection, AST construction | `ASTParser` |
+| [`ast_parser.py`](sql_metadata/ast_parser.py) | Thin orchestrator — composes SqlCleaner + DialectParser, caches AST | `ASTParser` |
+| [`sql_cleaner.py`](sql_metadata/sql_cleaner.py) | Raw SQL preprocessing (no sqlglot dependency) | `SqlCleaner`, `CleanResult` |
+| [`dialect_parser.py`](sql_metadata/dialect_parser.py) | Dialect detection, sqlglot parsing, parse-quality validation | `DialectParser`, `HashVarDialect`, `BracketedTableDialect` |
 | [`column_extractor.py`](sql_metadata/column_extractor.py) | Single-pass DFS column/alias extraction | `ColumnExtractor` |
 | [`table_extractor.py`](sql_metadata/table_extractor.py) | Table extraction with position-based sorting | `TableExtractor` |
 | [`nested_resolver.py`](sql_metadata/nested_resolver.py) | CTE/subquery name and body extraction, nested column resolution | `NestedResolver` |
 | [`query_type_extractor.py`](sql_metadata/query_type_extractor.py) | Query type detection from AST root node | `QueryTypeExtractor` |
-| [`dialects.py`](sql_metadata/dialects.py) | Custom sqlglot dialects and dialect detection heuristics | `HashVarDialect`, `BracketedTableDialect`, `detect_dialects` |
 | [`comments.py`](sql_metadata/comments.py) | Comment extraction/stripping via tokenizer gaps | `extract_comments`, `strip_comments` |
 | [`keywords_lists.py`](sql_metadata/keywords_lists.py) | Keyword sets, `QueryType` and `TokenType` enums | — |
 | [`utils.py`](sql_metadata/utils.py) | `UniqueList` (deduplicating list), `flatten_list`, `_make_reverse_cte_map` | — |
@@ -28,10 +29,9 @@ flowchart TB
 
     subgraph AST_CONSTRUCTION["ASTParser (ast_parser.py)"]
         direction TB
-        PP["Preprocessing"]
-        DD["Dialect Detection\n(dialects.py)"]
-        SG["sqlglot.parse()"]
-        PP --> DD --> SG
+        PP["SqlCleaner\n(sql_cleaner.py)"]
+        DP["DialectParser\n(dialect_parser.py)"]
+        PP --> DP
     end
 
     SQL --> AST_CONSTRUCTION
@@ -130,15 +130,21 @@ def tables(self) -> List[str]:
 
 ---
 
-### ASTParser — SQL to AST
+### ASTParser — Orchestrator
 
 **File:** [`ast_parser.py`](sql_metadata/ast_parser.py) | **Class:** `ASTParser`
 
-Wraps `sqlglot.parse()` with preprocessing, dialect auto-detection, and multi-dialect retry. Instantiated once per `Parser` — actual parsing is deferred until `.ast` is first accessed.
+Thin orchestrator that composes `SqlCleaner` and `DialectParser`. Instantiated once per `Parser` — actual parsing is deferred until `.ast` is first accessed. Exposes `.ast`, `.dialect`, `.is_replace`, and `.cte_name_map` properties.
+
+---
+
+### SqlCleaner — Raw SQL Preprocessing
+
+**File:** [`sql_cleaner.py`](sql_metadata/sql_cleaner.py) | **Class:** `SqlCleaner`
+
+Pure string transformations with no sqlglot dependency. `SqlCleaner.clean(sql)` returns a `CleanResult` namedtuple with the cleaned SQL, `is_replace` flag, and CTE name map.
 
 #### Preprocessing pipeline
-
-`_preprocess_sql` applies six steps in order:
 
 ```mermaid
 flowchart LR
@@ -158,35 +164,22 @@ flowchart LR
 | DB2 isolation clauses | Removes trailing `WITH UR/CS/RS/RR` | `SELECT 1 WITH UR` → `SELECT 1` |
 | Outer paren stripping | sqlglot can't parse `((UPDATE ...))` | `((UPDATE t SET x=1))` → `UPDATE t SET x=1` |
 
-#### Dialect detection
-
-Dialect detection is handled by `detect_dialects()` in [`dialects.py`](sql_metadata/dialects.py). See the [Dialects](#dialects) section below.
-
-#### Multi-dialect retry
-
-`_try_parse_dialects` iterates through the dialect list. For each dialect:
-
-1. Parse with `sqlglot.parse()` (warnings suppressed)
-2. Check for degradation via `_is_degraded_result` — phantom tables (`IGNORE`, `""`), keyword-as-column names (`UNIQUE`, `DISTINCT`)
-3. If degraded and not the last dialect, try the next one
-4. If all fail, raise `ValueError("This query is wrong")`
-
 ---
 
-### Dialects
+### DialectParser — Dialect Detection and Parsing
 
-**File:** [`dialects.py`](sql_metadata/dialects.py)
+**File:** [`dialect_parser.py`](sql_metadata/dialect_parser.py) | **Class:** `DialectParser`
 
-Contains custom sqlglot dialect classes and the heuristic dialect detection function.
+Combines dialect heuristics, `sqlglot.parse()` calls, and parse-quality validation. `DialectParser().parse(clean_sql)` returns `(ast, dialect)`.
 
-**Custom dialects:**
+**Custom dialects (defined in same file):**
 
 - `HashVarDialect` — treats `#` as part of identifiers for MSSQL temp tables (`#temp`) and template variables (`#VAR#`)
 - `BracketedTableDialect` — TSQL subclass for `[bracket]` quoting; also signals `TableExtractor` to preserve brackets in output
 
-**Detection function:**
+#### Dialect detection
 
-`detect_dialects(sql)` inspects the SQL for syntax hints and returns an ordered list of dialects to try:
+`_detect_dialects(sql)` inspects the SQL for syntax hints and returns an ordered list of dialects to try:
 
 ```mermaid
 flowchart TD
@@ -203,6 +196,15 @@ flowchart TD
     LV -->|Yes| SP["[spark, None, mysql]"]
     LV -->|No| DF["[None, mysql]"]
 ```
+
+#### Multi-dialect retry
+
+`_try_dialects` iterates through the dialect list. For each dialect:
+
+1. Parse with `sqlglot.parse()` (warnings suppressed)
+2. Check for degradation via `_is_degraded` — phantom tables (`IGNORE`, `""`), keyword-as-column names (`UNIQUE`, `DISTINCT`)
+3. If degraded and not the last dialect, try the next one
+4. If all fail, raise `ValueError("This query is wrong")`
 
 ---
 
@@ -460,9 +462,9 @@ sequenceDiagram
     Note over Parser: Need AST and table_aliases
 
     Parser->>ASTParser: .ast (first access)
-    ASTParser->>ASTParser: _preprocess_sql()
+    ASTParser->>ASTParser: SqlCleaner.clean()
     Note over ASTParser: No REPLACE, no comments,<br/>no qualified CTEs
-    ASTParser->>ASTParser: detect_dialects()
+    ASTParser->>ASTParser: DialectParser().parse()
     Note over ASTParser: No special syntax →<br/>[None, "mysql"]
     ASTParser->>sqlglot: sqlglot.parse(sql, dialect=None)
     sqlglot-->>ASTParser: exp.Select AST
@@ -498,7 +500,7 @@ sequenceDiagram
 1. **`Parser.__init__`** — stored raw SQL, created `ASTParser` (lazy)
 2. **`.columns_aliases`** accessed → triggers `.columns` (not cached)
 3. **`.columns`** needs the AST → accesses `self._ast_parser.ast`
-4. **`ASTParser.ast`** (first access) → runs `_preprocess_sql` → `detect_dialects` → `sqlglot.parse()`
+4. **`ASTParser.ast`** (first access) → `SqlCleaner.clean()` → `DialectParser().parse()` → `sqlglot.parse()`
 5. **`.tables_aliases`** needed for column extraction → `TableExtractor.extract_aliases()` → `{}` (no aliases on `t`)
 6. **`ColumnExtractor(ast, {}, {}).extract()`** → DFS walk:
    - Visits `Select` node, key `"expressions"` → `_handle_select_exprs()`
@@ -526,12 +528,13 @@ flowchart TB
     P --> KW["keywords_lists.py"]
     P --> UT["utils.py"]
 
-    AST --> COM
-    AST --> DIA["dialects.py"]
-    AST -.->|"sqlglot.parse()"| SG["sqlglot"]
+    AST --> SC["sql_cleaner.py"]
+    AST --> DP["dialect_parser.py"]
 
-    DIA --> COM
-    TAB --> DIA
+    SC --> COM
+    DP --> COM
+    DP -.->|"sqlglot.parse()"| SG["sqlglot"]
+    TAB --> DP
 
     EXT -.-> SG
     EXT --> UT
@@ -555,11 +558,11 @@ Note the circular dependency: `nested_resolver.py` imports `Parser` from `parser
 
 **Lazy evaluation with caching** — every `Parser` property computes on first access and caches the result. This means you pay zero cost for properties you never access.
 
-**Composition over inheritance** — `Parser` doesn't subclass anything meaningful. It composes `ASTParser`, `TableExtractor`, `ColumnExtractor`, `NestedResolver`, and `QueryTypeExtractor` as separate concerns.
+**Composition over inheritance** — `Parser` doesn't subclass anything meaningful. It composes `ASTParser` (which itself composes `SqlCleaner` and `DialectParser`), `TableExtractor`, `ColumnExtractor`, `NestedResolver`, and `QueryTypeExtractor` as separate concerns.
 
 **Single-pass DFS extraction** — `ColumnExtractor` walks the AST exactly once in `arg_types` key order. Because sqlglot's `arg_types` keys are ordered to mirror left-to-right SQL text, the walk naturally processes clauses in source order.
 
-**Multi-dialect retry with degradation detection** — rather than guessing one dialect, `ASTParser` tries several in order and picks the first that doesn't produce a degraded result (phantom tables, keyword-as-column names).
+**Multi-dialect retry with degradation detection** — rather than guessing one dialect, `DialectParser` tries several in order and picks the first that doesn't produce a degraded result (phantom tables, keyword-as-column names).
 
 **Graceful regex fallbacks** — when the AST parse fails entirely, the parser degrades to regex-based extraction for columns (INSERT INTO pattern) and LIMIT/OFFSET rather than raising an error.
 
