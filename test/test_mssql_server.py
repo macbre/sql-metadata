@@ -181,3 +181,9 @@ def test_partition_over_with_row_number_and_many_orders():
         "select": ["col_one", "col_two", "col_three", "col_four"],
         "where": ["col_one", "col_two", "col_three", "col_four"],
     }
+
+
+def test_mssql_catalog_double_dot():
+    """SQL Server three-part name with empty db: catalog..table."""
+    p = Parser("SELECT * FROM mydb..orders")
+    assert "mydb..orders" in p.tables

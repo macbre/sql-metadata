@@ -152,3 +152,29 @@ def test_create_temporary_table():
     assert "tablname" in parser.tables
     assert "source_table" in parser.tables
     assert parser.columns == ["*"]
+
+
+def test_malformed_with_no_main_query():
+    """WITH clause not followed by a main statement is rejected."""
+    with pytest.raises(ValueError, match="This query is wrong"):
+        Parser("WITH cte AS (SELECT 1)").query_type
+
+
+def test_unrecognized_command_type():
+    """A query that parses as Command but isn't ALTER/CREATE."""
+    with pytest.raises(ValueError, match="Not supported query type"):
+        Parser("SHOW TABLES").query_type
+
+
+def test_deeply_parenthesized_query():
+    """Triple-parenthesized SELECT parses correctly."""
+    p = Parser("(((SELECT col FROM t)))")
+    assert p.query_type == "SELECT"
+    assert p.tables == ["t"]
+    assert p.columns == ["col"]
+
+
+def test_execute_command_not_supported():
+    """EXECUTE parses as Command but isn't a known type — raises ValueError."""
+    with pytest.raises(ValueError, match="Not supported query type"):
+        Parser("EXECUTE sp_help").query_type

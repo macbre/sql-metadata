@@ -90,7 +90,8 @@ def extract_comments(sql: str) -> List[str]:
         return []
     try:
         tokens = list(_choose_tokenizer(sql).tokenize(sql))
-    except Exception:
+    # TODO: revisit if sqlglot tokenizer starts raising on specific inputs
+    except Exception:  # pragma: no cover
         return []
     comments: list[str] = []
     prev_end = -1

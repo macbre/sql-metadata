@@ -930,3 +930,16 @@ def test_unmatched_parentheses_graceful():
         _ = parser.tables
     except (ValueError, Exception):
         pass
+
+
+def test_degraded_parse_falls_through_to_last_dialect():
+    """SELECT UNIQUE triggers multi-dialect retry."""
+    p = Parser("SELECT UNIQUE col FROM t")
+    assert "t" in p.tables
+
+
+def test_parenthesized_select_unwrapping():
+    """Parenthesized top-level SELECT is correctly unwrapped."""
+    p = Parser("(SELECT a, b FROM t)")
+    assert p.tables == ["t"]
+    assert p.columns == ["a", "b"]

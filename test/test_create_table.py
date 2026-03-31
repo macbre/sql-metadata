@@ -170,3 +170,16 @@ def test_create_temporary_table():
     assert parser.query_type == QueryType.CREATE
     assert parser.tables == ["new_tbl", "orig_tbl"]
     assert parser.columns == ["*"]
+
+
+def test_create_index_extracts_table():
+    """CREATE INDEX correctly extracts the target table."""
+    p = Parser("CREATE INDEX idx ON t (col)")
+    assert "t" in p.tables
+
+
+def test_create_table_with_columns_only():
+    """CREATE TABLE with column definitions (no SELECT) extracts columns."""
+    p = Parser("CREATE TABLE users (id INT, name VARCHAR(100), active BOOL)")
+    assert p.columns == ["id", "name", "active"]
+    assert p.tables == ["users"]

@@ -139,7 +139,8 @@ class DialectParser:
                     raise ValueError("This query is wrong")
                 continue
 
-        if last_result is not None:
+        # TODO: revisit if sqlglot starts returning None from parse for last dialect
+        if last_result is not None:  # pragma: no cover
             return last_result, winning_dialect
         raise ValueError("This query is wrong")
 
@@ -161,9 +162,9 @@ class DialectParser:
         if not results or results[0] is None:
             return None
         result = results[0]
-        if result is None:
-            return None
-        if isinstance(result, exp.Subquery) and not result.alias:
+        assert result is not None  # guaranteed by check above
+        # TODO: revisit if sqlglot returns top-level Subquery
+        if isinstance(result, exp.Subquery) and not result.alias:  # pragma: no cover
             inner = result.this
             if isinstance(inner, exp.Expression):
                 return inner

@@ -679,3 +679,33 @@ def test_mssql_top_columns():
     assert parser.tables == ["foo"]
     assert parser.columns == ["id", "name"]
     assert parser.columns_dict == {"select": ["id", "name"]}
+
+
+def test_columns_regex_fallback_on_invalid_insert():
+    """Invalid INSERT falls back to regex for column extraction."""
+    p = Parser("INSERT INTO t (col1, col2, col3) GARBAGE GARBAGE GARBAGE")
+    assert p.columns == ["col1", "col2", "col3"]
+
+
+def test_columns_via_regex_on_completely_invalid_sql():
+    """Totally invalid SQL with INTO...(cols) pattern uses regex fallback."""
+    p = Parser("INTO tbl (col_a, col_b) FROM TO WHERE")
+    assert p.columns == ["col_a", "col_b"]
+
+
+def test_cte_with_more_column_aliases_than_body():
+    """CTE defines more column names than the body SELECT produces."""
+    p = Parser(
+        "WITH cte(a, b, c) AS (SELECT x FROM t) "
+        "SELECT a FROM cte"
+    )
+    assert "a" in p.columns_aliases_names
+
+
+def test_cte_with_table_star_in_body():
+    """CTE body uses table.* — exercises _flat_columns with table-qualified star."""
+    p = Parser(
+        "WITH cte(a) AS (SELECT t.* FROM t) "
+        "SELECT a FROM cte"
+    )
+    assert "t.*" in p.columns or "a" in p.columns_aliases_names

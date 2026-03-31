@@ -500,3 +500,33 @@ def test_subquery_in_select_closing_parens():
     assert "dept_name" in parser.columns
     assert "clinmt.c_no" in parser.columns
     assert "clinmt.cls" in parser.columns
+
+
+def test_subquery_alias_with_inner_column():
+    """Alias wrapping a scalar subquery that returns a column."""
+    p = Parser("SELECT (SELECT col FROM t LIMIT 1) AS x FROM s")
+    assert "x" in p.columns_aliases_names
+
+
+def test_subquery_alias_with_inner_star():
+    """Alias wrapping a scalar subquery that uses SELECT *."""
+    p = Parser("SELECT (SELECT * FROM t LIMIT 1) AS x FROM s")
+    assert "x" in p.columns_aliases_names
+
+
+def test_subquery_alias_with_inner_alias():
+    """Alias wrapping a scalar subquery that returns an alias."""
+    p = Parser("SELECT (SELECT col AS c FROM t LIMIT 1) AS x FROM s")
+    assert "x" in p.columns_aliases_names
+
+
+def test_subquery_bodies_empty_when_no_subquery():
+    """A query with no subqueries has empty subqueries dict."""
+    p = Parser("SELECT * FROM t")
+    assert p.subqueries == {}
+
+
+def test_subquery_names_empty_when_no_subquery():
+    """A query with no subqueries returns empty subqueries_names."""
+    p = Parser("SELECT * FROM t")
+    assert p.subqueries_names == []

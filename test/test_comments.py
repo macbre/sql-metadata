@@ -172,3 +172,20 @@ def test_table_after_comment_not_ignored():
     assert parser.tables == ["d1", "d2", "d3"]
     assert parser.columns == ["c1"]
     assert parser.columns_dict == {"select": ["c1"]}
+
+
+def test_extract_comments_empty_string():
+    """Extracting comments from empty SQL returns empty list."""
+    assert Parser("").comments == []
+
+
+def test_strip_comments_empty_string():
+    """Stripping comments from empty SQL returns empty string."""
+    assert Parser("").without_comments == ""
+
+
+def test_strip_comments_for_parsing_empty():
+    """SqlCleaner handles empty strings via strip_comments_for_parsing."""
+    from sql_metadata.comments import strip_comments_for_parsing
+
+    assert strip_comments_for_parsing("") == ""

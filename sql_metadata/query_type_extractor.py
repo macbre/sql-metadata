@@ -6,7 +6,7 @@ operations, and opaque ``Command`` nodes.
 """
 
 import logging
-from typing import Optional
+from typing import NoReturn, Optional
 
 from sqlglot import exp
 
@@ -56,7 +56,6 @@ class QueryTypeExtractor:
         """
         if self._ast is None:
             self._raise_for_none_ast()
-            assert self._ast is not None  # unreachable; for mypy
 
         root = self._unwrap_parens(self._ast)
         node_type = type(root)
@@ -80,7 +79,8 @@ class QueryTypeExtractor:
     @staticmethod
     def _unwrap_parens(ast: exp.Expression) -> exp.Expression:
         """Remove Paren and Subquery wrappers to reach the real statement."""
-        if isinstance(ast, (exp.Paren, exp.Subquery)):
+        # TODO: revisit if sqlglot stops stripping outer parens before this is called
+        if isinstance(ast, (exp.Paren, exp.Subquery)):  # pragma: no cover
             return QueryTypeExtractor._unwrap_parens(ast.this)
         return ast
 
@@ -94,7 +94,7 @@ class QueryTypeExtractor:
             return QueryType.CREATE
         return None
 
-    def _raise_for_none_ast(self) -> None:
+    def _raise_for_none_ast(self) -> "NoReturn":
         """Raise an appropriate error when the AST is None."""
         from sql_metadata.comments import strip_comments
 

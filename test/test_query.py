@@ -126,3 +126,16 @@ def test_case_syntax():
     assert Parser(
         "SELECT case when p > 0 then 1 else 0 end as cs from c where g > f"
     ).tables == ["c"]
+
+
+def test_empty_query_property():
+    """The query property returns empty string for empty SQL."""
+    assert Parser("").query == ""
+
+
+def test_tokens_caching():
+    """Second access to tokens returns the cached list."""
+    p = Parser("SELECT col FROM t")
+    first = p.tokens
+    second = p.tokens
+    assert first is second

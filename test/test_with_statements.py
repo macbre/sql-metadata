@@ -625,3 +625,58 @@ def test_group_by_not_table_alias_in_cte():
     assert "GROUP BY" not in aliases
     assert "[Table1]" in parser.tables
     assert "[Table2]" in parser.tables
+
+
+def test_coalesce_three_args_in_cte():
+    """COALESCE with 3+ args should render as COALESCE, not IFNULL."""
+    p = Parser(
+        "WITH cte AS (SELECT COALESCE(a, b, c) FROM t) "
+        "SELECT * FROM cte"
+    )
+    body = p.with_queries["cte"]
+    assert "COALESCE" in body.upper()
+
+
+def test_date_add_in_cte():
+    """DATE_ADD in a CTE body should be preserved by the custom generator."""
+    p = Parser(
+        "WITH cte AS (SELECT DATE_ADD(created, INTERVAL 1 DAY) FROM events) "
+        "SELECT * FROM cte"
+    )
+    body = p.with_queries["cte"]
+    assert "DATE_ADD" in body.upper()
+
+
+def test_date_sub_in_cte():
+    """DATE_SUB in a CTE body should be preserved by the custom generator."""
+    p = Parser(
+        "WITH cte AS (SELECT DATE_SUB(created, INTERVAL 1 DAY) FROM events) "
+        "SELECT * FROM cte"
+    )
+    body = p.with_queries["cte"]
+    assert "DATE_SUB" in body.upper()
+
+
+def test_not_expression_in_cte():
+    """NOT applied to a boolean expression (not IS NULL or IN) in CTE body."""
+    p = Parser(
+        "WITH cte AS (SELECT * FROM t WHERE NOT (active > 0)) "
+        "SELECT * FROM cte"
+    )
+    body = p.with_queries["cte"]
+    assert "NOT" in body.upper()
+
+
+def test_nested_resolver_unresolvable_reference():
+    """A dotted column reference not matching any CTE/subquery stays as-is."""
+    p = Parser(
+        "WITH cte AS (SELECT id FROM t) "
+        "SELECT nonexistent.col FROM cte"
+    )
+    assert "nonexistent.col" in p.columns
+
+
+def test_with_queries_empty_when_no_cte():
+    """A query with no CTEs returns empty with_queries."""
+    p = Parser("SELECT * FROM t")
+    assert p.with_queries == {}
