@@ -6,7 +6,7 @@ class so that callers only need to call :meth:`DialectParser.parse`.
 """
 
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 import sqlglot
 from sqlglot import Dialect, exp
@@ -144,7 +144,7 @@ class DialectParser:
         raise ValueError("This query is wrong")
 
     @staticmethod
-    def _parse_with_dialect(clean_sql: str, dialect) -> Optional[exp.Expression]:
+    def _parse_with_dialect(clean_sql: str, dialect: Any) -> Optional[exp.Expression]:
         """Parse *clean_sql* with a single dialect, suppressing warnings."""
         logger = logging.getLogger("sqlglot")
         old_level = logger.level

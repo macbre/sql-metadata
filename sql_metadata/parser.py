@@ -13,7 +13,9 @@ Thin facade that composes the specialised extractors via lazy properties:
 
 import logging
 import re
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+from sqlglot import exp
 
 from sql_metadata.ast_parser import ASTParser
 from sql_metadata.column_extractor import ColumnExtractor
@@ -99,10 +101,10 @@ class Parser:
         if self._raw_query == "":
             return ""
 
-        def replace_quotes_in_string(match):
+        def replace_quotes_in_string(match: re.Match[str]) -> str:
             return re.sub('"', "<!!__QUOTE__!!>", match.group())
 
-        def replace_back_quotes_in_string(match):
+        def replace_back_quotes_in_string(match: re.Match[str]) -> str:
             return re.sub("<!!__QUOTE__!!>", '"', match.group())
 
         query = re.sub(r"'.*?'", replace_quotes_in_string, self._raw_query)
@@ -334,7 +336,7 @@ class Parser:
     # -------------------------------------------------------------------
 
     @staticmethod
-    def _extract_int_from_node(node) -> Optional[int]:
+    def _extract_int_from_node(node: Any) -> Optional[int]:
         """Safely extract an integer value from a Limit or Offset node."""
         if not node:
             return None
@@ -440,7 +442,7 @@ class Parser:
         return values
 
     @staticmethod
-    def _convert_value(val) -> Union[int, float, str]:
+    def _convert_value(val: exp.Expression) -> Union[int, float, str]:
         """Convert a sqlglot literal AST node to a Python type."""
         from sqlglot import exp
 

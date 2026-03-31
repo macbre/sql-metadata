@@ -30,7 +30,7 @@ def _strip_outer_parens(sql: str) -> str:
     """
     s = sql.strip()
 
-    def _is_wrapped(text):
+    def _is_wrapped(text: str) -> bool:
         if len(text) < 2 or text[0] != "(" or text[-1] != ")":
             return False
         inner = text[1:-1]
@@ -66,7 +66,7 @@ def _normalize_cte_names(sql: str) -> tuple:
         re.IGNORECASE,
     )
 
-    def replacer(match):
+    def replacer(match: re.Match[str]) -> str:
         prefix = match.group(1)
         qualified_name = match.group(2)
         suffix = match.group(3)

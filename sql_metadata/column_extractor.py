@@ -12,7 +12,7 @@ and friends.
 """
 
 from dataclasses import dataclass
-from typing import Dict, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 from sqlglot import exp
 
@@ -88,7 +88,7 @@ def _classify_clause(key: str, parent_type: type) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _dfs(node: exp.Expression):
+def _dfs(node: exp.Expression) -> Any:
     """Yield *node* and all its descendants in depth-first order.
 
     :param node: Root expression node.
@@ -168,7 +168,7 @@ class _Collector:
         if clause:
             self.columns_dict.setdefault(clause, UniqueList()).append(name)
 
-    def add_alias(self, name: str, target, clause: str) -> None:
+    def add_alias(self, name: str, target: Any, clause: str) -> None:
         """Record a column alias and its target expression."""
         self.alias_names.append(name)
         if clause:
@@ -335,7 +335,9 @@ class ColumnExtractor:
     # DFS walk
     # -------------------------------------------------------------------
 
-    def _walk(self, node, clause: str = "", depth: int = 0) -> None:
+    def _walk(
+        self, node: Optional[exp.Expression], clause: str = "", depth: int = 0
+    ) -> None:
         """Depth-first walk of the AST in ``arg_types`` key order."""
         if node is None:
             return
@@ -346,7 +348,7 @@ class ColumnExtractor:
         if hasattr(node, "arg_types"):
             self._walk_children(node, clause, depth)
 
-    def _walk_children(self, node, clause: str, depth: int) -> None:
+    def _walk_children(self, node: exp.Expression, clause: str, depth: int) -> None:
         """Recurse into children of *node* in ``arg_types`` key order."""
         for key in node.arg_types:
             if key in _SKIP_KEYS:
@@ -360,7 +362,7 @@ class ColumnExtractor:
             if not self._process_child_key(node, key, child, new_clause, depth):
                 self._recurse_child(child, new_clause, depth)
 
-    def _dispatch_leaf(self, node, clause: str, depth: int) -> bool:
+    def _dispatch_leaf(self, node: exp.Expression, clause: str, depth: int) -> bool:
         """Dispatch leaf-like AST nodes to their specialised handlers.
 
         Returns ``True`` if handled (stop recursion), ``False`` to continue.
@@ -384,7 +386,7 @@ class ColumnExtractor:
         return False
 
     def _process_child_key(
-        self, node, key: str, child, clause: str, depth: int
+        self, node: exp.Expression, key: str, child: Any, clause: str, depth: int
     ) -> bool:
         """Handle special cases for SELECT expressions, INSERT schema, JOIN USING.
 
@@ -401,7 +403,7 @@ class ColumnExtractor:
             return True
         return False
 
-    def _recurse_child(self, child, clause: str, depth: int) -> None:
+    def _recurse_child(self, child: Any, clause: str, depth: int) -> None:
         """Recursively walk a child value (single expression or list)."""
         if isinstance(child, list):
             for item in child:
@@ -437,7 +439,7 @@ class ColumnExtractor:
                 name = col_id.name if hasattr(col_id, "name") else str(col_id)
                 self._collector.add_column(name, "insert")
 
-    def _handle_join_using(self, child) -> None:
+    def _handle_join_using(self, child: Any) -> None:
         """Extract column identifiers from a JOIN USING clause."""
         if isinstance(child, list):
             for item in child:
@@ -473,7 +475,7 @@ class ColumnExtractor:
 
         c.add_column(full, clause)
 
-    def _handle_select_exprs(self, exprs, clause: str, depth: int) -> None:
+    def _handle_select_exprs(self, exprs: Any, clause: str, depth: int) -> None:
         """Handle the expressions list of a SELECT clause."""
         if not isinstance(exprs, list):
             return

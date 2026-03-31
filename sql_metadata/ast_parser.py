@@ -50,7 +50,7 @@ class ASTParser:
         return self._ast
 
     @property
-    def dialect(self):
+    def dialect(self) -> object:
         """The sqlglot dialect that produced the current AST.
 
         Set as a side-effect of :attr:`ast` access.  May be ``None``

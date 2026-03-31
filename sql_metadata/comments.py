@@ -24,7 +24,7 @@ from typing import List
 from sqlglot.tokens import Tokenizer
 
 
-def _choose_tokenizer(sql: str):
+def _choose_tokenizer(sql: str) -> Tokenizer:
     """Select the appropriate sqlglot tokenizer for *sql*.
 
     The default sqlglot tokenizer does **not** treat ``#`` as a comment

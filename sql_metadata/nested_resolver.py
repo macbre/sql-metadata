@@ -42,25 +42,25 @@ class _PreservingGenerator(Generator):
         ),
     }
 
-    def coalesce_sql(self, expression):
+    def coalesce_sql(self, expression: exp.Expression) -> str:
         args = [expression.this] + expression.expressions
         if len(args) == 2:
             return f"IFNULL({self.sql(args[0])}, {self.sql(args[1])})"
-        return super().coalesce_sql(expression)
+        return super().coalesce_sql(expression)  # type: ignore[misc, no-any-return]
 
-    def dateadd_sql(self, expression):
+    def dateadd_sql(self, expression: exp.Expression) -> str:
         return (
             f"DATE_ADD({self.sql(expression, 'this')}, "
             f"{self.sql(expression, 'expression')})"
         )
 
-    def datesub_sql(self, expression):
+    def datesub_sql(self, expression: exp.Expression) -> str:
         return (
             f"DATE_SUB({self.sql(expression, 'this')}, "
             f"{self.sql(expression, 'expression')})"
         )
 
-    def tsordsadd_sql(self, expression):
+    def tsordsadd_sql(self, expression: exp.Expression) -> str:
         this = self.sql(expression, "this")
         expr_node = expression.expression
         if isinstance(expr_node, exp.Mul):
@@ -74,13 +74,13 @@ class _PreservingGenerator(Generator):
                 return f"DATE_SUB({this}, {left})"
         return f"DATE_ADD({this}, {self.sql(expression, 'expression')})"
 
-    def not_sql(self, expression):
+    def not_sql(self, expression: exp.Expression) -> str:
         child = expression.this
         if isinstance(child, exp.Is) and isinstance(child.expression, exp.Null):
             return f"{self.sql(child, 'this')} IS NOT NULL"
         if isinstance(child, exp.In):
             return f"{self.sql(child, 'this')} NOT IN ({self.expressions(child)})"
-        return super().not_sql(expression)
+        return super().not_sql(expression)  # type: ignore[arg-type, no-any-return]
 
 
 _GENERATOR = _PreservingGenerator()
@@ -287,7 +287,7 @@ class NestedResolver:
         return columns, columns_dict, self._columns_aliases
 
     def _resolve_and_filter(
-        self, columns, drop_bare_aliases: bool = True
+        self, columns: "UniqueList", drop_bare_aliases: bool = True
     ) -> "UniqueList":
         """Apply subquery/CTE resolution and bare-alias handling."""
         resolved = UniqueList()

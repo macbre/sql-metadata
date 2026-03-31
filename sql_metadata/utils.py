@@ -17,7 +17,7 @@ class UniqueList(list):
     an internal ``set`` for O(1) membership checks.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._seen: set = set(self)
 
@@ -32,7 +32,7 @@ class UniqueList(list):
         for item in items:
             self.append(item)
 
-    def __sub__(self, other) -> List:
+    def __sub__(self, other: Any) -> List:
         """Return a plain list of elements in *self* that are not in *other*."""
         other_set = set(other)
         return [x for x in self if x not in other_set]

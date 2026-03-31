@@ -212,7 +212,7 @@ class TableExtractor:
         return pos if pos >= 0 else len(self._raw_sql)
 
     @staticmethod
-    def _word_pattern(name_upper: str):
+    def _word_pattern(name_upper: str) -> re.Pattern[str]:
         """Build a regex matching *name_upper* as a whole word."""
         escaped = re.escape(name_upper)
         return re.compile(r"(?<![A-Za-z0-9_])" + escaped + r"(?![A-Za-z0-9_])")
