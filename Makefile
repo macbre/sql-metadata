@@ -13,6 +13,9 @@ lint:
 format:
 	poetry run ruff format .
 
+type_check:
+	poetry run mypy sql_metadata
+
 publish:
 	# run git tag -a v0.0.0 before running make publish
 	poetry build

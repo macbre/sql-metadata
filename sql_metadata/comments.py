@@ -92,7 +92,7 @@ def extract_comments(sql: str) -> List[str]:
         tokens = list(_choose_tokenizer(sql).tokenize(sql))
     except Exception:
         return []
-    comments = []
+    comments: list[str] = []
     prev_end = -1
     for tok in tokens:
         _scan_gap(sql, prev_end + 1, tok.start, comments)

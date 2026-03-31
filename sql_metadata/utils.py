@@ -5,7 +5,7 @@ tables, aliases, and CTE names while preserving insertion order, and
 ``flatten_list`` for normalising nested alias resolution results.
 """
 
-from typing import Any, Dict, List, Sequence
+from typing import Any, Dict, Iterable, List
 
 
 class UniqueList(list):
@@ -27,7 +27,7 @@ class UniqueList(list):
             self._seen.add(item)
             super().append(item)
 
-    def extend(self, items: Sequence[Any]) -> None:
+    def extend(self, items: Iterable[Any]) -> None:  # type: ignore[override]
         """Extend the list with *items*, skipping duplicates."""
         for item in items:
             self.append(item)

@@ -9,7 +9,7 @@ tables are reported.
 """
 
 import re
-from typing import Dict, List, Set
+from typing import Dict, List, Optional, Set
 
 from sqlglot import exp
 
@@ -20,16 +20,17 @@ from sql_metadata.utils import UniqueList
 # ---------------------------------------------------------------------------
 
 
-def _assemble_dotted_name(catalog: str, db, name: str) -> str:
+def _assemble_dotted_name(catalog: str, db: object, name: str) -> str:
     """Assemble a dot-joined table name from catalog, db, and name parts."""
-    parts = []
+    parts: list[str] = []
     if catalog:
         parts.append(catalog)
     if db is not None:
-        if db == "" and catalog:
+        db_str = str(db)
+        if db_str == "" and catalog:
             parts.append("")
-        elif db:
-            parts.append(db)
+        elif db_str:
+            parts.append(db_str)
     if name:
         parts.append(name)
     return ".".join(parts)
@@ -40,7 +41,7 @@ def _ident_str(node: exp.Identifier) -> str:
     return f"[{node.name}]" if node.quoted else node.name
 
 
-def _collect_node_parts(node, parts: list) -> None:
+def _collect_node_parts(node: object, parts: list[str]) -> None:
     """Append identifier strings from *node* into *parts*."""
     if isinstance(node, exp.Identifier):
         parts.append(_ident_str(node))
@@ -54,7 +55,7 @@ def _collect_node_parts(node, parts: list) -> None:
 
 def _bracketed_full_name(table: exp.Table) -> str:
     """Build a table name preserving ``[bracket]`` notation from AST nodes."""
-    parts = []
+    parts: list[str] = []
     for key in ["catalog", "db", "this"]:
         node = table.args.get(key)
         if node is not None:
@@ -111,10 +112,10 @@ class TableExtractor:
 
     def __init__(
         self,
-        ast: exp.Expression,
+        ast: Optional[exp.Expression],
         raw_sql: str = "",
-        cte_names: Set[str] = None,
-        dialect=None,
+        cte_names: Optional[Set[str]] = None,
+        dialect: object = None,
     ):
         self._ast = ast
         self._raw_sql = raw_sql
@@ -219,12 +220,12 @@ class TableExtractor:
     def _find_word(self, name_upper: str, start: int = 0) -> int:
         """Find *name_upper* as a whole word in the upper-cased SQL."""
         match = self._word_pattern(name_upper).search(self._upper_sql, start)
-        return match.start() if match else -1
+        return int(match.start()) if match else -1
 
     def _find_word_in_table_context(self, name_upper: str) -> int:
         """Find a table name that appears after a table-introducing keyword."""
         for match in self._word_pattern(name_upper).finditer(self._upper_sql):
-            pos = match.start()
+            pos: int = int(match.start())
             before = self._upper_sql[:pos].rstrip()
             if _ends_with_table_keyword(before):
                 return pos
@@ -236,8 +237,9 @@ class TableExtractor:
     # Collection helpers
     # -------------------------------------------------------------------
 
-    def _extract_create_target(self) -> str:
+    def _extract_create_target(self) -> Optional[str]:
         """Extract the target table name from a CREATE TABLE statement."""
+        assert self._ast is not None
         target = self._ast.this
         if not target:
             return None
@@ -253,6 +255,7 @@ class TableExtractor:
 
     def _collect_lateral_aliases(self) -> List[str]:
         """Collect alias names from LATERAL VIEW clauses in the AST."""
+        assert self._ast is not None
         names = []
         for lateral in self._ast.find_all(exp.Lateral):
             alias = lateral.args.get("alias")
@@ -266,6 +269,7 @@ class TableExtractor:
 
     def _collect_all(self) -> UniqueList:
         """Collect table names from Table and Lateral AST nodes."""
+        assert self._ast is not None
         collected = UniqueList()
         for table in self._ast.find_all(exp.Table):
             full_name = self._table_full_name(table)
@@ -277,7 +281,7 @@ class TableExtractor:
 
     @staticmethod
     def _place_tables_in_order(
-        create_target: str, collected_sorted: list
+        create_target: Optional[str], collected_sorted: list
     ) -> UniqueList:
         """Build the final table list with optional CREATE target first."""
         tables = UniqueList()

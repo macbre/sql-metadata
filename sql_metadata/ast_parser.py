@@ -7,6 +7,8 @@ always receive a clean ``sqlglot.exp.Expression`` tree (or ``None`` /
 ``ValueError``).
 """
 
+from typing import Optional
+
 from sqlglot import exp
 
 from sql_metadata.dialect_parser import DialectParser
@@ -27,14 +29,14 @@ class ASTParser:
 
     def __init__(self, sql: str) -> None:
         self._raw_sql = sql
-        self._ast = None
-        self._dialect = None
+        self._ast: Optional[exp.Expression] = None
+        self._dialect: object = None
         self._parsed = False
         self._is_replace = False
-        self._cte_name_map = {}
+        self._cte_name_map: dict[str, str] = {}
 
     @property
-    def ast(self) -> exp.Expression:
+    def ast(self) -> Optional[exp.Expression]:
         """The sqlglot AST for the query, lazily parsed on first access.
 
         :returns: Root AST node, or ``None`` for empty/comment-only queries.
@@ -80,7 +82,7 @@ class ASTParser:
         _ = self.ast
         return self._cte_name_map
 
-    def _parse(self, sql: str) -> exp.Expression:
+    def _parse(self, sql: str) -> Optional[exp.Expression]:
         """Parse *sql* into a sqlglot AST.
 
         Delegates preprocessing to :class:`SqlCleaner` and dialect

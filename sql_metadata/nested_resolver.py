@@ -6,8 +6,13 @@ those bodies with sub-:class:`Parser` instances, and resolving
 ``subquery.column`` references to actual columns.
 """
 
+from __future__ import annotations
+
 import copy
-from typing import Dict, List, Optional, Set, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Set, Union
+
+if TYPE_CHECKING:
+    from sql_metadata.parser import Parser
 
 from sqlglot import exp
 from sqlglot.generator import Generator
@@ -126,7 +131,10 @@ class NestedResolver:
     # -------------------------------------------------------------------
 
     @staticmethod
-    def extract_cte_names(ast: exp.Expression, cte_name_map: Dict = None) -> List[str]:
+    def extract_cte_names(
+        ast: Optional[exp.Expression],
+        cte_name_map: Optional[Dict] = None,
+    ) -> List[str]:
         """Extract CTE names from the AST.
 
         Called by :attr:`Parser.with_names`.
@@ -143,7 +151,7 @@ class NestedResolver:
         return names
 
     @staticmethod
-    def extract_subquery_names(ast: exp.Expression) -> List[str]:
+    def extract_subquery_names(ast: Optional[exp.Expression]) -> List[str]:
         """Extract aliased subquery names from the AST in post-order.
 
         Called by :attr:`Parser.subqueries_names`.
@@ -349,7 +357,7 @@ class NestedResolver:
         definitions: Dict,
         parser_cache: Dict,
         check_columns: bool = False,
-    ):
+    ) -> Optional[Union[str, List[str]]]:
         """Search for a bare column as an alias in nested queries."""
         from sql_metadata.parser import Parser
 
@@ -380,7 +388,7 @@ class NestedResolver:
         self,
         alias: Union[str, List[str]],
         columns_aliases: Dict,
-        visited: Set = None,
+        visited: Optional[Set] = None,
     ) -> Union[str, List]:
         """Recursively resolve a column alias to its underlying column(s)."""
         visited = visited or set()
@@ -419,7 +427,7 @@ class NestedResolver:
 
     @staticmethod
     def _resolve_column_in_subparser(
-        column_name: str, subparser, original_ref: str
+        column_name: str, subparser: "Parser", original_ref: str
     ) -> Union[str, List[str]]:
         """Resolve a column name through a parsed nested query."""
         if column_name in subparser.columns_aliases_names:
@@ -435,7 +443,7 @@ class NestedResolver:
 
     @staticmethod
     def _find_column_fallback(
-        column_name: str, subparser, original_ref: str
+        column_name: str, subparser: "Parser", original_ref: str
     ) -> Union[str, List[str]]:
         """Find a column by name in the subparser with wildcard fallbacks."""
         try:

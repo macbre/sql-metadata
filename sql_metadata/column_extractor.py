@@ -205,7 +205,7 @@ class ColumnExtractor:
         self,
         ast: exp.Expression,
         table_aliases: Dict[str, str],
-        cte_name_map: Dict = None,
+        cte_name_map: Optional[Dict] = None,
     ):
         self._ast = ast
         self._table_aliases = table_aliases
@@ -548,6 +548,7 @@ class ColumnExtractor:
         body = cte.this
 
         if has_col_defs and body and isinstance(body, exp.Select):
+            assert table_alias is not None  # guarded by has_col_defs
             body_cols = self._flat_columns(body)
             real_cols = [x for x in body_cols if x != "*"]
             cte_col_names = [col.name for col in table_alias.columns]
@@ -615,7 +616,7 @@ class ColumnExtractor:
         cols = []
         if node is None:
             return cols
-        seen_stars = set()
+        seen_stars: set[int] = set()
         for child in _dfs(node):
             name = self._collect_column_from_node(child, seen_stars)
             if name is not None:

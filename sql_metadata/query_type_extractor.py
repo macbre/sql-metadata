@@ -56,6 +56,7 @@ class QueryTypeExtractor:
         """
         if self._ast is None:
             self._raise_for_none_ast()
+            assert self._ast is not None  # unreachable; for mypy
 
         root = self._unwrap_parens(self._ast)
         node_type = type(root)

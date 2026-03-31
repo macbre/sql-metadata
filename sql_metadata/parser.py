@@ -45,32 +45,32 @@ class Parser:
         self._logger.disabled = disable_logging
 
         self._raw_query = sql
-        self._query_type = None
+        self._query_type: Optional[str] = None
 
         self._ast_parser = ASTParser(sql)
-        self._resolver = None  # Lazy NestedResolver
+        self._resolver: Optional[NestedResolver] = None
 
-        self._tokens = None
+        self._tokens: Optional[List[str]] = None
 
-        self._columns = None
-        self._columns_dict = None
-        self._columns_aliases_names = None
-        self._columns_aliases = None
-        self._columns_aliases_dict = None
-        self._columns_with_tables_aliases = {}
+        self._columns: Optional[UniqueList] = None
+        self._columns_dict: Optional[Dict[str, UniqueList]] = None
+        self._columns_aliases_names: Optional[UniqueList] = None
+        self._columns_aliases: Optional[Dict[str, Union[str, list]]] = None
+        self._columns_aliases_dict: Optional[Dict[str, UniqueList]] = None
+        self._columns_with_tables_aliases: Dict[str, str] = {}
 
-        self._tables = None
-        self._table_aliases = None
+        self._tables: Optional[List[str]] = None
+        self._table_aliases: Optional[Dict[str, str]] = None
 
-        self._with_names = None
-        self._with_queries = None
-        self._subqueries = None
-        self._subqueries_names = None
+        self._with_names: Optional[List[str]] = None
+        self._with_queries: Optional[Dict[str, str]] = None
+        self._subqueries: Optional[Dict[str, str]] = None
+        self._subqueries_names: Optional[List[str]] = None
 
-        self._limit_and_offset = None
+        self._limit_and_offset: Optional[Tuple[int, int]] = None
 
-        self._values = None
-        self._values_dict = None
+        self._values: Optional[List] = None
+        self._values_dict: Optional[Dict[str, Union[int, float, str]]] = None
 
     # -------------------------------------------------------------------
     # NestedResolver access
@@ -156,7 +156,7 @@ class Parser:
     # -------------------------------------------------------------------
 
     @property
-    def columns(self) -> List[str]:
+    def columns(self) -> list:
         """Return the list of column names referenced in the query."""
         if self._columns is not None:
             return self._columns
@@ -166,9 +166,17 @@ class Parser:
             ta = self.tables_aliases
         except ValueError:
             cols = self._extract_columns_regex()
-            self._columns = cols
+            self._columns = UniqueList(cols)
             self._columns_dict = {}
-            self._columns_aliases_names = []
+            self._columns_aliases_names = UniqueList()
+            self._columns_aliases_dict = {}
+            self._columns_aliases = {}
+            return self._columns
+
+        if ast is None:
+            self._columns = UniqueList()
+            self._columns_dict = {}
+            self._columns_aliases_names = UniqueList()
             self._columns_aliases_dict = {}
             self._columns_aliases = {}
             return self._columns
@@ -203,10 +211,11 @@ class Parser:
         return self._columns
 
     @property
-    def columns_dict(self) -> Dict[str, List[str]]:
+    def columns_dict(self) -> dict:
         """Return column names organised by query section."""
         if self._columns_dict is None:
             _ = self.columns
+        assert self._columns_dict is not None
         # Resolve aliases used in other sections
         if self.columns_aliases_dict:
             resolver = self._get_resolver()
@@ -229,10 +238,11 @@ class Parser:
         """Return the alias-to-column mapping for column aliases."""
         if self._columns_aliases is None:
             _ = self.columns
+        assert self._columns_aliases is not None
         return self._columns_aliases
 
     @property
-    def columns_aliases_dict(self) -> Dict[str, List[str]]:
+    def columns_aliases_dict(self) -> Optional[dict]:
         """Return column alias names organised by query section."""
         if self._columns_aliases_dict is None:
             _ = self.columns
@@ -243,6 +253,7 @@ class Parser:
         """Return the names of all column aliases used in the query."""
         if self._columns_aliases_names is None:
             _ = self.columns
+        assert self._columns_aliases_names is not None
         return self._columns_aliases_names
 
     # -------------------------------------------------------------------
@@ -366,7 +377,7 @@ class Parser:
         return self._values
 
     @property
-    def values_dict(self) -> Dict:
+    def values_dict(self) -> Optional[Dict]:
         """Return column-value pairs from INSERT/REPLACE queries."""
         values = self.values
         if self._values_dict or not values:
@@ -438,7 +449,7 @@ class Parser:
                 return int(val.this)
             if val.is_number:
                 return float(val.this)
-            return val.this
+            return str(val.this)
         if isinstance(val, exp.Neg):
             inner = val.this
             if isinstance(inner, exp.Literal):

@@ -6,12 +6,13 @@ class so that callers only need to call :meth:`DialectParser.parse`.
 """
 
 import logging
+from typing import Optional
 
 import sqlglot
 from sqlglot import Dialect, exp
 from sqlglot.dialects.tsql import TSQL
 from sqlglot.errors import ParseError, TokenError
-from sqlglot.tokens import Tokenizer
+from sqlglot.tokens import Tokenizer as BaseTokenizer
 
 from sql_metadata.comments import _has_hash_variables
 
@@ -37,12 +38,12 @@ class HashVarDialect(Dialect):
     of a ``VAR`` token instead.
     """
 
-    class Tokenizer(Tokenizer):
+    class Tokenizer(BaseTokenizer):
         """Tokenizer subclass that includes ``#`` in variable tokens."""
 
-        SINGLE_TOKENS = {**Tokenizer.SINGLE_TOKENS}
+        SINGLE_TOKENS = {**BaseTokenizer.SINGLE_TOKENS}
         SINGLE_TOKENS.pop("#", None)
-        VAR_SINGLE_TOKENS = {*Tokenizer.VAR_SINGLE_TOKENS, "#"}
+        VAR_SINGLE_TOKENS = {*BaseTokenizer.VAR_SINGLE_TOKENS, "#"}
 
 
 class BracketedTableDialect(TSQL):
@@ -63,7 +64,7 @@ class BracketedTableDialect(TSQL):
 class DialectParser:
     """Detect the appropriate sqlglot dialect and parse SQL into an AST."""
 
-    def parse(self, clean_sql: str) -> tuple:
+    def parse(self, clean_sql: str) -> tuple[exp.Expression, object]:
         """Parse *clean_sql*, returning ``(ast, dialect)``.
 
         Detects candidate dialects via heuristics, tries each in order,
@@ -112,7 +113,9 @@ class DialectParser:
 
     # -- parsing ------------------------------------------------------------
 
-    def _try_dialects(self, clean_sql: str, dialects: list) -> tuple:
+    def _try_dialects(
+        self, clean_sql: str, dialects: list
+    ) -> tuple[exp.Expression, object]:
         """Try parsing *clean_sql* with each dialect, returning the best.
 
         :returns: 2-tuple of ``(ast_node, winning_dialect)``.
@@ -141,7 +144,7 @@ class DialectParser:
         raise ValueError("This query is wrong")
 
     @staticmethod
-    def _parse_with_dialect(clean_sql: str, dialect) -> exp.Expression:
+    def _parse_with_dialect(clean_sql: str, dialect) -> Optional[exp.Expression]:
         """Parse *clean_sql* with a single dialect, suppressing warnings."""
         logger = logging.getLogger("sqlglot")
         old_level = logger.level
@@ -158,9 +161,13 @@ class DialectParser:
         if not results or results[0] is None:
             return None
         result = results[0]
+        if result is None:
+            return None
         if isinstance(result, exp.Subquery) and not result.alias:
-            result = result.this
-        return result
+            inner = result.this
+            if isinstance(inner, exp.Expression):
+                return inner
+        return result  # type: ignore[return-value]
 
     # -- quality checks -----------------------------------------------------
 

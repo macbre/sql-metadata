@@ -22,6 +22,7 @@ coverage = {extras = ["toml"], version = "^7.13"}
 pytest = "^9.0.2"
 pytest-cov = "^7.1.0"
 ruff = "^0.11"
+mypy = "^1.19"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -36,6 +37,12 @@ select = ["E", "F", "W", "C90", "I"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 8
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
 
 [tool.coverage.run]
 relative_files = true
