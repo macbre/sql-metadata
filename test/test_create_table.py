@@ -202,6 +202,20 @@ def test_ctas_with_redshift_distkey_sortkey():
     assert p.columns == ["col1", "col2", "col3"]
 
 
+def test_create_table_mysql_charset_and_collate():
+    # Solved: https://github.com/macbre/sql-metadata/issues/358
+    p = Parser("""CREATE TABLE `jeecg_order_main` (
+      `id` varchar(32) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL,
+      `order_code` varchar(50) CHARACTER SET utf8 COLLATE utf8_general_ci NULL,
+      `order_date` datetime NULL DEFAULT NULL,
+      `order_money` double(10, 3) NULL DEFAULT NULL,
+      `bpm_status` varchar(3) CHARACTER SET utf8 COLLATE utf8_general_ci NULL,
+      PRIMARY KEY (`id`) USING BTREE
+    ) ENGINE = InnoDB CHARACTER SET = utf8 COLLATE = utf8_general_ci""")
+    assert p.tables == ["jeecg_order_main"]
+    assert p.columns == ["id", "order_code", "order_date", "order_money", "bpm_status"]
+
+
 def test_create_table_with_comments_and_keyword_columns():
     # Solved: https://github.com/macbre/sql-metadata/issues/507
     p = Parser("""

@@ -74,7 +74,7 @@ class Parser:
         self._output_columns: Optional[list] = None
 
         self._values: Optional[List] = None
-        self._values_dict: Optional[Dict[str, Union[int, float, str]]] = None
+        self._values_dict: Optional[Dict[str, Union[int, float, str, list]]] = None
 
     # -------------------------------------------------------------------
     # NestedResolver access

@@ -112,6 +112,11 @@ make format            # Run ruff formatter
 poetry run ruff format .
 ```
 
+### Type Checking
+```bash
+poetry run mypy sql_metadata
+```
+
 ### Coverage
 ```bash
 make coverage          # Run tests with coverage report
@@ -119,6 +124,14 @@ poetry run pytest -vv --cov=sql_metadata --cov-report=term-missing
 ```
 
 **Important:** The project has a 100% test coverage requirement (`fail_under = 100` in pyproject.toml).
+
+### Verification after changes
+After making code changes, always run all three checks:
+```bash
+poetry run pytest -vv --cov=sql_metadata --cov-report=term-missing  # tests + coverage
+poetry run mypy sql_metadata                                         # type checking
+poetry run ruff check sql_metadata                                   # linting
+```
 
 ## Code Quality Standards
 
