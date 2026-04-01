@@ -877,6 +877,16 @@ def test_presto_unnest_not_table():
     assert "col_" in parser.columns
 
 
+def test_bigquery_unnest_not_table():
+    # Solved: https://github.com/macbre/sql-metadata/issues/352
+    p = Parser(
+        "SELECT A, B, metrics.C, metrics.D "
+        "FROM table1, UNNEST(metrics) as metrics"
+    )
+    assert p.tables == ["table1"]
+    assert "metrics" in p.columns
+
+
 def test_from_order_does_not_affect_tables():
     # solved: https://github.com/macbre/sql-metadata/issues/335
     query1 = "SELECT aa FROM (SELECT bb FROM bbb GROUP BY bb) AS a, omg"

@@ -675,6 +675,34 @@ def test_nested_resolver_unresolvable_reference():
     assert "nonexistent.col" in p.columns
 
 
+def test_cte_with_subquery_and_star_alias():
+    # Solved: https://github.com/macbre/sql-metadata/issues/392
+    p = Parser("""with x as (select d.nbr, d.af_pk
+    from test_db.test_table3 d)
+    select q.hx_id, q.text
+    from (select prod_code, s.*
+        from testdb.test_table s
+        inner join testdb.test_table2 p on s.s1_fk = p.p1_sk
+    ) q
+    inner join x on q.s2_fk = x.af_pk""")
+    assert p.tables == [
+        "test_db.test_table3", "testdb.test_table", "testdb.test_table2"
+    ]
+    assert p.with_names == ["x"]
+    assert "testdb.test_table.*" in p.columns
+
+
+def test_bracketed_select_with_cte_and_column_alias():
+    # Solved: https://github.com/macbre/sql-metadata/issues/326
+    p = Parser("""with a as (select id, a from tbl1),
+    with b as (select id, b from tbl2)
+    (select a.id, a.a + b.b as t
+     from a left join b on a.id = b.id)""")
+    assert p.tables == ["tbl1", "tbl2"]
+    assert p.with_names == ["a", "b"]
+    assert p.columns == ["id", "a", "b"]
+
+
 def test_with_queries_empty_when_no_cte():
     """A query with no CTEs returns empty with_queries."""
     p = Parser("SELECT * FROM t")
