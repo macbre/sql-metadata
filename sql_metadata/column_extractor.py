@@ -423,9 +423,6 @@ class ColumnExtractor:
             if table:
                 table = self._resolve_table_alias(table)
                 c.add_column(f"{table}.*", clause)
-            # TODO: revisit if Column(Star) without table
-            else:  # pragma: no cover
-                c.add_column("*", clause)
             return
 
         # Check for CTE column alias reference
@@ -578,8 +575,6 @@ class ColumnExtractor:
                 if table:
                     table = self._resolve_table_alias(table)
                     return f"{table}.*"
-                # TODO: revisit if Column(Star) without table
-                return "*"  # pragma: no cover
             return self._column_full_name(child)
         if isinstance(child, exp.Star):
             if id(child) not in seen_stars and not isinstance(child.parent, exp.Column):
