@@ -265,30 +265,14 @@ class TableExtractor:
         # TODO: revisit if CTE-named CREATE targets become possible
         return None  # pragma: no cover
 
-    def _collect_lateral_aliases(self) -> List[str]:
-        """Collect alias names from LATERAL VIEW clauses in the AST."""
-        assert self._ast is not None
-        names = []
-        for lateral in self._ast.find_all(exp.Lateral):
-            alias = lateral.args.get("alias")
-            if alias and alias.this:
-                name = (
-                    alias.this.name if hasattr(alias.this, "name") else str(alias.this)
-                )
-                if name and name not in self._cte_names:
-                    names.append(name)
-        return names
-
     def _collect_all(self) -> UniqueList:
-        """Collect table names from Table and Lateral AST nodes."""
+        """Collect table names from Table AST nodes."""
         assert self._ast is not None
         collected = UniqueList()
         for table in self._table_nodes():
             full_name = self._table_full_name(table)
             if full_name and full_name not in self._cte_names:
                 collected.append(full_name)
-        for name in self._collect_lateral_aliases():
-            collected.append(name)
         return collected
 
     @staticmethod

@@ -9,7 +9,7 @@ those bodies with sub-:class:`Parser` instances, and resolving
 from __future__ import annotations
 
 import copy
-from typing import TYPE_CHECKING, Dict, List, Optional, Set, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple, Union
 
 if TYPE_CHECKING:
     from sql_metadata.parser import Parser
@@ -167,24 +167,49 @@ class NestedResolver:
         return names
 
     @staticmethod
-    def extract_subquery_names(ast: Optional[exp.Expression]) -> List[str]:
-        """Extract aliased subquery names from the AST in post-order.
+    def extract_subqueries(
+        ast: Optional[exp.Expression],
+    ) -> Tuple[List[str], Dict[str, str]]:
+        """Extract subquery names and bodies in a single post-order walk.
 
-        Called by :attr:`Parser.subqueries_names`.
+        Aliased subqueries keep their alias as the name.  Unaliased
+        subqueries (e.g. ``WHERE id IN (SELECT …)``) get auto-generated
+        names ``subquery_1``, ``subquery_2``, etc.
+
+        :returns: ``(names, bodies)`` where *names* is ordered innermost-first.
         """
         if ast is None:  # pragma: no cover — Parser ensures AST exists
-            return []
-        names = UniqueList()
-        NestedResolver._collect_subquery_names_postorder(ast, names)
-        return names
+            return [], {}
+        names: list = UniqueList()
+        bodies: Dict[str, str] = {}
+        NestedResolver._walk_subqueries(ast, names, bodies, 0)
+        return names, bodies
 
     @staticmethod
-    def _collect_subquery_names_postorder(node: exp.Expression, out: list) -> None:
-        """Recursively collect subquery aliases in post-order."""
+    def _walk_subqueries(
+        node: exp.Expression,
+        names: list,
+        bodies: Dict[str, str],
+        counter: int,
+    ) -> int:
+        """Post-order walk collecting subquery names and bodies.
+
+        Returns the updated *counter* so unnamed subqueries are numbered
+        sequentially.
+        """
         for child in node.iter_expressions():
-            NestedResolver._collect_subquery_names_postorder(child, out)
-        if isinstance(node, exp.Subquery) and node.alias:
-            out.append(node.alias)
+            counter = NestedResolver._walk_subqueries(
+                child, names, bodies, counter
+            )
+        if isinstance(node, exp.Subquery):
+            if node.alias:
+                name = node.alias
+            else:
+                counter += 1
+                name = f"subquery_{counter}"
+            names.append(name)
+            bodies[name] = NestedResolver._body_sql(node.this)
+        return counter
 
     # -------------------------------------------------------------------
     # Body extraction
@@ -225,39 +250,6 @@ class NestedResolver:
                 results[original_name] = self._body_sql(cte.this)
 
         return results
-
-    def extract_subquery_bodies(
-        self,
-        subquery_names: List[str],
-    ) -> Dict[str, str]:
-        """Extract subquery body SQL for each name in *subquery_names*.
-
-        Uses a post-order AST walk so that inner subqueries appear before
-        outer ones.
-
-        :param subquery_names: List of subquery alias names to extract.
-        :returns: Mapping of ``{subquery_name: body_sql}``.
-        """
-        if not self._ast or not subquery_names:
-            return {}
-
-        names_upper = {n.upper(): n for n in subquery_names}
-        results: Dict[str, str] = {}
-        self._collect_subqueries_postorder(self._ast, names_upper, results)
-        return results
-
-    @staticmethod
-    def _collect_subqueries_postorder(
-        node: exp.Expression, names_upper: Dict[str, str], out: Dict[str, str]
-    ) -> None:
-        """Recursively collect subquery bodies in post-order."""
-        for child in node.iter_expressions():
-            NestedResolver._collect_subqueries_postorder(child, names_upper, out)
-        if isinstance(node, exp.Subquery) and node.alias:
-            alias_upper = node.alias.upper()
-            if alias_upper in names_upper:
-                original_name = names_upper[alias_upper]
-                out[original_name] = NestedResolver._body_sql(node.this)
 
     # -------------------------------------------------------------------
     # Column resolution (from parser.py)

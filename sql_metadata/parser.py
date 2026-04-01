@@ -71,6 +71,8 @@ class Parser:
 
         self._limit_and_offset: Optional[Tuple[int, int]] = None
 
+        self._output_columns: Optional[list] = None
+
         self._values: Optional[List] = None
         self._values_dict: Optional[Dict[str, Union[int, float, str]]] = None
 
@@ -174,6 +176,7 @@ class Parser:
             self._columns_aliases_names = UniqueList()
             self._columns_aliases_dict = {}
             self._columns_aliases = {}
+            self._output_columns = []
             return self._columns
 
         if ast is None:  # pragma: no cover — tables_aliases raises for None ast
@@ -182,6 +185,7 @@ class Parser:
             self._columns_aliases_names = UniqueList()
             self._columns_aliases_dict = {}
             self._columns_aliases = {}
+            self._output_columns = []
             return self._columns
 
         extractor = ColumnExtractor(ast, ta, self._ast_parser.cte_name_map)
@@ -192,22 +196,26 @@ class Parser:
         self._columns_aliases_names = result.alias_names
         self._columns_aliases_dict = result.alias_dict
         self._columns_aliases = result.alias_map if result.alias_map else {}
+        self._output_columns = result.output_columns
 
-        # Cache subquery names from the same extraction
-        if self._subqueries_names is None:
-            self._subqueries_names = result.subquery_names
-
-        # Resolve subquery/CTE column references via NestedResolver
+        # Use only aliased subquery names for column resolution —
+        # auto-generated names (subquery_1, …) are never referenced in SQL.
+        aliased_names = result.subquery_names
+        all_names, all_bodies = NestedResolver.extract_subqueries(ast)
+        aliased_bodies = {k: v for k, v in all_bodies.items() if k in aliased_names}
         resolver = self._get_resolver()
         self._columns, self._columns_dict, self._columns_aliases = resolver.resolve(
             self._columns,
             self._columns_dict,
             self._columns_aliases,
-            self.subqueries_names,
-            self.subqueries,
+            aliased_names,
+            aliased_bodies,
             self.with_names,
             self.with_queries,
         )
+        # Cache full results for the public properties
+        self._subqueries_names = all_names
+        self._subqueries = all_bodies
 
         return self._columns
 
@@ -256,6 +264,18 @@ class Parser:
             _ = self.columns
         assert self._columns_aliases_names is not None
         return self._columns_aliases_names
+
+    @property
+    def output_columns(self) -> list:
+        """Return the ordered list of SELECT output column names.
+
+        Combines real columns and aliases in their original position.
+        For example, ``SELECT a, b AS c FROM t`` returns ``["a", "c"]``.
+        """
+        if self._output_columns is None:
+            _ = self.columns
+        assert self._output_columns is not None
+        return self._output_columns
 
     # -------------------------------------------------------------------
     # Tables
@@ -314,20 +334,25 @@ class Parser:
 
     @property
     def subqueries(self) -> Dict:
-        """Return the SQL body for each aliased subquery in the query."""
+        """Return the SQL body for each subquery in the query."""
         if self._subqueries is not None:
             return self._subqueries
-        resolver = self._get_resolver()
-        self._subqueries = resolver.extract_subquery_bodies(self.subqueries_names)
+        self._subqueries_names, self._subqueries = (
+            NestedResolver.extract_subqueries(self._ast_parser.ast)
+        )
         return self._subqueries
 
     @property
     def subqueries_names(self) -> List[str]:
-        """Return the alias names of all subqueries (innermost first)."""
+        """Return the names of all subqueries (innermost first).
+
+        Aliased subqueries use their alias; unaliased ones get
+        auto-generated names (``subquery_1``, ``subquery_2``, …).
+        """
         if self._subqueries_names is not None:
             return self._subqueries_names
-        self._subqueries_names = NestedResolver.extract_subquery_names(
-            self._ast_parser.ast
+        self._subqueries_names, self._subqueries = (
+            NestedResolver.extract_subqueries(self._ast_parser.ast)
         )
         return self._subqueries_names
 
@@ -389,9 +414,18 @@ class Parser:
         # TODO: revisit if .columns starts propagating ValueError to callers
         except ValueError:  # pragma: no cover
             columns = []
+
+        is_multi = values and isinstance(values[0], list)
+        first_row = values[0] if is_multi else values
         if not columns:
-            columns = [f"column_{ind + 1}" for ind in range(len(values))]
-        self._values_dict = dict(zip(columns, values))
+            columns = [f"column_{ind + 1}" for ind in range(len(first_row))]
+
+        if is_multi:
+            self._values_dict = {
+                col: [row[i] for row in values] for i, col in enumerate(columns)
+            }
+        else:
+            self._values_dict = dict(zip(columns, values))
         return self._values_dict
 
     # -------------------------------------------------------------------
@@ -433,15 +467,16 @@ class Parser:
         if not values_node:
             return []
 
-        values = []
+        rows = []
         for tup in values_node.expressions:
             if isinstance(tup, exp.Tuple):
-                for val in tup.expressions:
-                    values.append(self._convert_value(val))
+                rows.append([self._convert_value(val) for val in tup.expressions])
             # TODO: revisit if sqlglot stops wrapping VALUES items in Tuple
             else:  # pragma: no cover
-                values.append(self._convert_value(tup))
-        return values
+                rows.append([self._convert_value(tup)])
+        if len(rows) == 1:
+            return rows[0]
+        return rows
 
     @staticmethod
     def _convert_value(val: exp.Expression) -> Union[int, float, str]:

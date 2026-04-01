@@ -81,6 +81,7 @@ from (
     assert parser.subqueries_names == [
         "jrah2",
         "main_qry",
+        "subquery_1",
         "days_sqry",
         "days_final_qry",
         "subdays",
@@ -195,6 +196,11 @@ from (
         "jrah2.job_request_application_id LEFT JOIN client AS u ON "
         "jr.client_id = u.id WHERE jr.from_point_break = 0 AND u.name NOT "
         "IN ('Test', 'Demo Client') GROUP BY 1, 2",
+        "subquery_1": "SELECT COUNT(DISTINCT jro.job_request_application_id) FROM "
+        "job_request_offer AS jro LEFT JOIN job_request_application AS jra2 ON "
+        "jro.job_request_application_id = jra2.id WHERE jra2.job_request_id = "
+        "PROJECT_ID AND jro.first_presented_date IS NOT NULL AND "
+        "jro.first_presented_date <= InitialChangeDate",
         "subdays": "SELECT PROJECT_ID, SUM(CASE WHEN RowNo = 1 THEN days_to_offer "
         "ELSE NULL END) AS DAYS_OFFER1, SUM(CASE WHEN RowNo = 2 THEN "
         "days_to_offer ELSE NULL END) AS DAYS_OFFER2, SUM(CASE WHEN RowNo "
@@ -518,6 +524,78 @@ def test_subquery_alias_with_inner_alias():
     """Alias wrapping a scalar subquery that returns an alias."""
     p = Parser("SELECT (SELECT col AS c FROM t LIMIT 1) AS x FROM s")
     assert "x" in p.columns_aliases_names
+
+
+def test_subquery_alias_in_columns_dict():
+    # Solved: https://github.com/macbre/sql-metadata/issues/528
+    p = Parser(
+        "SELECT ap.[AccountId], "
+        "(SELECT COUNT(*) FROM [Transactions] t "
+        "WHERE t.[AccountId] = ap.[AccountId]) AS TransactionCount "
+        "FROM [AccountProfiles] ap"
+    )
+    assert p.tables == ["[Transactions]", "[AccountProfiles]"]
+    assert p.columns == ["ap.AccountId", "t.AccountId"]
+    assert p.columns_dict == {
+        "select": ["ap.AccountId", "TransactionCount"],
+        "where": ["t.AccountId", "ap.AccountId"],
+    }
+    assert "TransactionCount" in p.columns_aliases_names
+
+
+def test_subquery_alias_with_aggregate_column():
+    # Related to https://github.com/macbre/sql-metadata/issues/528
+    # MAX(col) resolves alias to real column, unlike COUNT(*)
+    p = Parser(
+        "SELECT ap.[AccountId], "
+        "(SELECT MAX(t.[Id]) FROM [Transactions] t "
+        "WHERE t.[AccountId] = ap.[AccountId]) AS MaxTransactionId "
+        "FROM [AccountProfiles] ap"
+    )
+    assert p.tables == ["[Transactions]", "[AccountProfiles]"]
+    assert p.columns == ["ap.AccountId", "t.Id", "t.AccountId"]
+    assert p.columns_dict == {
+        "select": ["ap.AccountId", "t.Id"],
+        "where": ["t.AccountId", "ap.AccountId"],
+    }
+    assert p.columns_aliases == {"MaxTransactionId": "t.Id"}
+
+
+def test_unaliased_subquery():
+    # Solved: https://github.com/macbre/sql-metadata/issues/365
+    query = """SELECT * FROM customers
+    WHERE id IN (
+      SELECT customer_id FROM reservations
+      WHERE year(reservation_date) = year(now())
+      GROUP BY customer_id
+      ORDER BY count(*) DESC LIMIT 1
+    )"""
+    p = Parser(query)
+    assert p.tables == ["customers", "reservations"]
+    assert p.subqueries_names == ["subquery_1"]
+    assert "subquery_1" in p.subqueries
+
+
+def test_multiple_unaliased_subqueries():
+    p = Parser(
+        "SELECT * FROM t "
+        "WHERE a IN (SELECT id FROM t2) "
+        "AND b IN (SELECT id FROM t3)"
+    )
+    assert p.subqueries_names == ["subquery_1", "subquery_2"]
+    assert "subquery_1" in p.subqueries
+    assert "subquery_2" in p.subqueries
+
+
+def test_mixed_aliased_and_unaliased_subqueries():
+    p = Parser(
+        "SELECT * FROM (SELECT id FROM t2) sub "
+        "WHERE a IN (SELECT id FROM t3)"
+    )
+    assert "sub" in p.subqueries_names
+    assert "subquery_1" in p.subqueries_names
+    assert "sub" in p.subqueries
+    assert "subquery_1" in p.subqueries
 
 
 def test_subquery_bodies_empty_when_no_subquery():

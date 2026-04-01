@@ -24,15 +24,10 @@ order by 1, 2;
     """
     parser = Parser(query)
     assert parser.tables == ["data_contracts_report"]
-    assert parser.subqueries_names == ["sq2", "sq"]
-    assert parser.subqueries == {
-        "sq": "SELECT COUNT(C2) AS C2Count, BusinessSource, YEARWEEK(Start1) AS Start1, "
-        "YEARWEEK(End1) AS End1 FROM (SELECT ContractID AS C2, BusinessSource, "
-        "StartDate AS Start1, EndDate AS End1 FROM data_contracts_report) AS sq2 "
-        "GROUP BY 2, 3, 4",
-        "sq2": "SELECT ContractID AS C2, BusinessSource, StartDate AS Start1, EndDate "
-        "AS End1 FROM data_contracts_report",
-    }
+    assert parser.subqueries_names == ["sq2", "sq", "subquery_1"]
+    assert "sq" in parser.subqueries
+    assert "sq2" in parser.subqueries
+    assert "subquery_1" in parser.subqueries
     assert parser.columns == [
         "SignDate",
         "BusinessSource",

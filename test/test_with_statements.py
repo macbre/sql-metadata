@@ -153,8 +153,7 @@ def test_complicated_with():
     }
     assert parser.tables == [
         "uisd",
-        "table",
-    ]  # LATERAL VIEW alias (was impr_list, which is the column being exploded)
+    ]
     assert parser.columns == [
         "session_id",
         "srch_id",

@@ -183,3 +183,41 @@ def test_create_table_with_columns_only():
     p = Parser("CREATE TABLE users (id INT, name VARCHAR(100), active BOOL)")
     assert p.columns == ["id", "name", "active"]
     assert p.tables == ["users"]
+
+
+def test_create_table_with_column_defs_and_select():
+    """CREATE TABLE with both column definitions and AS SELECT."""
+    p = Parser("CREATE TABLE t (id INT) AS SELECT a FROM t2")
+    assert p.columns == ["id", "a"]
+    assert p.tables == ["t", "t2"]
+
+
+def test_ctas_with_redshift_distkey_sortkey():
+    # Solved: https://github.com/macbre/sql-metadata/issues/367
+    p = Parser(
+        "CREATE TABLE my_table distkey(col1) sortkey(col1, col3) "
+        "AS SELECT col1, col2, col3 FROM source_table"
+    )
+    assert p.tables == ["my_table", "source_table"]
+    assert p.columns == ["col1", "col2", "col3"]
+
+
+def test_create_table_with_comments_and_keyword_columns():
+    # Solved: https://github.com/macbre/sql-metadata/issues/507
+    p = Parser("""
+        CREATE TABLE accounts (
+            id INTEGER,     /* comment */
+            username TEXT UNIQUE,
+            status TEXT,
+            online_at INTEGER,
+            hash TEXT UNIQUE,
+            uid TEXT UNIQUE,
+            test INTEGER,
+            usage INTEGER,
+            PRIMARY KEY (id)
+        )
+    """)
+    assert p.tables == ["accounts"]
+    assert p.columns == [
+        "id", "username", "status", "online_at", "hash", "uid", "test", "usage"
+    ]

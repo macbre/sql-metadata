@@ -113,6 +113,52 @@ def test_columns_with_order_by():
         "foo",
         "id",
     ]
+    # Star inside COUNT(*) in ORDER BY should not be extracted as a column
+    assert Parser(
+        "SELECT dept FROM employees GROUP BY dept ORDER BY COUNT(*) DESC"
+    ).columns == ["dept"]
+
+
+def test_output_columns():
+    # Solved: https://github.com/macbre/sql-metadata/issues/468
+    parser = Parser("""SELECT
+        dj.field_1,
+        cardinality(dj.field_1) as field_1_count,
+        dj.field_2,
+        cardinality(dj.field_2) as field_2_count,
+        dj.field_3 as field_3
+    FROM dj""")
+    assert parser.output_columns == [
+        "dj.field_1", "field_1_count", "dj.field_2", "field_2_count", "field_3"
+    ]
+
+    # Simple alias
+    assert Parser("SELECT a, b AS c FROM t").output_columns == ["a", "c"]
+
+    # Star
+    assert Parser("SELECT * FROM t").output_columns == ["*"]
+
+    # Self-alias preserves original name
+    assert Parser("SELECT a AS a FROM t").output_columns == ["a"]
+
+    # Non-SELECT query returns empty list
+    assert Parser("CREATE TABLE t (id INT)").output_columns == []
+
+    # Solved: https://github.com/macbre/sql-metadata/issues/421
+    # Window function alias resolved in output_columns
+    parser = Parser("""SELECT
+        DATE_TRUNC('month', o.order_date) AS month,
+        c.customer_id,
+        SUM(oi.quantity * oi.unit_price) AS revenue,
+        ROW_NUMBER() OVER (PARTITION BY c.customer_id
+            ORDER BY SUM(oi.quantity * oi.unit_price) DESC) AS revenue_rank
+    FROM orders o
+    JOIN customers c ON o.customer_id = c.customer_id
+    JOIN order_items oi ON o.order_id = oi.order_id""")
+    assert parser.output_columns == [
+        "month", "customers.customer_id", "revenue", "revenue_rank"
+    ]
+    assert "revenue_rank" in parser.columns_aliases
 
 
 def test_update_and_replace():
@@ -302,6 +348,24 @@ def test_columns_and_sql_functions():
         "SELECT count(col)+max(col2)+ min(col3)+ count(distinct  col4) + "
         "custom_func(col5) from dual"
     ).columns == ["col", "col2", "col3", "col4", "col5"]
+
+
+def test_odbc_escape_function():
+    # Solved: https://github.com/macbre/sql-metadata/issues/391
+    parser = Parser(
+        "SELECT Calendar_year_lookup.Yr, "
+        "{fn concat('Q', Calendar_year_lookup.Qtr)}, "
+        "sum(Shop_facts.Amount_sold) "
+        "FROM Calendar_year_lookup, Shop_facts "
+        "GROUP BY Calendar_year_lookup.Yr, "
+        "{fn concat('Q', Calendar_year_lookup.Qtr)}"
+    )
+    assert parser.tables == ["Calendar_year_lookup", "Shop_facts"]
+    assert parser.columns == [
+        "Calendar_year_lookup.Yr",
+        "Calendar_year_lookup.Qtr",
+        "Shop_facts.Amount_sold",
+    ]
 
 
 def test_columns_starting_with_keywords():

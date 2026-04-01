@@ -37,6 +37,7 @@ class ExtractionResult:
     alias_map: Dict[str, Union[str, list]]
     cte_names: UniqueList
     subquery_names: UniqueList
+    output_columns: list
 
 
 # ---------------------------------------------------------------------------
@@ -149,6 +150,7 @@ class _Collector:
         "cte_names",
         "cte_alias_names",
         "subquery_items",
+        "output_columns",
     )
 
     def __init__(self, table_aliases: Dict[str, str]):
@@ -161,6 +163,7 @@ class _Collector:
         self.cte_names = UniqueList()
         self.cte_alias_names: set = set()
         self.subquery_items: list = []
+        self.output_columns: list = []
 
     def add_column(self, name: str, clause: str) -> None:
         """Record a column name, filing it into the appropriate section."""
@@ -227,12 +230,6 @@ class ColumnExtractor:
 
         self._seed_cte_names()
 
-        # Handle CREATE TABLE with column defs (no SELECT)
-        if isinstance(self._ast, exp.Create) and not self._ast.find(exp.Select):
-            for col_def in self._ast.find_all(exp.ColumnDef):
-                c.add_column(col_def.name, "")
-            return self._build_result()
-
         # Reset cte_names — walk will re-collect them in order
         c.cte_names = UniqueList()
         self._walk(self._ast)
@@ -251,6 +248,7 @@ class ColumnExtractor:
             alias_map=c.alias_map,
             cte_names=final_cte,
             subquery_names=self._build_subquery_names(),
+            output_columns=c.output_columns,
         )
 
     # -------------------------------------------------------------------
@@ -279,19 +277,6 @@ class ColumnExtractor:
             names.append(name)
         return names
 
-    def _build_result(self) -> ExtractionResult:
-        """Build result from collector (used for early-return CREATE TABLE path)."""
-        c = self._collector
-        alias_dict = c.alias_dict if c.alias_dict else None
-        return ExtractionResult(
-            columns=c.columns,
-            columns_dict=c.columns_dict,
-            alias_names=c.alias_names,
-            alias_dict=alias_dict,
-            alias_map=c.alias_map,
-            cte_names=c.cte_names,
-            subquery_names=self._build_subquery_names(),
-        )
 
     # -------------------------------------------------------------------
     # Column name helpers
@@ -366,15 +351,11 @@ class ColumnExtractor:
 
         Returns ``True`` if handled (stop recursion), ``False`` to continue.
         """
-        if isinstance(node, (exp.Values, exp.Star, exp.ColumnDef, exp.Identifier)):
-            # TODO: revisit if Stars appear outside Select.expressions
-            if isinstance(node, exp.Star):  # pragma: no cover
-                self._handle_star(node, clause)
-            # TODO: revisit if CREATE TABLE walk stops returning early
-            elif isinstance(node, exp.ColumnDef):  # pragma: no cover
+        if isinstance(node, exp.Values) and not node.find(exp.Select):
+            return True
+        if isinstance(node, (exp.Star, exp.ColumnDef, exp.Identifier)):
+            if isinstance(node, exp.ColumnDef):
                 self._collector.add_column(node.name, clause)
-            elif isinstance(node, exp.Identifier):
-                self._handle_identifier(node, clause)
             return True
         if isinstance(node, exp.CTE):
             self._handle_cte(node, depth)
@@ -416,23 +397,6 @@ class ColumnExtractor:
     # -------------------------------------------------------------------
     # Node handlers
     # -------------------------------------------------------------------
-
-    # TODO: revisit if Stars reach _dispatch_leaf
-    def _handle_star(self, node: exp.Star, clause: str) -> None:  # pragma: no cover
-        """Handle a standalone Star node (not inside a Column or function)."""
-        not_in_col = not isinstance(node.parent, exp.Column)
-        if not_in_col and not self._is_star_inside_function(node):
-            self._collector.add_column("*", clause)
-
-    def _handle_identifier(self, node: exp.Identifier, clause: str) -> None:
-        """Handle an Identifier in a USING clause (not inside a Column)."""
-        if not isinstance(
-            node.parent,
-            (exp.Column, exp.Table, exp.TableAlias, exp.CTE),
-        ):
-            # TODO: revisit if JOIN produces bare Identifiers
-            if clause == "join":  # pragma: no cover
-                self._collector.add_column(node.name, clause)
 
     def _handle_insert_schema(self, node: exp.Insert) -> None:
         """Extract column names from the Schema of an INSERT statement."""
@@ -482,18 +446,23 @@ class ColumnExtractor:
     def _handle_select_exprs(self, exprs: list, clause: str, depth: int) -> None:
         """Handle the expressions list of a SELECT clause."""
         assert isinstance(exprs, list)
+        out = self._collector.output_columns
 
         for expr in exprs:
             if isinstance(expr, exp.Alias):
                 self._handle_alias(expr, clause, depth)
+                out.append(expr.alias)
             elif isinstance(expr, exp.Star):
                 self._collector.add_column("*", clause)
+                out.append("*")
             elif isinstance(expr, exp.Column):
                 self._handle_column(expr, clause)
+                out.append(self._column_full_name(expr))
             else:
                 cols = self._flat_columns(expr)
                 for col in cols:
                     self._collector.add_column(col, clause)
+                out.append(cols[0] if len(cols) == 1 else str(expr))
 
     def _handle_alias(self, alias_node: exp.Alias, clause: str, depth: int) -> None:
         """Handle an Alias node inside a SELECT expression list."""

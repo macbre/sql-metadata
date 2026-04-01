@@ -103,12 +103,12 @@ class DialectParser:
             return [HashVarDialect, None, "mysql"]
         if "`" in sql:
             return ["mysql", None]
+        if "LATERAL VIEW" in upper:
+            return ["spark", None, "mysql"]
         if "[" in sql or " TOP " in upper:
             return [BracketedTableDialect, None, "mysql"]
         if " UNIQUE " in upper:
             return [None, "mysql", "oracle"]
-        if "LATERAL VIEW" in upper:
-            return ["spark", None, "mysql"]
         return [None, "mysql"]
 
     # -- parsing ------------------------------------------------------------

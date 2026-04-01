@@ -134,6 +134,23 @@ def test_insert_with_null_value():
     assert p.values_dict == {"a": 1, "b": "NULL"}
 
 
+def test_insert_with_scalar_subquery_in_values():
+    """Scalar subquery inside VALUES — columns from the subquery are extracted."""
+    p = Parser(
+        "INSERT INTO orders (customer_id) "
+        "VALUES ((SELECT id FROM customers WHERE email = 'foo@bar.com'))"
+    )
+    assert p.tables == ["orders", "customers"]
+    assert p.columns == ["customer_id", "id", "email"]
+
+
+def test_insert_multi_row_values():
+    # Solved: https://github.com/macbre/sql-metadata/issues/558
+    p = Parser("INSERT INTO t (field1, field2) VALUES (1, 2), (3, 4)")
+    assert p.values == [[1, 2], [3, 4]]
+    assert p.values_dict == {"field1": [1, 3], "field2": [2, 4]}
+
+
 def test_insert_with_expression_value():
     """INSERT with a function call in VALUES uses str(val) fallback."""
     p = Parser("INSERT INTO t (a) VALUES (CURRENT_TIMESTAMP)")
