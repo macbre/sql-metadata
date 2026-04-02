@@ -10,6 +10,7 @@ from typing import NoReturn, Optional
 
 from sqlglot import exp
 
+from sql_metadata.exceptions import InvalidQueryDefinition
 from sql_metadata.keywords_lists import QueryType
 
 logger = logging.getLogger(__name__)
@@ -61,7 +62,9 @@ class QueryTypeExtractor:
         node_type = type(root)
 
         if node_type is exp.With:
-            raise ValueError("This query is wrong")
+            raise InvalidQueryDefinition(
+                "WITH clause without a main statement is not valid SQL"
+            )
 
         simple = _SIMPLE_TYPE_MAP.get(node_type)
         if simple is not None:
@@ -74,7 +77,7 @@ class QueryTypeExtractor:
 
         shorten_query = " ".join(self._raw_query.split(" ")[:3])
         logger.error("Not supported query type: %s", shorten_query)
-        raise ValueError("Not supported query type!")
+        raise InvalidQueryDefinition("Not supported query type!")
 
     @staticmethod
     def _unwrap_parens(ast: exp.Expression) -> exp.Expression:
@@ -100,5 +103,7 @@ class QueryTypeExtractor:
 
         stripped = strip_comments(self._raw_query) if self._raw_query else ""
         if stripped.strip():
-            raise ValueError("This query is wrong")
-        raise ValueError("Empty queries are not supported!")
+            raise InvalidQueryDefinition(
+                "Could not parse the query — the SQL syntax appears to be invalid"
+            )
+        raise InvalidQueryDefinition("Empty queries are not supported!")

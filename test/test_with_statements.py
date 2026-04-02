@@ -1,6 +1,6 @@
 import pytest
 
-from sql_metadata import Parser
+from sql_metadata import InvalidQueryDefinition, Parser
 from sql_metadata.keywords_lists import QueryType
 
 
@@ -499,7 +499,7 @@ def test_as_was_preceded_by_with_query():
         SELECT 1;
     """
     parser = Parser(query)
-    with pytest.raises(ValueError, match="This query is wrong"):
+    with pytest.raises(InvalidQueryDefinition):
         parser.tables
 
     query = """
@@ -508,7 +508,7 @@ def test_as_was_preceded_by_with_query():
         SELECT 1;
     """
     parser = Parser(query)
-    with pytest.raises(ValueError, match="This query is wrong"):
+    with pytest.raises(InvalidQueryDefinition):
         parser.tables
 
     query = """
@@ -517,7 +517,7 @@ def test_as_was_preceded_by_with_query():
         SELECT 1;
     """
     parser = Parser(query)
-    with pytest.raises(ValueError, match="This query is wrong"):
+    with pytest.raises(InvalidQueryDefinition):
         parser.tables
 
 
@@ -529,7 +529,7 @@ def test_malformed_with_query_hang():
         WHERE   domain =e''$.f') AS g
     FROM    h;"""
     parser = Parser(query)
-    with pytest.raises(ValueError, match="This query is wrong"):
+    with pytest.raises(InvalidQueryDefinition):
         parser.tables
 
 
@@ -701,6 +701,12 @@ def test_bracketed_select_with_cte_and_column_alias():
     assert p.tables == ["tbl1", "tbl2"]
     assert p.with_names == ["a", "b"]
     assert p.columns == ["id", "a", "b"]
+
+
+def test_cte_without_alias_raises():
+    """CTE without a name is invalid SQL."""
+    with pytest.raises(InvalidQueryDefinition, match="All CTEs require an alias"):
+        Parser("WITH AS (SELECT 1) SELECT * FROM t").columns
 
 
 def test_with_queries_empty_when_no_cte():

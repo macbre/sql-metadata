@@ -1,11 +1,11 @@
 import pytest
 
-from sql_metadata import Parser
+from sql_metadata import InvalidQueryDefinition, Parser
 from sql_metadata.keywords_lists import QueryType
 
 
 def test_is_create_table_query():
-    with pytest.raises(ValueError):
+    with pytest.raises(InvalidQueryDefinition):
         assert Parser("BEGIN").query_type
 
     assert Parser("SELECT * FROM `foo` ()").query_type == QueryType.SELECT

@@ -11,6 +11,7 @@ import re
 from typing import NamedTuple, Optional
 
 from sql_metadata.comments import strip_comments_for_parsing as _strip_comments
+from sql_metadata.exceptions import InvalidQueryDefinition
 from sql_metadata.utils import DOT_PLACEHOLDER
 
 
@@ -174,4 +175,6 @@ class SqlCleaner:
         if re.search(
             r"\)\s+AS\s+" + main_kw + r"\b", clean_sql, re.IGNORECASE
         ) or re.search(r"\)\s+AS\s+\w+\s+" + main_kw + r"\b", clean_sql, re.IGNORECASE):
-            raise ValueError("This query is wrong")
+            raise InvalidQueryDefinition(
+                "Malformed WITH clause — extra AS keyword after CTE body"
+            )

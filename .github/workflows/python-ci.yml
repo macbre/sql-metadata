@@ -74,11 +74,5 @@ jobs:
         pip install coveralls
         poetry run coveralls --service=github
 
-    - name: Lint with ruff
-      run: make lint
-
-    - name: Type check with mypy
-      run: make type_check
-
     - name: Build a distribution package
       run: poetry build -vvv

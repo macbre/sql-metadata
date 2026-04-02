@@ -15,6 +15,7 @@ from sqlglot.errors import ParseError, TokenError
 from sqlglot.tokens import Tokenizer as BaseTokenizer
 
 from sql_metadata.comments import _has_hash_variables
+from sql_metadata.exceptions import InvalidQueryDefinition
 
 #: Table names that indicate a degraded parse result.
 _BAD_TABLE_NAMES = frozenset({"IGNORE", ""})
@@ -136,13 +137,17 @@ class DialectParser:
                 return result, dialect
             except (ParseError, TokenError):
                 if dialect is not None and dialect == dialects[-1]:
-                    raise ValueError("This query is wrong")
+                    raise InvalidQueryDefinition(
+                        "Query could not be parsed — SQL syntax error"
+                    )
                 continue
 
         # TODO: revisit if sqlglot starts returning None from parse for last dialect
         if last_result is not None:  # pragma: no cover
             return last_result, winning_dialect
-        raise ValueError("This query is wrong")
+        raise InvalidQueryDefinition(
+            "Query could not be parsed — no dialect could handle this SQL"
+        )
 
     @staticmethod
     def _parse_with_dialect(clean_sql: str, dialect: Any) -> Optional[exp.Expression]:

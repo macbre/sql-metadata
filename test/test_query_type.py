@@ -1,6 +1,6 @@
 import pytest
 
-from sql_metadata import Parser, QueryType
+from sql_metadata import InvalidQueryDefinition, Parser, QueryType
 
 
 def test_insert_query():
@@ -55,7 +55,7 @@ def test_unsupported_query(caplog):
     ]
 
     for query in queries:
-        with pytest.raises(ValueError) as ex:
+        with pytest.raises(InvalidQueryDefinition) as ex:
             _ = Parser(query).query_type
 
         assert "Not supported query type!" in str(ex.value)
@@ -74,7 +74,7 @@ def test_empty_query():
     queries = ["", "/* empty query */"]
 
     for query in queries:
-        with pytest.raises(ValueError) as ex:
+        with pytest.raises(InvalidQueryDefinition) as ex:
             _ = Parser(query).query_type
 
         assert "Empty queries are not supported!" in str(ex.value)
@@ -156,13 +156,15 @@ def test_create_temporary_table():
 
 def test_malformed_with_no_main_query():
     """WITH clause not followed by a main statement is rejected."""
-    with pytest.raises(ValueError, match="This query is wrong"):
+    with pytest.raises(
+        InvalidQueryDefinition, match="WITH clause without a main statement"
+    ):
         Parser("WITH cte AS (SELECT 1)").query_type
 
 
 def test_unrecognized_command_type():
     """A query that parses as Command but isn't ALTER/CREATE."""
-    with pytest.raises(ValueError, match="Not supported query type"):
+    with pytest.raises(InvalidQueryDefinition, match="Not supported query type"):
         Parser("SHOW TABLES").query_type
 
 
@@ -176,5 +178,5 @@ def test_deeply_parenthesized_query():
 
 def test_execute_command_not_supported():
     """EXECUTE parses as Command but isn't a known type — raises ValueError."""
-    with pytest.raises(ValueError, match="Not supported query type"):
+    with pytest.raises(InvalidQueryDefinition, match="Not supported query type"):
         Parser("EXECUTE sp_help").query_type

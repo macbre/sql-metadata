@@ -16,6 +16,7 @@ from typing import Any, Dict, Optional, Union
 
 from sqlglot import exp
 
+from sql_metadata.exceptions import InvalidQueryDefinition
 from sql_metadata.utils import UniqueList, _make_reverse_cte_map, last_segment
 
 # ---------------------------------------------------------------------------
@@ -509,9 +510,10 @@ class ColumnExtractor:
         """Handle a CTE (Common Table Expression) AST node."""
         c = self._collector
         alias = cte.alias
-        # TODO: revisit if sqlglot ever produces CTE nodes without aliases
-        if not alias:  # pragma: no cover
-            return
+        if not alias:
+            raise InvalidQueryDefinition(
+                "All CTEs require an alias, not a valid SQL"
+            )
 
         c.cte_names.append(alias)
 
