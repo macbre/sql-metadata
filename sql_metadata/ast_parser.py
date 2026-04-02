@@ -10,6 +10,7 @@ always receive a clean ``sqlglot.exp.Expression`` tree (or ``None`` /
 from typing import Optional
 
 from sqlglot import exp
+from sqlglot.dialects.dialect import DialectType
 
 from sql_metadata.dialect_parser import DialectParser
 from sql_metadata.sql_cleaner import SqlCleaner
@@ -30,7 +31,7 @@ class ASTParser:
     def __init__(self, sql: str) -> None:
         self._raw_sql = sql
         self._ast: Optional[exp.Expression] = None
-        self._dialect: object = None
+        self._dialect: DialectType = None
         self._parsed = False
         self._is_replace = False
         self._cte_name_map: dict[str, str] = {}
@@ -50,7 +51,7 @@ class ASTParser:
         return self._ast
 
     @property
-    def dialect(self) -> object:
+    def dialect(self) -> DialectType:
         """The sqlglot dialect that produced the current AST.
 
         Set as a side-effect of :attr:`ast` access.  May be ``None``

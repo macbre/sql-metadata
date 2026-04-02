@@ -9,9 +9,12 @@ import logging
 from typing import Any, Optional
 
 import sqlglot
-from sqlglot import Dialect, exp
+from sqlglot import exp
+from sqlglot.dialects.dialect import Dialect, DialectType
+from sqlglot.dialects.redshift import Redshift
 from sqlglot.dialects.tsql import TSQL
 from sqlglot.errors import ParseError, TokenError
+from sqlglot.parsers.redshift import RedshiftParser
 from sqlglot.tokens import Tokenizer as BaseTokenizer
 
 from sql_metadata.comments import _has_hash_variables
@@ -47,6 +50,31 @@ class HashVarDialect(Dialect):
         VAR_SINGLE_TOKENS = {*BaseTokenizer.VAR_SINGLE_TOKENS, "#"}
 
 
+class _RedshiftAppendParser(RedshiftParser):
+    """Redshift parser extended with ``ALTER TABLE ... APPEND FROM``."""
+
+    def _parse_alter_table_append(self) -> "exp.Expr | None":
+        self._match_text_seq("FROM")
+        return self._parse_table()
+
+    ALTER_PARSERS = {
+        **RedshiftParser.ALTER_PARSERS,
+        "APPEND": lambda self: self._parse_alter_table_append(),
+    }
+
+
+class RedshiftAppendDialect(Redshift):
+    """Redshift dialect extended with ``ALTER TABLE ... APPEND FROM`` support.
+
+    Redshift's ``APPEND FROM`` syntax is not natively supported by sqlglot,
+    which causes the statement to degrade to ``exp.Command``.  This dialect
+    adds an ``APPEND`` entry to ``ALTER_PARSERS`` so the statement is parsed
+    as a proper ``exp.Alter`` with ``exp.Table`` nodes.
+    """
+
+    Parser = _RedshiftAppendParser
+
+
 class BracketedTableDialect(TSQL):
     """TSQL dialect for queries containing ``[bracketed]`` identifiers.
 
@@ -65,7 +93,7 @@ class BracketedTableDialect(TSQL):
 class DialectParser:
     """Detect the appropriate sqlglot dialect and parse SQL into an AST."""
 
-    def parse(self, clean_sql: str) -> tuple[exp.Expression, object]:
+    def parse(self, clean_sql: str) -> tuple[exp.Expression, DialectType]:
         """Parse *clean_sql*, returning ``(ast, dialect)``.
 
         Detects candidate dialects via heuristics, tries each in order,
@@ -110,13 +138,15 @@ class DialectParser:
             return [BracketedTableDialect, None, "mysql"]
         if " UNIQUE " in upper:
             return [None, "mysql", "oracle"]
+        if "APPEND FROM" in upper:
+            return [RedshiftAppendDialect, None, "mysql"]
         return [None, "mysql"]
 
     # -- parsing ------------------------------------------------------------
 
     def _try_dialects(
         self, clean_sql: str, dialects: list
-    ) -> tuple[exp.Expression, object]:
+    ) -> tuple[exp.Expression, DialectType]:
         """Try parsing *clean_sql* with each dialect, returning the best.
 
         :returns: 2-tuple of ``(ast_node, winning_dialect)``.

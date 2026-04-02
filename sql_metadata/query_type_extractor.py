@@ -89,10 +89,15 @@ class QueryTypeExtractor:
 
     @staticmethod
     def _resolve_command_type(root: exp.Expression) -> Optional[QueryType]:
-        """Determine query type for an opaque Command node."""
+        """Determine query type for an opaque ``exp.Command`` node.
+
+        Hive ``CREATE FUNCTION ... USING JAR ... WITH SERDEPROPERTIES``
+        is not supported by any sqlglot dialect and degrades to
+        ``exp.Command(this='CREATE', ...)``.  This fallback extracts
+        the query type from the command text so callers still get
+        ``QueryType.CREATE``.
+        """
         expression_text = str(root.this).upper() if root.this else ""
-        if expression_text == "ALTER":
-            return QueryType.ALTER
         if expression_text == "CREATE":
             return QueryType.CREATE
         return None

@@ -287,11 +287,13 @@ class Parser:
         if self._tables is not None:
             return self._tables
         _ = self.query_type
+        ast = self._ast_parser.ast
+        assert ast is not None  # guaranteed by query_type raising on None
         cte_names = set(self.with_names)
         for placeholder in self._ast_parser.cte_name_map:
             cte_names.add(placeholder)
         extractor = TableExtractor(
-            self._ast_parser.ast,
+            ast,
             self._raw_query,
             cte_names,
             dialect=self._ast_parser.dialect,
@@ -304,7 +306,9 @@ class Parser:
         """Return the table alias mapping for this query."""
         if self._table_aliases is not None:
             return self._table_aliases
-        extractor = TableExtractor(self._ast_parser.ast)
+        ast = self._ast_parser.ast
+        assert ast is not None  # guaranteed by prior tables/query_type access
+        extractor = TableExtractor(ast)
         self._table_aliases = extractor.extract_aliases(self.tables)
         return self._table_aliases
 

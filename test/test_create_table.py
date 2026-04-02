@@ -235,3 +235,10 @@ def test_create_table_with_comments_and_keyword_columns():
     assert p.columns == [
         "id", "username", "status", "online_at", "hash", "uid", "test", "usage"
     ]
+
+
+def test_create_table_as_select_with_cte_same_name():
+    """CREATE TABLE target should be reported even when a CTE shares its name."""
+    query = "CREATE TABLE foo AS WITH foo AS (SELECT 1 as id) SELECT * FROM foo"
+    parser = Parser(query)
+    assert parser.tables == ["foo"]
