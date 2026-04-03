@@ -2,17 +2,17 @@
 
 Provides ``UniqueList``, a deduplicating list used to collect columns,
 tables, aliases, and CTE names while preserving insertion order, and
-``flatten_list`` for normalising nested alias resolution results.
+a ``last_segment`` helper for qualified name handling.
 """
 
-from typing import Any, Dict, Iterable, List
+from typing import Any, Iterable
 
 #: Placeholder used to encode dots in qualified CTE names so that sqlglot
 #: does not misinterpret ``db.cte_name`` as a table reference.
 DOT_PLACEHOLDER = "__DOT__"
 
 
-class UniqueList(list):
+class UniqueList(list[str]):
     """A list subclass that silently rejects duplicate items.
 
     Used throughout the extraction pipeline (``_extract.py``, ``parser.py``)
@@ -22,7 +22,7 @@ class UniqueList(list):
     """
 
     def __init__(self, iterable: Any = None, **kwargs: Any) -> None:
-        self._seen: set = set()
+        self._seen: set[str] = set()
         if iterable is not None:
             super().__init__(**kwargs)
             self.extend(iterable)
@@ -45,17 +45,11 @@ class UniqueList(list):
         """O(1) membership check using the internal set."""
         return item in self._seen
 
-    def __sub__(self, other: Any) -> List:
+    def __sub__(self, other: Any) -> list[str]:
         """Return a plain list of elements in *self* that are not in *other*."""
         other_set = set(other)
         return [x for x in self if x not in other_set]
 
-
-def _make_reverse_cte_map(cte_name_map: Dict) -> Dict[str, str]:
-    """Build reverse mapping from placeholder CTE names to originals."""
-    reverse = {v.replace(".", DOT_PLACEHOLDER): v for v in cte_name_map.values()}
-    reverse.update(cte_name_map)
-    return reverse
 
 
 def last_segment(name: str) -> str:
@@ -63,22 +57,3 @@ def last_segment(name: str) -> str:
     return name.rsplit(".", 1)[-1]
 
 
-def flatten_list(input_list: List) -> List[str]:
-    """Recursively flatten a list that may contain nested lists.
-
-    Created to normalise the output of alias resolution in
-    :meth:`Parser._resolve_nested_query`, where a single alias can map
-    to either a string or a list of strings (multi-column aliases).
-
-    :param input_list: A list whose elements are strings or nested lists.
-    :type input_list: List
-    :returns: A flat list of strings.
-    :rtype: List[str]
-    """
-    result = []
-    for item in input_list:
-        if isinstance(item, list):
-            result.extend(flatten_list(item))
-        else:
-            result.append(item)
-    return result

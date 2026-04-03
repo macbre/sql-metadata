@@ -9,7 +9,6 @@ tables are reported.
 """
 
 import re
-from typing import Dict, List, Optional, Set
 
 from sqlglot import exp
 from sqlglot.dialects.dialect import DialectType
@@ -180,7 +179,7 @@ class TableExtractor:
         self,
         ast: exp.Expression,
         raw_sql: str = "",
-        cte_names: Optional[Set[str]] = None,
+        cte_names: set[str] | None = None,
         dialect: DialectType = None,
     ):
         self._ast = ast
@@ -193,13 +192,13 @@ class TableExtractor:
         self._bracket_mode = isinstance(dialect, type) and issubclass(
             dialect, BracketedTableDialect
         )
-        self._cached_table_nodes: Optional[List[exp.Table]] = None
+        self._cached_table_nodes: list[exp.Table] | None = None
 
     # -------------------------------------------------------------------
     # Public API
     # -------------------------------------------------------------------
 
-    def extract(self) -> List[str]:
+    def extract(self) -> list[str]:
         """Extract table names, excluding CTE definitions.
 
         For ``CREATE TABLE`` statements, the target table is always placed
@@ -226,7 +225,7 @@ class TableExtractor:
             else collected_sorted
         )
 
-    def extract_aliases(self, tables: List[str]) -> Dict[str, str]:
+    def extract_aliases(self, tables: list[str]) -> dict[str, str]:
         """Extract table alias mappings from the AST.
 
         Walks all ``exp.Table`` nodes and maps each alias back to its
@@ -256,7 +255,7 @@ class TableExtractor:
     # Collection helpers
     # -------------------------------------------------------------------
 
-    def _extract_create_target(self) -> Optional[str]:
+    def _extract_create_target(self) -> str | None:
         """Extract the target table name from a ``CREATE TABLE`` statement.
 
         The ``CREATE`` node's ``this`` arg may be a ``Table`` directly or a
@@ -301,7 +300,7 @@ class TableExtractor:
             # else: e.g. FROM cte_name — CTE reference, skip
         return collected
 
-    def _table_nodes(self) -> List[exp.Table]:
+    def _table_nodes(self) -> list[exp.Table]:
         """Return all ``exp.Table`` nodes from the AST (cached).
 
         Uses ``find_all(exp.Table)`` which performs a DFS traversal, finding
@@ -422,7 +421,7 @@ class TableExtractor:
         match = self._word_pattern(name_upper).search(self._upper_sql, start)
         return int(match.start()) if match else -1
 
-    _pattern_cache: Dict[str, re.Pattern[str]] = {}
+    _pattern_cache: dict[str, re.Pattern[str]] = {}
 
     # Optional quote wrappers — cover backticks, single/double quotes, and brackets
     _OPT_OPEN_QUOTE = r"""[`"'\[]?"""

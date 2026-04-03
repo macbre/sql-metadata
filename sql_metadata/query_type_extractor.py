@@ -6,7 +6,7 @@ operations, and opaque ``Command`` nodes.
 """
 
 import logging
-from typing import NoReturn, Optional
+from typing import NoReturn
 
 from sqlglot import exp
 
@@ -42,7 +42,7 @@ class QueryTypeExtractor:
 
     def __init__(
         self,
-        ast: Optional[exp.Expression],
+        ast: exp.Expression | None,
         raw_query: str,
     ):
         self._ast = ast
@@ -88,7 +88,7 @@ class QueryTypeExtractor:
         return ast
 
     @staticmethod
-    def _resolve_command_type(root: exp.Expression) -> Optional[QueryType]:
+    def _resolve_command_type(root: exp.Expression) -> QueryType | None:
         """Determine query type for an opaque ``exp.Command`` node.
 
         Hive ``CREATE FUNCTION ... USING JAR ... WITH SERDEPROPERTIES``

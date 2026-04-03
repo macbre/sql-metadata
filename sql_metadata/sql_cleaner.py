@@ -8,7 +8,7 @@ outer-parenthesis removal.
 
 import itertools
 import re
-from typing import NamedTuple, Optional
+from typing import NamedTuple
 
 from sql_metadata.comments import strip_comments_for_parsing as _strip_comments
 from sql_metadata.exceptions import InvalidQueryDefinition
@@ -18,9 +18,9 @@ from sql_metadata.utils import DOT_PLACEHOLDER
 class CleanResult(NamedTuple):
     """Result of :meth:`SqlCleaner.clean`."""
 
-    sql: Optional[str]
+    sql: str | None
     is_replace: bool
-    cte_name_map: dict
+    cte_name_map: dict[str, str]
 
 
 def _strip_outer_parens(sql: str) -> str:
@@ -48,7 +48,7 @@ def _strip_outer_parens(sql: str) -> str:
     return s
 
 
-def _normalize_cte_names(sql: str) -> tuple:
+def _normalize_cte_names(sql: str) -> tuple[str, dict[str, str]]:
     """Replace qualified CTE names with simple placeholders.
 
     sqlglot cannot parse ``WITH db.cte_name AS (...)`` because it

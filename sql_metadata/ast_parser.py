@@ -7,8 +7,6 @@ always receive a clean ``sqlglot.exp.Expression`` tree (or ``None`` /
 ``ValueError``).
 """
 
-from typing import Optional
-
 from sqlglot import exp
 from sqlglot.dialects.dialect import DialectType
 
@@ -30,14 +28,14 @@ class ASTParser:
 
     def __init__(self, sql: str) -> None:
         self._raw_sql = sql
-        self._ast: Optional[exp.Expression] = None
+        self._ast: exp.Expression | None = None
         self._dialect: DialectType = None
         self._parsed = False
         self._is_replace = False
         self._cte_name_map: dict[str, str] = {}
 
     @property
-    def ast(self) -> Optional[exp.Expression]:
+    def ast(self) -> exp.Expression | None:
         """The sqlglot AST for the query, lazily parsed on first access.
 
         :returns: Root AST node, or ``None`` for empty/comment-only queries.
@@ -74,7 +72,7 @@ class ASTParser:
         return self._is_replace
 
     @property
-    def cte_name_map(self) -> dict:
+    def cte_name_map(self) -> dict[str, str]:
         """Map of placeholder CTE names back to their original qualified form.
 
         Keys are underscore-separated placeholders (``db__DOT__name``),
@@ -83,7 +81,7 @@ class ASTParser:
         _ = self.ast
         return self._cte_name_map
 
-    def _parse(self, sql: str) -> Optional[exp.Expression]:
+    def _parse(self, sql: str) -> exp.Expression | None:
         """Parse *sql* into a sqlglot AST.
 
         Delegates preprocessing to :class:`SqlCleaner` and dialect
@@ -92,7 +90,7 @@ class ASTParser:
         :param sql: Raw SQL string (may include comments).
         :type sql: str
         :returns: Root AST node, or ``None`` for empty input.
-        :rtype: Optional[exp.Expression]
+        :rtype: exp.Expression | None
         :raises ValueError: If the SQL is malformed.
         """
         if not sql or not sql.strip():

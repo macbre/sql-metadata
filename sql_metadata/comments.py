@@ -19,7 +19,7 @@ the MySQL tokenizer so that ``#``-style comments are reliably stripped.
 """
 
 import re
-from typing import List
+from typing import Any
 
 from sqlglot.tokens import Tokenizer
 
@@ -71,7 +71,7 @@ def _has_hash_variables(sql: str) -> bool:
     return False
 
 
-def extract_comments(sql: str) -> List[str]:
+def extract_comments(sql: str) -> list[str]:
     """Return all comments found in *sql*, with delimiters preserved.
 
     Tokenizes the SQL, then scans every gap between consecutive token
@@ -107,7 +107,7 @@ def extract_comments(sql: str) -> List[str]:
 _COMMENT_RE = re.compile(r"/\*.*?\*/|/\*.*$|--[^\n]*\n?|#[^\n]*\n?", re.DOTALL)
 
 
-def _scan_gap(sql: str, start: int, end: int, out: list) -> None:
+def _scan_gap(sql: str, start: int, end: int, out: list[str]) -> None:
     """Scan a slice of *sql* for comment delimiters and append matches.
 
     :param sql: The full SQL string (not just the gap).
@@ -118,7 +118,7 @@ def _scan_gap(sql: str, start: int, end: int, out: list) -> None:
     out.extend(_COMMENT_RE.findall(sql[start:end]))
 
 
-def _reconstruct_from_tokens(sql: str, tokens: list) -> str:
+def _reconstruct_from_tokens(sql: str, tokens: list[Any]) -> str:
     """Rebuild SQL from token spans, collapsing gaps to single spaces."""
     if not tokens:
         return ""

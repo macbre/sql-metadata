@@ -13,7 +13,7 @@ Thin facade that composes the specialised extractors via lazy properties:
 
 import logging
 import re
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 from sqlglot import exp
 
@@ -47,34 +47,34 @@ class Parser:
         self._logger.disabled = disable_logging
 
         self._raw_query = sql
-        self._query_type: Optional[str] = None
+        self._query_type: str | None = None
 
         self._ast_parser = ASTParser(sql)
-        self._resolver: Optional[NestedResolver] = None
+        self._resolver: NestedResolver | None = None
 
-        self._tokens: Optional[List[str]] = None
+        self._tokens: list[str] | None = None
 
-        self._columns: Optional[UniqueList] = None
-        self._columns_dict: Optional[Dict[str, UniqueList]] = None
-        self._columns_aliases_names: Optional[UniqueList] = None
-        self._columns_aliases: Optional[Dict[str, Union[str, list]]] = None
-        self._columns_aliases_dict: Optional[Dict[str, UniqueList]] = None
-        self._columns_with_tables_aliases: Dict[str, str] = {}
+        self._columns: UniqueList | None = None
+        self._columns_dict: dict[str, UniqueList] | None = None
+        self._columns_aliases_names: UniqueList | None = None
+        self._columns_aliases: dict[str, str | list[str]] | None = None
+        self._columns_aliases_dict: dict[str, UniqueList] | None = None
+        self._columns_with_tables_aliases: dict[str, str] = {}
 
-        self._tables: Optional[List[str]] = None
-        self._table_aliases: Optional[Dict[str, str]] = None
+        self._tables: list[str] | None = None
+        self._table_aliases: dict[str, str] | None = None
 
-        self._with_names: Optional[List[str]] = None
-        self._with_queries: Optional[Dict[str, str]] = None
-        self._subqueries: Optional[Dict[str, str]] = None
-        self._subqueries_names: Optional[List[str]] = None
+        self._with_names: list[str] | None = None
+        self._with_queries: dict[str, str] | None = None
+        self._subqueries: dict[str, str] | None = None
+        self._subqueries_names: list[str] | None = None
 
-        self._limit_and_offset: Optional[Tuple[int, int]] = None
+        self._limit_and_offset: tuple[int, int] | None = None
 
-        self._output_columns: Optional[list] = None
+        self._output_columns: list[str] | None = None
 
-        self._values: Optional[List] = None
-        self._values_dict: Optional[Dict[str, Union[int, float, str, list]]] = None
+        self._values: list[Any] | None = None
+        self._values_dict: dict[str, int | float | str | list[Any]] | None = None
 
     # -------------------------------------------------------------------
     # NestedResolver access
@@ -83,10 +83,9 @@ class Parser:
     def _get_resolver(self) -> NestedResolver:
         """Return (and cache) the NestedResolver instance."""
         if self._resolver is None:
-            self._resolver = NestedResolver(
-                self._ast_parser.ast,
-                self._ast_parser.cte_name_map,
-            )
+            ast = self._ast_parser.ast
+            assert ast is not None
+            self._resolver = NestedResolver(ast)
         return self._resolver
 
     # -------------------------------------------------------------------
@@ -137,7 +136,7 @@ class Parser:
     # -------------------------------------------------------------------
 
     @property
-    def tokens(self) -> List[str]:
+    def tokens(self) -> list[str]:
         """Return the SQL as a list of token strings."""
         if self._tokens is not None:
             return self._tokens
@@ -161,7 +160,7 @@ class Parser:
     # -------------------------------------------------------------------
 
     @property
-    def columns(self) -> list:
+    def columns(self) -> list[str]:
         """Return the list of column names referenced in the query."""
         if self._columns is not None:
             return self._columns
@@ -220,7 +219,7 @@ class Parser:
         return self._columns
 
     @property
-    def columns_dict(self) -> dict:
+    def columns_dict(self) -> dict[str, UniqueList]:
         """Return column names organised by query section."""
         if self._columns_dict is None:
             _ = self.columns
@@ -233,17 +232,12 @@ class Parser:
                     resolved = resolver.resolve_column_alias(
                         alias, self.columns_aliases
                     )
-                    if isinstance(resolved, list):
-                        for r in resolved:
-                            self._columns_dict.setdefault(key, UniqueList()).append(r)
-                    else:
-                        self._columns_dict.setdefault(key, UniqueList()).append(
-                            resolved
-                        )
+                    for r in resolved:
+                        self._columns_dict.setdefault(key, UniqueList()).append(r)
         return self._columns_dict
 
     @property
-    def columns_aliases(self) -> Dict:
+    def columns_aliases(self) -> dict[str, str | list[str]]:
         """Return the alias-to-column mapping for column aliases."""
         if self._columns_aliases is None:
             _ = self.columns
@@ -251,14 +245,14 @@ class Parser:
         return self._columns_aliases
 
     @property
-    def columns_aliases_dict(self) -> Optional[dict]:
+    def columns_aliases_dict(self) -> dict[str, UniqueList] | None:
         """Return column alias names organised by query section."""
         if self._columns_aliases_dict is None:
             _ = self.columns
         return self._columns_aliases_dict
 
     @property
-    def columns_aliases_names(self) -> List[str]:
+    def columns_aliases_names(self) -> list[str]:
         """Return the names of all column aliases used in the query."""
         if self._columns_aliases_names is None:
             _ = self.columns
@@ -266,7 +260,7 @@ class Parser:
         return self._columns_aliases_names
 
     @property
-    def output_columns(self) -> list:
+    def output_columns(self) -> list[str]:
         """Return the ordered list of SELECT output column names.
 
         Combines real columns and aliases in their original position.
@@ -282,7 +276,7 @@ class Parser:
     # -------------------------------------------------------------------
 
     @property
-    def tables(self) -> List[str]:
+    def tables(self) -> list[str]:
         """Return the list of table names referenced in the query."""
         if self._tables is not None:
             return self._tables
@@ -302,7 +296,7 @@ class Parser:
         return self._tables
 
     @property
-    def tables_aliases(self) -> Dict[str, str]:
+    def tables_aliases(self) -> dict[str, str]:
         """Return the table alias mapping for this query."""
         if self._table_aliases is not None:
             return self._table_aliases
@@ -317,7 +311,7 @@ class Parser:
     # -------------------------------------------------------------------
 
     @property
-    def with_names(self) -> List[str]:
+    def with_names(self) -> list[str]:
         """Return the CTE (Common Table Expression) names from the query."""
         if self._with_names is not None:
             return self._with_names
@@ -328,26 +322,30 @@ class Parser:
         return self._with_names
 
     @property
-    def with_queries(self) -> Dict[str, str]:
+    def with_queries(self) -> dict[str, str]:
         """Return the SQL body for each CTE defined in the query."""
         if self._with_queries is not None:
             return self._with_queries
         resolver = self._get_resolver()
-        self._with_queries = resolver.extract_cte_bodies(self.with_names)
+        self._with_queries = resolver.extract_cte_bodies(
+            self._ast_parser.cte_name_map
+        )
         return self._with_queries
 
     @property
-    def subqueries(self) -> Dict:
+    def subqueries(self) -> dict[str, str]:
         """Return the SQL body for each subquery in the query."""
         if self._subqueries is not None:
             return self._subqueries
+        ast = self._ast_parser.ast
+        assert ast is not None
         self._subqueries_names, self._subqueries = (
-            NestedResolver.extract_subqueries(self._ast_parser.ast)
+            NestedResolver.extract_subqueries(ast)
         )
         return self._subqueries
 
     @property
-    def subqueries_names(self) -> List[str]:
+    def subqueries_names(self) -> list[str]:
         """Return the names of all subqueries (innermost first).
 
         Aliased subqueries use their alias; unaliased ones get
@@ -355,8 +353,10 @@ class Parser:
         """
         if self._subqueries_names is not None:
             return self._subqueries_names
+        ast = self._ast_parser.ast
+        assert ast is not None
         self._subqueries_names, self._subqueries = (
-            NestedResolver.extract_subqueries(self._ast_parser.ast)
+            NestedResolver.extract_subqueries(ast)
         )
         return self._subqueries_names
 
@@ -365,7 +365,7 @@ class Parser:
     # -------------------------------------------------------------------
 
     @staticmethod
-    def _extract_int_from_node(node: Any) -> Optional[int]:
+    def _extract_int_from_node(node: Any) -> int | None:
         """Safely extract an integer value from a Limit or Offset node."""
         if not node:
             return None
@@ -375,7 +375,7 @@ class Parser:
             return None
 
     @property
-    def limit_and_offset(self) -> Optional[Tuple[int, int]]:
+    def limit_and_offset(self) -> tuple[int, int] | None:
         """Return the LIMIT and OFFSET values, if present."""
         if self._limit_and_offset is not None:
             return self._limit_and_offset
@@ -400,7 +400,7 @@ class Parser:
         return self._limit_and_offset
 
     @property
-    def values(self) -> List:
+    def values(self) -> list[Any]:
         """Return the list of literal values from INSERT/REPLACE queries."""
         if self._values:
             return self._values
@@ -408,7 +408,7 @@ class Parser:
         return self._values
 
     @property
-    def values_dict(self) -> Optional[Dict]:
+    def values_dict(self) -> dict[str, Any] | None:
         """Return column-value pairs from INSERT/REPLACE queries."""
         values = self.values
         if self._values_dict or not values:
@@ -437,7 +437,7 @@ class Parser:
     # -------------------------------------------------------------------
 
     @property
-    def comments(self) -> List[str]:
+    def comments(self) -> list[str]:
         """Return all comments from the SQL query."""
         return extract_comments(self._raw_query)
 
@@ -455,7 +455,7 @@ class Parser:
     # Internal extraction helpers
     # -------------------------------------------------------------------
 
-    def _extract_values(self) -> List:
+    def _extract_values(self) -> list[Any]:
         """Extract literal values from INSERT/REPLACE query AST."""
         from sqlglot import exp
 
@@ -483,7 +483,7 @@ class Parser:
         return rows
 
     @staticmethod
-    def _convert_value(val: exp.Expression) -> Union[int, float, str]:
+    def _convert_value(val: exp.Expression) -> int | float | str:
         """Convert a sqlglot literal AST node to a Python type."""
         from sqlglot import exp
 
@@ -501,7 +501,7 @@ class Parser:
                 return -float(inner.this)
         return str(val)
 
-    def _extract_limit_regex(self) -> Optional[Tuple[int, int]]:
+    def _extract_limit_regex(self) -> tuple[int, int] | None:
         """Extract LIMIT and OFFSET using regex as a fallback."""
         sql = strip_comments(self._raw_query)
         match = re.search(r"LIMIT\s+(\d+)\s*,\s*(\d+)", sql, re.IGNORECASE)
@@ -523,7 +523,7 @@ class Parser:
             return self._limit_and_offset
         return None
 
-    def _extract_columns_regex(self) -> List[str]:
+    def _extract_columns_regex(self) -> list[str]:
         """Extract column names from ``INTO ... (col1, col2)`` using regex."""
         match = re.search(
             r"INTO\s+\S+\s*\(([^)]+)\)",
@@ -539,7 +539,7 @@ class Parser:
                 cols.append(col)
         return cols
 
-    def _resolve_column_alias(self, alias: Union[str, List[str]]) -> Union[str, List]:
+    def _resolve_column_alias(self, alias: str | list[str]) -> list[str]:
         """Recursively resolve a column alias (delegates to NestedResolver)."""
         resolver = self._get_resolver()
         return resolver.resolve_column_alias(alias, self.columns_aliases)

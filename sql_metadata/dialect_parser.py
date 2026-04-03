@@ -6,7 +6,7 @@ class so that callers only need to call :meth:`DialectParser.parse`.
 """
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 import sqlglot
 from sqlglot import exp
@@ -111,7 +111,7 @@ class DialectParser:
     # -- dialect detection --------------------------------------------------
 
     @staticmethod
-    def _detect_dialects(sql: str) -> list:
+    def _detect_dialects(sql: str) -> list[Any]:
         """Choose an ordered list of sqlglot dialects to try for *sql*.
 
         Heuristics:
@@ -145,7 +145,7 @@ class DialectParser:
     # -- parsing ------------------------------------------------------------
 
     def _try_dialects(
-        self, clean_sql: str, dialects: list
+        self, clean_sql: str, dialects: list[Any]
     ) -> tuple[exp.Expression, DialectType]:
         """Try parsing *clean_sql* with each dialect, returning the best.
 
@@ -180,7 +180,7 @@ class DialectParser:
         )
 
     @staticmethod
-    def _parse_with_dialect(clean_sql: str, dialect: Any) -> Optional[exp.Expression]:
+    def _parse_with_dialect(clean_sql: str, dialect: Any) -> exp.Expression | None:
         """Parse *clean_sql* with a single dialect, suppressing warnings."""
         logger = logging.getLogger("sqlglot")
         old_level = logger.level

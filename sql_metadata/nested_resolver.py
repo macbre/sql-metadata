@@ -9,7 +9,7 @@ those bodies with sub-:class:`Parser` instances, and resolving
 from __future__ import annotations
 
 import copy
-from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple, Union
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from sql_metadata.parser import Parser
@@ -18,10 +18,7 @@ from sqlglot import exp
 from sqlglot.generator import Generator
 
 from sql_metadata.utils import (
-    DOT_PLACEHOLDER,
     UniqueList,
-    _make_reverse_cte_map,
-    flatten_list,
     last_segment,
 )
 
@@ -94,6 +91,23 @@ _GENERATOR = _PreservingGenerator()
 
 
 # ---------------------------------------------------------------------------
+# Resolution helpers
+# ---------------------------------------------------------------------------
+
+
+def _is_qualified_reference(result: list[str]) -> bool:
+    """Check if result is a single dotted reference like ``['cte.col']``."""
+    return len(result) == 1 and "." in result[0]
+
+
+def _is_not_already_resolved_qualified_reference(
+    result: list[str], column: str
+) -> bool:
+    """Check if result is a qualified reference that changed from the input."""
+    return _is_qualified_reference(result) and result != [column]
+
+
+# ---------------------------------------------------------------------------
 # NestedResolver class
 # ---------------------------------------------------------------------------
 
@@ -107,174 +121,123 @@ class NestedResolver:
        via :class:`_PreservingGenerator`.
     2. **Column resolution** — parse bodies with sub-Parsers and resolve
        ``subquery.column`` references to actual columns.
-    3. **Bare alias resolution** — detect column names that are actually
+    3. **Unqualified alias resolution** — detect column names that are actually
        aliases defined inside nested queries.
 
     :param ast: Root AST node (for body extraction).
-    :param cte_name_map: Placeholder → original qualified CTE name mapping.
     """
 
-    def __init__(
-        self,
-        ast: Optional[exp.Expression],
-        cte_name_map: Optional[dict] = None,
-    ):
+    def __init__(self, ast: exp.Expression):
         self._ast = ast
-        self._cte_name_map = cte_name_map or {}
 
         # Lazy caches
-        self._subqueries_parsers: Dict = {}
-        self._with_parsers: Dict = {}
-        self._columns_aliases: Dict = {}
-        self._cached_cte_nodes: Optional[list] = None
+        self._subqueries_parsers: dict[str, "Parser"] = {}
+        self._with_parsers: dict[str, "Parser"] = {}
+        self._columns_aliases: dict[str, str | list[str]] = {}
+        self._cached_cte_nodes: list[exp.CTE] | None = None
 
         # Set by resolve() caller
-        self._subqueries_names: List[str] = []
-        self._subqueries: Dict = {}
-        self._with_names: List[str] = []
-        self._with_queries: Dict = {}
+        self._subqueries_names: list[str] = []
+        self._subqueries: dict[str, str] = {}
+        self._with_names: list[str] = []
+        self._with_queries: dict[str, str] = {}
 
     # -------------------------------------------------------------------
-    # Name extraction (CTE and subquery names from the AST)
+    # Public API — name extraction
     # -------------------------------------------------------------------
-
-    def _cte_nodes(self) -> list:
-        """Return all ``exp.CTE`` nodes from the AST (cached)."""
-        if self._cached_cte_nodes is None:
-            if self._ast is None:  # pragma: no cover — callers check first
-                self._cached_cte_nodes = []
-            else:
-                self._cached_cte_nodes = list(self._ast.find_all(exp.CTE))
-        return self._cached_cte_nodes
 
     def extract_cte_names(
         self,
-        cte_name_map: Optional[Dict] = None,
-    ) -> List[str]:
+        cte_name_map: dict[str, str],
+    ) -> list[str]:
         """Extract CTE names from the AST.
 
         Called by :attr:`Parser.with_names`.
+
+        :param cte_name_map: Mapping of placeholder names to original
+            qualified names, e.g. ``{"db__DOT__cte": "db.cte"}``.
+            Built by :func:`SqlCleaner._normalize_cte_names` because
+            sqlglot cannot parse dots in CTE names — they get rewritten
+            to placeholders before parsing.  This map restores the
+            original names in the output.
+        :returns: List of CTE names, e.g. ``["db.cte", "sales"]``.
         """
-        if self._ast is None:  # pragma: no cover — Parser ensures AST exists
-            return []
-        cte_name_map = cte_name_map or {}
-        reverse_map = _make_reverse_cte_map(cte_name_map)
-        names = UniqueList()
+        return UniqueList([
+            cte_name_map.get(cte.alias, cte.alias) for cte in self._cte_nodes()
+        ])
+
+    def extract_cte_bodies(
+        self,
+        cte_name_map: dict[str, str],
+    ) -> dict[str, str]:
+        """Extract CTE body SQL for each CTE in the AST.
+
+        :param cte_name_map: Placeholder-to-original mapping, e.g.
+            ``{"db__DOT__cte": "db.cte"}``.  See :meth:`extract_cte_names`
+            for details.
+        :returns: Mapping of ``{cte_name: body_sql}``,
+            e.g. ``{"db.cte": "SELECT id FROM t"}``.
+        """
+        results: dict[str, str] = {}
         for cte in self._cte_nodes():
             alias = cte.alias
-            if alias:
-                names.append(reverse_map.get(alias, alias))
-        return names
+            original_name = cte_name_map.get(alias, alias)
+            results[original_name] = self._body_sql(cte.this)
+
+        return results
 
     @staticmethod
     def extract_subqueries(
-        ast: Optional[exp.Expression],
-    ) -> Tuple[List[str], Dict[str, str]]:
+        ast: exp.Expression,
+    ) -> tuple[list[str], dict[str, str]]:
         """Extract subquery names and bodies in a single post-order walk.
 
         Aliased subqueries keep their alias as the name.  Unaliased
         subqueries (e.g. ``WHERE id IN (SELECT …)``) get auto-generated
         names ``subquery_1``, ``subquery_2``, etc.
 
-        :returns: ``(names, bodies)`` where *names* is ordered innermost-first.
+        Example SQL::
+
+            SELECT * FROM (SELECT id FROM t) AS sub
+            WHERE id IN (SELECT id FROM t2)
+
+        :returns: ``(names, bodies)`` where *names* is ordered innermost-first,
+            e.g. ``(["subquery_1", "sub"], {...})``.
         """
-        if ast is None:  # pragma: no cover — Parser ensures AST exists
-            return [], {}
-        names: list = UniqueList()
-        bodies: Dict[str, str] = {}
+        names: list[str] = UniqueList()
+        bodies: dict[str, str] = {}
         NestedResolver._walk_subqueries(ast, names, bodies, 0)
         return names, bodies
 
-    @staticmethod
-    def _walk_subqueries(
-        node: exp.Expression,
-        names: list,
-        bodies: Dict[str, str],
-        counter: int,
-    ) -> int:
-        """Post-order walk collecting subquery names and bodies.
-
-        Returns the updated *counter* so unnamed subqueries are numbered
-        sequentially.
-        """
-        for child in node.iter_expressions():
-            counter = NestedResolver._walk_subqueries(
-                child, names, bodies, counter
-            )
-        if isinstance(node, exp.Subquery):
-            if node.alias:
-                name = node.alias
-            else:
-                counter += 1
-                name = f"subquery_{counter}"
-            names.append(name)
-            bodies[name] = NestedResolver._body_sql(node.this)
-        return counter
-
     # -------------------------------------------------------------------
-    # Body extraction
-    # -------------------------------------------------------------------
-
-    @staticmethod
-    def _body_sql(node: exp.Expression) -> str:
-        """Render an AST node to SQL, stripping identifier quoting."""
-        body = copy.deepcopy(node)
-        for ident in body.find_all(exp.Identifier):
-            ident.set("quoted", False)
-        return _GENERATOR.generate(body)
-
-    def extract_cte_bodies(
-        self,
-        cte_names: List[str],
-    ) -> Dict[str, str]:
-        """Extract CTE body SQL for each name in *cte_names*.
-
-        :param cte_names: Ordered list of CTE names to extract bodies for.
-        :returns: Mapping of ``{cte_name: body_sql}``.
-        """
-        if not self._ast or not cte_names:
-            return {}
-
-        alias_to_name: Dict[str, str] = {}
-        for name in cte_names:
-            placeholder = name.replace(".", DOT_PLACEHOLDER)
-            alias_to_name[placeholder.upper()] = name
-            alias_to_name[name.upper()] = name
-            alias_to_name[last_segment(name).upper()] = name
-
-        results: Dict[str, str] = {}
-        for cte in self._cte_nodes():
-            alias = cte.alias
-            if alias.upper() in alias_to_name:
-                original_name = alias_to_name[alias.upper()]
-                results[original_name] = self._body_sql(cte.this)
-
-        return results
-
-    # -------------------------------------------------------------------
-    # Column resolution (from parser.py)
+    # Public API — column resolution
     # -------------------------------------------------------------------
 
     def resolve(
         self,
         columns: "UniqueList",
-        columns_dict: Dict,
-        columns_aliases: Dict,
-        subqueries_names: List[str],
-        subqueries: Dict,
-        with_names: List[str],
-        with_queries: Dict,
-    ) -> tuple:
+        columns_dict: dict[str, UniqueList],
+        columns_aliases: dict[str, str | list[str]],
+        subqueries_names: list[str],
+        subqueries: dict[str, str],
+        with_names: list[str],
+        with_queries: dict[str, str],
+    ) -> tuple[UniqueList, dict[str, UniqueList], dict[str, str | list[str]]]:
         """Resolve columns that reference subqueries or CTEs.
 
         Two-phase resolution:
 
         1. Replace ``subquery.column`` references with the actual column
            from the subquery/CTE definition.
-        2. Drop bare column names that are actually aliases defined inside
-           a nested query.
+        2. Drop unqualified column names that are actually aliases defined
+           inside a nested query.
 
         Also applies the same resolution to *columns_dict*.
+
+        Example SQL::
+
+            WITH cte AS (SELECT a FROM t)
+            SELECT cte.a FROM cte
 
         :returns: Tuple of ``(columns, columns_dict, columns_aliases)``.
         """
@@ -284,145 +247,217 @@ class NestedResolver:
         self._with_queries = with_queries
         self._columns_aliases = columns_aliases
 
-        columns = self._resolve_and_filter(columns, drop_bare_aliases=True)
+        # For columns drop aliases as we need only actual columns
+        columns = self._resolve_and_filter(columns, drop_unqualified_aliases=True)
 
         if columns_dict:
+            # For columns_dict do not drop aliases but instead resolve them to columns.
+            # That ensures the column is present in all the relevant sections regardless
+            # if it's called directly or by alias i.e. SELECT a AS x FROM tbl ORDER BY x
+            # the column a should appear both in select and order_by sections.
             for section, cols in list(columns_dict.items()):
                 columns_dict[section] = self._resolve_and_filter(
-                    cols, drop_bare_aliases=False
+                    cols, drop_unqualified_aliases=False
                 )
 
         return columns, columns_dict, self._columns_aliases
 
+    def resolve_column_alias(
+        self, alias: str | list[str], columns_aliases: dict[str, str | list[str]]
+    ) -> list[str]:
+        """Public interface for alias resolution (used by parser.py).
+
+        Example SQL::
+
+            SELECT a AS x FROM t ORDER BY x
+
+        Resolves ``"x"`` → ``"a"`` using the alias map.
+        """
+        return self._resolve_column_alias(alias, columns_aliases)
+
+    # -------------------------------------------------------------------
+    # Resolution pipeline — callers before callees
+    # -------------------------------------------------------------------
+
     def _resolve_and_filter(
-        self, columns: "UniqueList", drop_bare_aliases: bool = True
+        self, columns: "UniqueList", drop_unqualified_aliases: bool = True
     ) -> "UniqueList":
-        """Apply subquery/CTE resolution and bare-alias handling."""
-        resolved = UniqueList()
+        """Apply subquery/CTE resolution and unqualified-alias handling.
+
+        Phase 1: resolve ``sub.col`` references via :meth:`_resolve_sub_queries`.
+        Phase 2: detect unqualified names that are nested-query aliases.
+
+        Example SQL::
+
+            SELECT sub.id FROM (SELECT id FROM users) AS sub
+
+        Phase 1 resolves ``sub.id`` → ``id``.
+        Phase 2 checks if ``id`` is a nested alias (it is not, so it stays).
+        """
+        resolved: list[str] = UniqueList()
         for col in columns:
-            result = self._resolve_sub_queries(col)
-            if isinstance(result, list):
-                resolved.extend(result)
-            # TODO: revisit if _resolve_sub_queries returns non-list
-            else:  # pragma: no cover
-                resolved.append(result)
+            resolved.extend(self._resolve_sub_queries(col))
 
         final = UniqueList()
         for col in resolved:
-            if "." not in col:
-                new_col = self._resolve_bare_through_nested(col)
-                if new_col != col:
-                    if not drop_bare_aliases:
-                        if isinstance(new_col, list):
-                            final.extend(new_col)
-                        else:
-                            final.append(new_col)
-                    continue
+            if "." in col:
+                # e.g. schema.col — skip unqualified alias resolution
+                final.append(col)
+                continue
+            new_cols = self._resolve_unqualified_through_nested(col)
+            if new_cols != [col]:
+                # e.g. SELECT x FROM (SELECT a AS x FROM t) AS sub
+                # — "x" resolved to "a", drop the alias from columns
+                if not drop_unqualified_aliases:
+                    final.extend(new_cols)
+                continue
+            # e.g. SELECT id FROM t — no alias match, keep as-is
             final.append(col)
         return final
 
-    def _nested_sources(self) -> list:
-        """Return the (names, defs, cache) tuples for subqueries then CTEs."""
-        return [
-            (self._subqueries_names, self._subqueries, self._subqueries_parsers),
-            (self._with_names, self._with_queries, self._with_parsers),
-        ]
+    def _resolve_sub_queries(self, column: str) -> list[str]:
+        """Resolve a ``subquery.column`` reference to actual column(s).
 
-    def _resolve_sub_queries(self, column: str) -> Union[str, List[str]]:
-        """Resolve a ``subquery.column`` reference to actual column(s)."""
-        result: Union[str, List[str]] = column
+        Tries subquery sources first, then CTE sources.
+
+        Example SQL::
+
+            SELECT sub.id FROM (SELECT id FROM users) AS sub
+
+        Resolves ``"sub.id"`` → ``["id"]``.
+        """
+        result: list[str] = [column]
         for names, defs, cache in self._nested_sources():
-            if isinstance(result, str):
+            if _is_qualified_reference(result):
+                # e.g. "sub.id" — still a qualified reference, try next source
                 result = self._resolve_nested_query(
-                    subquery_alias=result,
+                    subquery_alias=result[0],
                     nested_queries_names=names,
                     nested_queries=defs,
                     already_parsed=cache,
                 )
-        return result if isinstance(result, list) else [result]
+        # Recursively resolve chained CTE references: c3.a → c2.a → c1.a → a
+        if _is_not_already_resolved_qualified_reference(result, column):
+            return self._resolve_sub_queries(result[0])
+        return result
 
-    def _resolve_bare_through_nested(self, col_name: str) -> Union[str, List[str]]:
-        """Resolve a bare column name through subquery/CTE alias definitions."""
+    def _resolve_unqualified_through_nested(
+        self, col_name: str
+    ) -> list[str]:
+        """Resolve an unqualified column name through subquery/CTE alias definitions.
+
+        Checks subquery aliases first (``check_columns=True``), then CTE
+        aliases (``check_columns=False``).
+
+        Example SQL::
+
+            SELECT x FROM (SELECT a AS x FROM users) AS sub
+
+        Resolves ``"x"`` → ``["a"]`` (found as alias in subquery body).
+        """
         for i, (names, defs, cache) in enumerate(self._nested_sources()):
+            # check_columns for subqueries only — prevents CTE aliases
+            # from claiming subquery columns, e.g. in:
+            #   WITH cte AS (SELECT x AS name FROM t1)
+            #   SELECT name FROM (SELECT name FROM t2) AS sub
+            # "name" is a real column in sub, not the CTE alias.
             result = self._lookup_alias_in_nested(
                 col_name, names, defs, cache, check_columns=(i == 0)
             )
             if result is not None:
                 return result
-        return col_name
+        return [col_name]
 
     def _lookup_alias_in_nested(
         self,
         col_name: str,
-        names: List[str],
-        definitions: Dict,
-        parser_cache: Dict,
+        names: list[str],
+        definitions: dict[str, str],
+        parser_cache: dict[str, "Parser"],
         check_columns: bool = False,
-    ) -> Optional[Union[str, List[str]]]:
-        """Search for a bare column as an alias in nested queries."""
+    ) -> list[str] | None:
+        """Search for an unqualified column as an alias in nested queries.
+
+        Parses each nested query body and checks whether *col_name* is a
+        known column alias inside that body.  Three outcomes are possible:
+
+        1. **Alias match** — the column is an alias defined inside a nested
+           query and gets resolved to the underlying column(s)::
+
+               WITH cte AS (SELECT a AS x FROM t) SELECT x FROM cte
+               -- "x" found as alias in CTE body → resolves to ["a"]
+
+           Multi-column aliases are also handled::
+
+               SELECT y FROM (SELECT a + b AS y FROM t) AS sub
+               -- "y" found as alias → resolves to ["a + b"]
+
+        2. **Direct column match** (subqueries only, ``check_columns=True``) —
+           the column exists directly in the nested query and is kept as-is::
+
+               SELECT id FROM (SELECT id FROM users) AS sub
+               -- "id" found as real column in subquery → returns ["id"]
+
+        3. **No match** — the column is not found in any nested query,
+           returns ``None`` so the caller can try other sources or keep
+           the column unchanged::
+
+               SELECT name FROM (SELECT id FROM users) AS sub
+               -- "name" not in subquery → returns None
+        """
         from sql_metadata.parser import Parser
 
         for nested_name in names:
-            nested_def = definitions.get(nested_name)
-            # TODO: revisit if extract_*_bodies can produce missing entries
-            if not nested_def:  # pragma: no cover
-                continue
+            nested_def = definitions[nested_name]
             nested_parser = parser_cache.setdefault(nested_name, Parser(nested_def))
             if col_name in nested_parser.columns_aliases_names:
+                # Path 1: alias match — resolve through the full alias chain
+                # e.g. SELECT col1 AS a ... then SELECT a AS x ...
+                # resolving "x": follows x → a → col1, returns ["col1"]
                 resolved = self._resolve_column_alias(
                     col_name, nested_parser.columns_aliases
                 )
+                # Record the immediate (one-step) alias mapping for the
+                # outer query's columns_aliases property, preserving the
+                # direct relationship as written in SQL:
+                # e.g. x → a (not the fully resolved x → col1)
                 if self._columns_aliases is not None:
                     immediate = nested_parser.columns_aliases.get(col_name, resolved)
                     self._columns_aliases[col_name] = immediate
                 return resolved
             if check_columns and col_name in nested_parser.columns:
-                return col_name
+                # Path 2: direct column match in subquery
+                return [col_name]
+        # Path 3: not found in any nested query
         return None
-
-    def resolve_column_alias(
-        self, alias: Union[str, List[str]], columns_aliases: Dict
-    ) -> Union[str, List]:
-        """Public interface for alias resolution (used by parser.py)."""
-        return self._resolve_column_alias(alias, columns_aliases)
-
-    def _resolve_column_alias(
-        self,
-        alias: Union[str, List[str]],
-        columns_aliases: Dict,
-        visited: Optional[Set] = None,
-    ) -> Union[str, List]:
-        """Recursively resolve a column alias to its underlying column(s)."""
-        visited = visited or set()
-        if isinstance(alias, list):
-            return [
-                self._resolve_column_alias(x, columns_aliases, visited) for x in alias
-            ]
-        while alias in columns_aliases and alias not in visited:
-            visited.add(alias)
-            alias = columns_aliases[alias]
-            if isinstance(alias, list):
-                return self._resolve_column_alias(alias, columns_aliases, visited)
-        return alias
 
     @staticmethod
     def _resolve_nested_query(
         subquery_alias: str,
-        nested_queries_names: List[str],
-        nested_queries: Dict,
-        already_parsed: Dict,
-    ) -> Union[str, List[str]]:
-        """Resolve a ``prefix.column`` reference through a nested query."""
+        nested_queries_names: list[str],
+        nested_queries: dict[str, str],
+        already_parsed: dict[str, "Parser"],
+    ) -> list[str]:
+        """Resolve a ``prefix.column`` reference through a nested query.
+
+        Splits the alias on ``"."`` — if the prefix matches a known
+        nested query name, parses that query and resolves the column.
+
+        Example SQL::
+
+            SELECT sub.id FROM (SELECT id FROM users) AS sub
+
+        Resolving ``"sub.id"``: prefix ``"sub"`` matches, column
+        ``"id"`` is found in the subquery → returns ``["id"]``.
+        """
         from sql_metadata.parser import Parser
 
         parts = subquery_alias.split(".")
         if len(parts) != 2 or parts[0] not in nested_queries_names:
-            return subquery_alias
+            # e.g. "table.col" or "schema.table.col" — not a subquery ref
+            return [subquery_alias]
         sub_query, column_name = parts[0], parts[-1]
-        sub_query_definition = nested_queries.get(sub_query)
-        # TODO: revisit if names/definitions can diverge between extraction steps
-        if not sub_query_definition:  # pragma: no cover
-            return subquery_alias
+        sub_query_definition = nested_queries[sub_query]
         subparser = already_parsed.setdefault(sub_query, Parser(sub_query_definition))
         return NestedResolver._resolve_column_in_subparser(
             column_name, subparser, subquery_alias
@@ -431,14 +466,32 @@ class NestedResolver:
     @staticmethod
     def _resolve_column_in_subparser(
         column_name: str, subparser: "Parser", original_ref: str
-    ) -> Union[str, List[str]]:
-        """Resolve a column name through a parsed nested query."""
+    ) -> list[str]:
+        """Resolve a column name through a parsed nested query.
+
+        Three resolution paths:
+
+        1. Column name is a known alias in the subparser → resolve it.
+        2. Column name is ``*`` → return all subparser columns.
+        3. Otherwise → fall back to positional/wildcard matching.
+
+        Example SQL (path 1 — alias)::
+
+            SELECT sub.x FROM (SELECT a AS x FROM t) AS sub
+
+        ``"x"`` is an alias → resolves to ``["a"]``.
+
+        Example SQL (path 2 — star)::
+
+            SELECT sub.* FROM (SELECT a, b FROM t) AS sub
+
+        ``"*"`` → returns ``["a", "b"]``.
+        """
         if column_name in subparser.columns_aliases_names:
-            resolved = subparser._resolve_column_alias(column_name)
-            if isinstance(resolved, list):
-                return flatten_list(resolved)
-            return [resolved]
+            # e.g. sub.x where x is aliased to a → resolve alias chain
+            return subparser._resolve_column_alias(column_name)
         if column_name == "*":
+            # e.g. sub.* → return all columns from subquery
             return subparser.columns
         return NestedResolver._find_column_fallback(
             column_name, subparser, original_ref
@@ -447,15 +500,159 @@ class NestedResolver:
     @staticmethod
     def _find_column_fallback(
         column_name: str, subparser: "Parser", original_ref: str
-    ) -> Union[str, List[str]]:
-        """Find a column by name in the subparser with wildcard fallbacks."""
+    ) -> list[str]:
+        """Find a column by name in the subparser with wildcard fallbacks.
+
+        Tries to match *column_name* against the last segment of each
+        subparser column.  If no match is found, checks for wildcard
+        columns (``*`` or ``table.*``) before giving up.
+
+        Example SQL (positional match)::
+
+            SELECT sub.id FROM (SELECT users.id FROM users) AS sub
+
+        ``"id"`` matches ``"users.id"`` by last segment → ``["users.id"]``.
+
+        Example SQL (wildcard fallback)::
+
+            SELECT sub.id FROM (SELECT * FROM users) AS sub
+
+        ``"id"`` not found, but subparser has ``*`` → returns ``["id"]``.
+        """
         try:
             idx = [last_segment(x) for x in subparser.columns].index(column_name)
         except ValueError:
             if "*" in subparser.columns:
-                return column_name
+                # e.g. SELECT * FROM t — subquery selects everything
+                return [column_name]
             for table in subparser.tables:
                 if f"{table}.*" in subparser.columns:
-                    return column_name
-            return original_ref
+                    # e.g. SELECT t.* FROM t — table-qualified wildcard
+                    return [column_name]
+            # e.g. column not found in subquery at all — keep original ref
+            return [original_ref]
+        # e.g. "id" matched at position idx → return fully-qualified form
         return [subparser.columns[idx]]
+
+    # -------------------------------------------------------------------
+    # Alias resolution
+    # -------------------------------------------------------------------
+
+    def _resolve_column_alias(
+        self,
+        alias: str | list[str],
+        columns_aliases: dict[str, str | list[str]],
+        visited: set[str] | None = None,
+    ) -> list[str]:
+        """Recursively resolve a column alias to its underlying column(s).
+
+        Follows alias chains until a non-alias column is reached.
+        Tracks visited aliases to prevent infinite loops on circular
+        definitions.
+
+        Example SQL::
+
+            WITH cte AS (SELECT a AS x FROM t) SELECT x AS y FROM cte
+
+        Resolving ``"y"`` → ``"x"`` → ``["a"]``.
+        """
+        visited = visited or set()
+        if isinstance(alias, list):
+            # e.g. alias mapped to multiple columns — resolve each
+            return [
+                item
+                for x in alias
+                for item in self._resolve_column_alias(x, columns_aliases, visited)
+            ]
+        while alias in columns_aliases and alias not in visited:
+            visited.add(alias)
+            alias = columns_aliases[alias]
+            if isinstance(alias, list):
+                # e.g. alias mapped to [col1, col2] — resolve list recursively
+                return self._resolve_column_alias(alias, columns_aliases, visited)
+        return [alias]
+
+    # -------------------------------------------------------------------
+    # Shared helpers
+    # -------------------------------------------------------------------
+
+    def _nested_sources(
+        self,
+    ) -> list[tuple[list[str], dict[str, str], dict[str, "Parser"]]]:
+        """Return the (names, defs, cache) tuples for subqueries then CTEs.
+
+        Subqueries are checked first because they are more specific than
+        CTEs — a column reference ``sub.col`` should resolve against the
+        subquery named ``sub`` before falling back to a CTE with the
+        same name.
+        """
+        return [
+            (self._subqueries_names, self._subqueries, self._subqueries_parsers),
+            (self._with_names, self._with_queries, self._with_parsers),
+        ]
+
+    def _cte_nodes(self) -> list[exp.CTE]:
+        """Return all ``exp.CTE`` nodes from the AST (cached).
+
+        Example SQL::
+
+            WITH a AS (SELECT 1), b AS (SELECT 2) SELECT * FROM a, b
+
+        Returns two ``exp.CTE`` nodes (for ``a`` and ``b``).
+        """
+        if self._cached_cte_nodes is None:
+            self._cached_cte_nodes = list(self._ast.find_all(exp.CTE))
+        return self._cached_cte_nodes
+
+    # -------------------------------------------------------------------
+    # Body extraction helpers
+    # -------------------------------------------------------------------
+
+    @staticmethod
+    def _body_sql(node: exp.Expression) -> str:
+        """Render an AST node to SQL, stripping identifier quoting.
+
+        Example SQL::
+
+            WITH cte AS (SELECT "id" FROM "users") ...
+
+        Renders the CTE body as ``SELECT id FROM users`` (quotes stripped).
+        """
+        body = copy.deepcopy(node)
+        for ident in body.find_all(exp.Identifier):
+            ident.set("quoted", False)
+        return _GENERATOR.generate(body)
+
+    @staticmethod
+    def _walk_subqueries(
+        node: exp.Expression,
+        names: list[str],
+        bodies: dict[str, str],
+        counter: int,
+    ) -> int:
+        """Post-order walk collecting subquery names and bodies.
+
+        Returns the updated *counter* so unnamed subqueries are numbered
+        sequentially.
+
+        Example SQL::
+
+            SELECT * FROM (SELECT 1) AS named, (SELECT 2)
+
+        Produces names ``["named", "subquery_1"]`` with corresponding bodies.
+        """
+        for child in node.iter_expressions():
+            counter = NestedResolver._walk_subqueries(
+                child, names, bodies, counter
+            )
+        if isinstance(node, exp.Subquery):
+            if node.alias:
+                # e.g. (SELECT 1) AS named — use the explicit alias
+                name = node.alias
+            else:
+                # e.g. WHERE id IN (SELECT 1) — auto-generate name
+                counter += 1
+                name = f"subquery_{counter}"
+            names.append(name)
+            bodies[name] = NestedResolver._body_sql(node.this)
+        return counter

@@ -713,3 +713,62 @@ def test_with_queries_empty_when_no_cte():
     """A query with no CTEs returns empty with_queries."""
     p = Parser("SELECT * FROM t")
     assert p.with_queries == {}
+
+
+def test_cte_subquery_full_resolution():
+    """Subquery + CTE: CTE-qualified columns fully resolved."""
+    parser = Parser("""
+    WITH c AS (SELECT id, name FROM t1)
+    SELECT s.id, t2.name
+    FROM (SELECT c.id FROM c) AS s
+    JOIN t2 ON s.id = t2.id
+    """)
+    assert parser.tables == ["t1", "t2"]
+    assert "c.id" not in parser.columns
+    assert "id" in parser.columns
+
+
+def test_chained_cte_qualified_columns_resolved():
+    """CTE-qualified columns should resolve through chained CTEs."""
+    # 2-level chain
+    p = Parser("""
+    WITH c1 AS (SELECT a FROM t1),
+         c2 AS (SELECT c1.a FROM c1)
+    SELECT c2.a FROM c2
+    """)
+    assert p.tables == ["t1"]
+    assert p.columns == ["a"]
+
+    # 3-level chain
+    p = Parser("""
+    WITH c1 AS (SELECT a FROM t1),
+         c2 AS (SELECT c1.a FROM c1),
+         c3 AS (SELECT c2.a FROM c2)
+    SELECT c3.a FROM c3
+    """)
+    assert p.tables == ["t1"]
+    assert p.columns == ["a"]
+
+
+def test_chained_cte_with_subquery():
+    """CTE-qualified columns in subqueries wrapping chained CTEs."""
+    p = Parser("""
+    WITH c1 AS (SELECT a FROM t1),
+         c2 AS (SELECT c1.a FROM c1)
+    SELECT s.a FROM (SELECT c2.a FROM c2) AS s
+    """)
+    assert p.tables == ["t1"]
+    assert p.columns == ["a"]
+
+
+def test_chained_cte_cross_reference():
+    """4-level CTE chain where level 3 references both level 2 and level 1."""
+    p = Parser("""
+    WITH c1 AS (SELECT a, b FROM t1),
+         c2 AS (SELECT c1.a FROM c1),
+         c3 AS (SELECT c2.a, c1.b FROM c2 JOIN c1 ON c2.a = c1.a),
+         c4 AS (SELECT c3.a, c3.b FROM c3)
+    SELECT c4.a, c4.b FROM c4
+    """)
+    assert p.tables == ["t1"]
+    assert p.columns == ["a", "b"]

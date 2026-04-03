@@ -12,12 +12,12 @@ and friends.
 """
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Union
+from typing import Any
 
 from sqlglot import exp
 
 from sql_metadata.exceptions import InvalidQueryDefinition
-from sql_metadata.utils import UniqueList, _make_reverse_cte_map, last_segment
+from sql_metadata.utils import UniqueList, last_segment
 
 # ---------------------------------------------------------------------------
 # Result dataclass
@@ -32,13 +32,13 @@ class ExtractionResult:
     """
 
     columns: UniqueList
-    columns_dict: Dict[str, UniqueList]
+    columns_dict: dict[str, UniqueList]
     alias_names: UniqueList
-    alias_dict: Optional[Dict[str, UniqueList]]
-    alias_map: Dict[str, Union[str, list]]
+    alias_dict: dict[str, UniqueList] | None
+    alias_map: dict[str, str | list[str]]
     cte_names: UniqueList
     subquery_names: UniqueList
-    output_columns: list
+    output_columns: list[str]
 
 
 # ---------------------------------------------------------------------------
@@ -47,7 +47,7 @@ class ExtractionResult:
 
 
 #: Simple key → clause-name lookup for most ``arg_types`` keys.
-_CLAUSE_MAP: Dict[str, str] = {
+_CLAUSE_MAP: dict[str, str] = {
     "where": "where",
     "group": "group_by",
     "order": "order_by",
@@ -154,17 +154,17 @@ class _Collector:
         "output_columns",
     )
 
-    def __init__(self, table_aliases: Dict[str, str]):
+    def __init__(self, table_aliases: dict[str, str]):
         self.ta = table_aliases
         self.columns = UniqueList()
-        self.columns_dict: Dict[str, UniqueList] = {}
+        self.columns_dict: dict[str, UniqueList] = {}
         self.alias_names = UniqueList()
-        self.alias_dict: Dict[str, UniqueList] = {}
-        self.alias_map: Dict[str, Union[str, list]] = {}
+        self.alias_dict: dict[str, UniqueList] = {}
+        self.alias_map: dict[str, str | list[str]] = {}
         self.cte_names = UniqueList()
-        self.cte_alias_names: set = set()
-        self.subquery_items: list = []
-        self.output_columns: list = []
+        self.cte_alias_names: set[str] = set()
+        self.subquery_items: list[tuple[int, str]] = []
+        self.output_columns: list[str] = []
 
     def add_column(self, name: str, clause: str) -> None:
         """Record a column name, filing it into the appropriate section."""
@@ -219,14 +219,14 @@ class ColumnExtractor:
     def __init__(
         self,
         ast: exp.Expression,
-        table_aliases: Dict[str, str],
-        cte_name_map: Optional[Dict] = None,
+        table_aliases: dict[str, str],
+        cte_name_map: dict[str, str] | None = None,
     ):
         self._ast = ast
         self._table_aliases = table_aliases
         self._cte_name_map = cte_name_map or {}
         self._collector = _Collector(table_aliases)
-        self._reverse_cte_map = self._build_reverse_cte_map()
+        self._reverse_cte_map = self._cte_name_map
 
     # -------------------------------------------------------------------
     # Public API
@@ -282,19 +282,6 @@ class ColumnExtractor:
     # -------------------------------------------------------------------
     # Setup helpers
     # -------------------------------------------------------------------
-
-    def _build_reverse_cte_map(self) -> Dict[str, str]:
-        """Build a reverse mapping from placeholder CTE names to originals.
-
-        During SQL preprocessing, :class:`SqlCleaner` may rewrite
-        qualified CTE names (e.g. ``schema.cte``) into simple
-        placeholders.  This method inverts that mapping so the final
-        extraction result uses the original qualified names.
-
-        :returns: A dict mapping placeholder names back to their
-            original qualified form.
-        """
-        return _make_reverse_cte_map(self._cte_name_map)
 
     def _seed_cte_names(self) -> None:
         """Pre-populate CTE names in the collector before the main walk.
@@ -493,7 +480,9 @@ class ColumnExtractor:
     # Node handlers
     # -------------------------------------------------------------------
 
-    def _handle_select_exprs(self, exprs: list, clause: str, depth: int) -> None:
+    def _handle_select_exprs(
+        self, exprs: list[exp.Expression], clause: str, depth: int
+    ) -> None:
         """Process the expression list of a SELECT clause.
 
         Iterates each expression in the SELECT list, dispatching to
@@ -920,7 +909,7 @@ class ColumnExtractor:
 
     @staticmethod
     def _is_standalone_star(
-        child: exp.Star, seen_stars: set
+        child: exp.Star, seen_stars: set[int]
     ) -> bool:
         """Check whether a star node is standalone (not consumed by a Column).
 
@@ -993,7 +982,7 @@ class ColumnExtractor:
     # Flat column extraction
     # -------------------------------------------------------------------
 
-    def _flat_columns_select_only(self, select: exp.Select) -> list:
+    def _flat_columns_select_only(self, select: exp.Select) -> list[str]:
         """Extract column/alias names from a SELECT's immediate expressions.
 
         Unlike :meth:`_flat_columns`, this does not recurse into the
@@ -1026,7 +1015,7 @@ class ColumnExtractor:
                     cols.append(col_name)
         return cols
 
-    def _flat_columns(self, node: exp.Expression) -> list:
+    def _flat_columns(self, node: exp.Expression) -> list[str]:
         """Extract all column names from an expression subtree via DFS.
 
         Performs a full depth-first traversal of *node* using
@@ -1052,8 +1041,8 @@ class ColumnExtractor:
         return cols
 
     def _collect_column_from_node(
-        self, child: exp.Expression, seen_stars: set
-    ) -> Union[str, None]:
+        self, child: exp.Expression, seen_stars: set[int]
+    ) -> str | None:
         """Extract a column name from a single DFS-visited node.
 
         Called by :meth:`_flat_columns` for each node in the traversal.
