@@ -232,7 +232,8 @@ class NestedResolver:
         2. Drop unqualified column names that are actually aliases defined
            inside a nested query.
 
-        Also applies the same resolution to *columns_dict*.
+        Also applies the resolution to *columns_dict*,
+        but there instead of dropping we also resolve unqualified aliases.
 
         Example SQL::
 

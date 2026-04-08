@@ -91,19 +91,31 @@ class BracketedTableDialect(TSQL):
 
 
 class DialectParser:
-    """Detect the appropriate sqlglot dialect and parse SQL into an AST."""
+    """Detect the appropriate sqlglot dialect and parse SQL into an AST.
+
+    SQL varies across database engines — back-ticks (MySQL), square
+    brackets (TSQL), ``#temp`` tables (MSSQL), ``LATERAL VIEW`` (Hive),
+    etc.  A single sqlglot dialect cannot handle all of them, so this
+    class first inspects the raw SQL for dialect markers, then tries
+    candidate dialects in order and picks the first result that passes
+    quality checks.
+    """
 
     def parse(self, clean_sql: str) -> tuple[exp.Expression, DialectType]:
-        """Parse *clean_sql*, returning ``(ast, dialect)``.
+        """Parse *clean_sql* into a sqlglot AST, returning ``(ast, dialect)``.
 
-        Detects candidate dialects via heuristics, tries each in order,
-        and returns the first non-degraded result.
+        Entry point for the two-phase process: first
+        :meth:`_detect_dialects` builds a priority-ordered list of
+        candidate dialects from syntactic markers in the SQL, then
+        :meth:`_try_dialects` attempts each one and returns the first
+        non-degraded result.
 
-        :param clean_sql: Preprocessed SQL string (comments stripped, etc.).
-        :type clean_sql: str
-        :returns: 2-tuple of ``(ast_node, winning_dialect)``.
-        :rtype: tuple
-        :raises ValueError: If all dialect attempts fail.
+        :param clean_sql: Preprocessed SQL string produced by
+            :class:`~sql_metadata.sql_cleaner.SqlCleaner` (comments
+            stripped, outer parentheses removed, CTE names normalised).
+        :returns: 2-tuple of ``(ast_root_node, winning_dialect)``.
+        :raises InvalidQueryDefinition: If every candidate dialect
+            fails to produce a usable AST.
         """
         dialects = self._detect_dialects(clean_sql)
         return self._try_dialects(clean_sql, dialects)
@@ -112,20 +124,30 @@ class DialectParser:
 
     @staticmethod
     def _detect_dialects(sql: str) -> list[Any]:
-        """Choose an ordered list of sqlglot dialects to try for *sql*.
+        """Build a priority-ordered list of sqlglot dialects for *sql*.
 
-        Heuristics:
+        Scans the SQL string for syntactic markers that reveal which
+        database engine produced it and returns the most likely dialect
+        first.  Every list includes at least one fallback so that the
+        subsequent :meth:`_try_dialects` loop always has alternatives.
 
-        * ``#WORD`` → :class:`HashVarDialect` (MSSQL temp tables).
-        * Back-ticks → ``"mysql"``.
-        * Square brackets or ``TOP`` → :class:`BracketedTableDialect`.
-        * ``UNIQUE`` → try default, MySQL, Oracle.
-        * ``LATERAL VIEW`` → ``"spark"`` (Hive).
+        Heuristics (checked in order, first match wins):
+
+        * ``#WORD`` patterns → :class:`HashVarDialect` (MSSQL ``#temp``
+          tables or ``#VAR#`` template placeholders).
+        * Back-tick quoting → ``"mysql"`` (MySQL-style identifiers).
+        * ``LATERAL VIEW`` → ``"spark"`` (Hive/Spark explode syntax).
+        * Square brackets or ``TOP`` keyword →
+          :class:`BracketedTableDialect` (TSQL bracket-quoted names).
+        * ``UNIQUE`` keyword → default, ``"mysql"``, ``"oracle"``
+          (ambiguous across engines).
+        * ``APPEND FROM`` → :class:`RedshiftAppendDialect` (Redshift
+          ``ALTER TABLE … APPEND FROM`` not natively supported).
+        * No markers → default dialect with ``"mysql"`` fallback.
 
         :param sql: Cleaned SQL string.
-        :type sql: str
-        :returns: Ordered list of dialects to attempt.
-        :rtype: list
+        :returns: Ordered list of dialect identifiers or classes to
+            attempt.
         """
         upper = sql.upper()
         if _has_hash_variables(sql):
@@ -147,20 +169,25 @@ class DialectParser:
     def _try_dialects(
         self, clean_sql: str, dialects: list[Any]
     ) -> tuple[exp.Expression, DialectType]:
-        """Try parsing *clean_sql* with each dialect, returning the best.
+        """Try each candidate dialect in order and return the first good result.
 
-        :returns: 2-tuple of ``(ast_node, winning_dialect)``.
-        :raises ValueError: If all dialect attempts fail.
+        Iterates over *dialects*, calling :meth:`_parse_with_dialect` for
+        each.  A result is accepted immediately if it is the last dialect
+        in the list (best-effort) or if :meth:`_is_degraded` reports no
+        quality issues.  Degraded results from non-last dialects are
+        skipped so the next candidate gets a chance.
+
+        :param clean_sql: Preprocessed SQL string.
+        :param dialects: Priority-ordered list from :meth:`_detect_dialects`.
+        :returns: 2-tuple of ``(ast_root_node, winning_dialect)``.
+        :raises InvalidQueryDefinition: If the last dialect raises a
+            parse error, or if no dialect produces a usable AST.
         """
-        last_result = None
-        winning_dialect = None
         for dialect in dialects:
             try:
                 result = self._parse_with_dialect(clean_sql, dialect)
                 if result is None:
                     continue
-                last_result = result
-                winning_dialect = dialect
                 is_last = dialect == dialects[-1]
                 if not is_last and self._is_degraded(result, clean_sql):
                     continue
@@ -172,16 +199,32 @@ class DialectParser:
                     )
                 continue
 
-        # TODO: revisit if sqlglot starts returning None from parse for last dialect
-        if last_result is not None:  # pragma: no cover
-            return last_result, winning_dialect
         raise InvalidQueryDefinition(
             "Query could not be parsed — no dialect could handle this SQL"
         )
 
     @staticmethod
     def _parse_with_dialect(clean_sql: str, dialect: Any) -> exp.Expression | None:
-        """Parse *clean_sql* with a single dialect, suppressing warnings."""
+        """Parse *clean_sql* with a single sqlglot dialect.
+
+        Uses ``ErrorLevel.WARN`` so that sqlglot returns a best-effort
+        AST instead of raising on the first syntax problem — the caller
+        decides whether the result is good enough via
+        :meth:`_is_degraded`.
+
+        The sqlglot logger is temporarily raised to ``CRITICAL`` during
+        the parse call because ``WARN`` mode emits noisy warnings for
+        every token it cannot handle.  Since :meth:`_try_dialects`
+        intentionally tries multiple dialects expecting some to produce
+        degraded results, those warnings are expected and would mislead
+        end-users if left visible.
+
+        :param clean_sql: Preprocessed SQL string.
+        :param dialect: A sqlglot dialect identifier, class, or ``None``
+            for the default dialect.
+        :returns: The root AST node, or ``None`` if sqlglot could not
+            produce any result.
+        """
         logger = logging.getLogger("sqlglot")
         old_level = logger.level
         logger.setLevel(logging.CRITICAL)
@@ -196,35 +239,58 @@ class DialectParser:
 
         if not results or results[0] is None:
             return None
-        result = results[0]
-        assert result is not None  # guaranteed by check above
-        # TODO: revisit if sqlglot returns top-level Subquery
-        if isinstance(result, exp.Subquery) and not result.alias:  # pragma: no cover
-            inner = result.this
-            if isinstance(inner, exp.Expression):
-                return inner
-        return result  # type: ignore[return-value]
+        return results[0]  # type: ignore[return-value]
 
     # -- quality checks -----------------------------------------------------
 
     def _is_degraded(self, result: exp.Expression, clean_sql: str) -> bool:
-        """Return ``True`` when a better dialect should be tried."""
+        """Return ``True`` when the parse result is low quality.
+
+        A degraded result means the dialect parsed the SQL without
+        raising, but the AST is suspicious — either the whole statement
+        collapsed into an opaque ``exp.Command`` (when it should not
+        have) or :meth:`_has_parse_issues` found placeholder-like table
+        or column names.  When ``True``, :meth:`_try_dialects` skips
+        this dialect and moves on to the next candidate.
+
+        :param result: Root AST node from :meth:`_parse_with_dialect`.
+        :param clean_sql: Original cleaned SQL (needed to check whether
+            ``exp.Command`` is expected).
+        :returns: ``True`` if the result should be discarded in favour
+            of the next dialect.
+        """
         if isinstance(result, exp.Command) and not self._is_expected_command(clean_sql):
             return True
         return self._has_parse_issues(result)
 
     @staticmethod
     def _is_expected_command(sql: str) -> bool:
-        """Check whether *sql* legitimately parses as ``exp.Command``."""
+        """Return ``True`` when *sql* legitimately parses as ``exp.Command``.
+
+        Some dialect-specific DDL (e.g. Hive ``CREATE FUNCTION … USING
+        JAR … WITH SERDEPROPERTIES``) is not supported by any sqlglot
+        dialect and always degrades to ``exp.Command``.  This method
+        whitelists those known cases so :meth:`_is_degraded` does not
+        reject them.
+
+        :param sql: Cleaned SQL string.
+        :returns: ``True`` if ``exp.Command`` is the expected result.
+        """
         upper = sql.strip().upper()
         return upper.startswith("CREATE FUNCTION")
 
     @staticmethod
     def _has_parse_issues(ast: exp.Expression) -> bool:
-        """Detect signs of a degraded or incorrect parse.
+        """Walk the AST looking for signs of a degraded or incorrect parse.
 
-        Checks for table nodes with empty/keyword-like names and column
-        nodes whose name is a SQL keyword without a table qualifier.
+        When sqlglot misinterprets a query it often places SQL keywords
+        (``UNIQUE``, ``DISTINCT``, etc.) into column or table name
+        positions, or produces table nodes with empty names.  This
+        method scans all :class:`~sqlglot.exp.Table` and
+        :class:`~sqlglot.exp.Column` nodes for those telltale patterns.
+
+        :param ast: Root AST node to inspect.
+        :returns: ``True`` if suspicious nodes were found.
         """
         for table in ast.find_all(exp.Table):
             if table.name in _BAD_TABLE_NAMES:

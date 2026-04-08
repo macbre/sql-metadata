@@ -1,8 +1,9 @@
 """Extract the query type from a sqlglot AST root node.
 
 The :class:`QueryTypeExtractor` class maps the top-level AST node to a
-:class:`QueryType` enum value, handling parenthesised wrappers, set
-operations, and opaque ``Command`` nodes.
+:class:`QueryType` enum value, handling set operations (``UNION``,
+``INTERSECT``, ``EXCEPT``) and opaque ``Command`` nodes that sqlglot
+cannot fully parse (e.g. Hive DDL).
 """
 
 import logging
@@ -10,6 +11,7 @@ from typing import NoReturn
 
 from sqlglot import exp
 
+from sql_metadata.comments import strip_comments
 from sql_metadata.exceptions import InvalidQueryDefinition
 from sql_metadata.keywords_lists import QueryType
 
@@ -36,8 +38,15 @@ _SIMPLE_TYPE_MAP = {
 class QueryTypeExtractor:
     """Determine the query type from a sqlglot AST root node.
 
-    :param ast: Root AST node (may be ``None``).
-    :param raw_query: Original SQL string (for error messages).
+    Maps the root AST node type to a :class:`QueryType` enum value
+    using :data:`_SIMPLE_TYPE_MAP` for common statement types.  Falls
+    back to command-text inspection for opaque ``exp.Command`` nodes
+    that sqlglot could not fully parse.
+
+    :param ast: Root AST node produced by :class:`DialectParser`, or
+        ``None`` when the input was empty or comment-only.
+    :param raw_query: Original SQL string, kept for error messages
+        when the AST is ``None``.
     """
 
     def __init__(
@@ -51,14 +60,20 @@ class QueryTypeExtractor:
     def extract(self) -> QueryType:
         """Determine the :class:`QueryType` for the parsed SQL.
 
+        Checks the root node type against :data:`_SIMPLE_TYPE_MAP` first.
+        A bare ``exp.With`` node (CTE without a main statement) is rejected
+        as invalid SQL.  ``exp.Command`` nodes are forwarded to
+        :meth:`_resolve_command_type` for command-text inspection.
+
         :returns: The detected query type.
-        :raises ValueError: If the query is empty, malformed, or
-            unsupported.
+        :raises InvalidQueryDefinition: If the AST is ``None`` (empty or
+            comment-only input), the query is a bare ``WITH`` clause, or
+            the root node type is not recognised.
         """
         if self._ast is None:
             self._raise_for_none_ast()
 
-        root = self._unwrap_parens(self._ast)
+        root = self._ast
         node_type = type(root)
 
         if node_type is exp.With:
@@ -80,22 +95,20 @@ class QueryTypeExtractor:
         raise InvalidQueryDefinition("Not supported query type!")
 
     @staticmethod
-    def _unwrap_parens(ast: exp.Expression) -> exp.Expression:
-        """Remove Paren and Subquery wrappers to reach the real statement."""
-        # TODO: revisit if sqlglot stops stripping outer parens before this is called
-        if isinstance(ast, (exp.Paren, exp.Subquery)):  # pragma: no cover
-            return QueryTypeExtractor._unwrap_parens(ast.this)
-        return ast
-
-    @staticmethod
     def _resolve_command_type(root: exp.Expression) -> QueryType | None:
-        """Determine query type for an opaque ``exp.Command`` node.
+        """Extract query type from the command text of an opaque node.
 
-        Hive ``CREATE FUNCTION ... USING JAR ... WITH SERDEPROPERTIES``
-        is not supported by any sqlglot dialect and degrades to
-        ``exp.Command(this='CREATE', ...)``.  This fallback extracts
-        the query type from the command text so callers still get
-        ``QueryType.CREATE``.
+        Some dialect-specific DDL (e.g. Hive
+        ``CREATE FUNCTION ... USING JAR ... WITH SERDEPROPERTIES``) is
+        not supported by any sqlglot dialect and degrades to
+        ``exp.Command(this='CREATE', ...)``.  This method reads the
+        ``this`` attribute of the command node and maps it back to the
+        corresponding :class:`QueryType`, so callers still get
+        ``QueryType.CREATE`` instead of an unsupported-type error.
+
+        :param root: An ``exp.Command`` AST node.
+        :returns: The resolved :class:`QueryType`, or ``None`` if the
+            command text does not match any known type.
         """
         expression_text = str(root.this).upper() if root.this else ""
         if expression_text == "CREATE":
@@ -103,8 +116,17 @@ class QueryTypeExtractor:
         return None
 
     def _raise_for_none_ast(self) -> "NoReturn":
-        """Raise an appropriate error when the AST is None."""
-        from sql_metadata.comments import strip_comments
+        """Raise a descriptive error when the AST is ``None``.
+
+        Distinguishes between truly empty input (blank or comment-only
+        SQL) and SQL that has content but could not be parsed by
+        sqlglot.  In the first case a "not supported" message is raised;
+        in the second a "could not parse" message points the caller
+        toward a syntax problem.
+
+        :raises InvalidQueryDefinition: Always — this method never
+            returns normally.
+        """
 
         stripped = strip_comments(self._raw_query) if self._raw_query else ""
         if stripped.strip():
