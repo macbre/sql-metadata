@@ -28,13 +28,15 @@ from sql_metadata.utils import UniqueList, last_segment
 class ExtractionResult:
     """Immutable container for column extraction results.
 
-    Replaces the earlier 7-tuple return value with named fields.
+    Returned by :meth:`ColumnExtractor.extract` and consumed by
+    :class:`Parser` to populate its column/alias/CTE properties.
+    Each field corresponds to a public ``Parser`` property.
     """
 
     columns: UniqueList
     columns_dict: dict[str, UniqueList]
     alias_names: UniqueList
-    alias_dict: dict[str, UniqueList] | None
+    alias_dict: dict[str, UniqueList]
     alias_map: dict[str, str | list[str]]
     cte_names: UniqueList
     subquery_names: UniqueList
@@ -119,7 +121,17 @@ _DATE_PART_FUNCTIONS = frozenset(
 
 
 def _is_date_part_unit(node: exp.Column) -> bool:
-    """Return True if *node* is the first arg of a date-part function."""
+    """Return ``True`` if *node* is the date-part unit argument of a function.
+
+    Functions like ``DATEADD``, ``DATEDIFF``, and ``DATE_TRUNC`` accept a
+    date-part keyword (``DAY``, ``MONTH``, …) as their first argument.
+    sqlglot parses these keywords as ``exp.Column`` nodes, but they are not
+    real columns and must be skipped during extraction.
+
+    :param node: A column AST node to inspect.
+    :type node: exp.Column
+    :rtype: bool
+    """
     parent = node.parent
     if (
         isinstance(parent, exp.Anonymous)
@@ -167,13 +179,28 @@ class _Collector:
         self.output_columns: list[str] = []
 
     def add_column(self, name: str, clause: str) -> None:
-        """Record a column name, filing it into the appropriate section."""
+        """Record a column name, filing it into the appropriate clause section.
+
+        :param name: The column name to record.
+        :type name: str
+        :param clause: The SQL clause section (e.g. ``"select"``, ``"where"``).
+        :type clause: str
+        """
         self.columns.append(name)
         if clause:
             self.columns_dict.setdefault(clause, UniqueList()).append(name)
 
     def add_alias(self, name: str, target: Any, clause: str) -> None:
-        """Record a column alias and its target expression."""
+        """Record a column alias and its target expression.
+
+        :param name: The alias name.
+        :type name: str
+        :param target: The source column name or expression the alias refers
+            to, or ``None`` if not determinable.
+        :type target: Any
+        :param clause: The SQL clause section where the alias was defined.
+        :type clause: str
+        """
         self.alias_names.append(name)
         if clause:
             self.alias_dict.setdefault(clause, UniqueList()).append(name)
@@ -267,7 +294,7 @@ class ColumnExtractor:
         for name in c.cte_names:
             final_cte.append(self._reverse_cte_map.get(name, name))
 
-        alias_dict = c.alias_dict if c.alias_dict else None
+        alias_dict = c.alias_dict
         return ExtractionResult(
             columns=c.columns,
             columns_dict=c.columns_dict,

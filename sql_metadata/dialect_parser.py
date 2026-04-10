@@ -43,7 +43,12 @@ class HashVarDialect(Dialect):
     """
 
     class Tokenizer(BaseTokenizer):
-        """Tokenizer subclass that includes ``#`` in variable tokens."""
+        """Tokenizer subclass that includes ``#`` in variable tokens.
+
+        Removes ``#`` from ``SINGLE_TOKENS`` and adds it to
+        ``VAR_SINGLE_TOKENS`` so that ``#temp`` is lexed as a single
+        ``VAR`` token instead of ``#`` + ``temp``.
+        """
 
         SINGLE_TOKENS = {**BaseTokenizer.SINGLE_TOKENS}
         SINGLE_TOKENS.pop("#", None)
@@ -51,9 +56,19 @@ class HashVarDialect(Dialect):
 
 
 class _RedshiftAppendParser(RedshiftParser):
-    """Redshift parser extended with ``ALTER TABLE ... APPEND FROM``."""
+    """Redshift parser extended with ``ALTER TABLE … APPEND FROM``.
+
+    Adds an ``APPEND`` entry to ``ALTER_PARSERS`` so that the Redshift-
+    specific ``ALTER TABLE t APPEND FROM src`` syntax produces a proper
+    ``exp.Alter`` node instead of degrading to ``exp.Command``.
+    """
 
     def _parse_alter_table_append(self) -> "exp.Expr | None":
+        """Parse the ``FROM <table>`` portion of an ``APPEND FROM`` clause.
+
+        :returns: The parsed table expression, or ``None``.
+        :rtype: exp.Expr | None
+        """
         self._match_text_seq("FROM")
         return self._parse_table()
 

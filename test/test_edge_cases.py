@@ -1,5 +1,6 @@
 """Edge-case tests for internals not covered by feature-specific test files."""
 
+from sql_metadata import Parser
 from sql_metadata.sql_cleaner import SqlCleaner
 from sql_metadata.utils import UniqueList
 
@@ -15,6 +16,18 @@ def test_unique_list_deduplicates_on_init():
     """UniqueList removes duplicates when constructed from an iterable."""
     ul = UniqueList(["x", "y", "x", "z", "y"])
     assert list(ul) == ["x", "y", "z"]
+
+
+def test_extract_comments_unterminated_block_comment():
+    """Unterminated block comment causes tokenizer failure — returns []."""
+    parser = Parser("/*")
+    assert parser.comments == []
+
+
+def test_strip_comments_unterminated_block_comment():
+    """Unterminated block comment in strip_comments returns input stripped."""
+    parser = Parser("/*")
+    assert parser.without_comments == "/*"
 
 
 def test_clean_empty_after_paren_strip():

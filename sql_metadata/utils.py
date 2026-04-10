@@ -31,29 +31,56 @@ class UniqueList(list[str]):
             self._seen = set(self)
 
     def append(self, item: Any) -> None:
-        """Append *item* only if it is not already present (O(1) check)."""
+        """Append *item* only if it is not already present.
+
+        Uses the internal ``set`` for an O(1) duplicate check.
+
+        :param item: The string to append.
+        :type item: Any
+        """
         if item not in self._seen:
             self._seen.add(item)
             super().append(item)
 
     def extend(self, items: Iterable[Any]) -> None:  # type: ignore[override]
-        """Extend the list with *items*, skipping duplicates."""
+        """Extend the list with *items*, skipping duplicates.
+
+        :param items: Iterable of strings to add.
+        :type items: Iterable[Any]
+        """
         for item in items:
             self.append(item)
 
     def __contains__(self, item: Any) -> bool:
-        """O(1) membership check using the internal set."""
+        """O(1) membership check using the internal set.
+
+        :param item: The value to look up.
+        :type item: Any
+        :rtype: bool
+        """
         return item in self._seen
 
     def __sub__(self, other: Any) -> list[str]:
-        """Return a plain list of elements in *self* that are not in *other*."""
+        """Return a plain list of elements in *self* that are not in *other*.
+
+        :param other: Collection of items to exclude.
+        :type other: Any
+        :rtype: list[str]
+        """
         other_set = set(other)
         return [x for x in self if x not in other_set]
 
 
 
 def last_segment(name: str) -> str:
-    """Return the last dot-separated segment of a qualified name."""
+    """Return the last dot-separated segment of a qualified name.
+
+    For example, ``"schema.table.column"`` → ``"column"``.
+
+    :param name: A possibly dot-qualified name.
+    :type name: str
+    :rtype: str
+    """
     return name.rsplit(".", 1)[-1]
 
 

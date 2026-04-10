@@ -21,6 +21,7 @@ the MySQL tokenizer so that ``#``-style comments are reliably stripped.
 import re
 from typing import Any
 
+from sqlglot.errors import TokenError
 from sqlglot.tokens import Tokenizer
 
 
@@ -90,8 +91,7 @@ def extract_comments(sql: str) -> list[str]:
         return []
     try:
         tokens = list(_choose_tokenizer(sql).tokenize(sql))
-    # TODO: revisit if sqlglot tokenizer starts raising on specific inputs
-    except Exception:  # pragma: no cover
+    except TokenError:
         return []
     comments: list[str] = []
     prev_end = -1
@@ -119,7 +119,19 @@ def _scan_gap(sql: str, start: int, end: int, out: list[str]) -> None:
 
 
 def _reconstruct_from_tokens(sql: str, tokens: list[Any]) -> str:
-    """Rebuild SQL from token spans, collapsing gaps to single spaces."""
+    """Rebuild SQL from token spans, collapsing gaps to single spaces.
+
+    Concatenates the text of each token using its ``start`` / ``end``
+    positions.  Any gap between consecutive tokens (where comments or
+    extra whitespace lived) is replaced by a single space.
+
+    :param sql: The original SQL string.
+    :type sql: str
+    :param tokens: Sqlglot token objects with ``start`` and ``end`` attrs.
+    :type tokens: list[Any]
+    :returns: Reconstructed SQL with comments removed.
+    :rtype: str
+    """
     if not tokens:
         return ""
     parts = [sql[tokens[0].start : tokens[0].end + 1]]
@@ -158,7 +170,7 @@ def strip_comments_for_parsing(sql: str) -> str:
         tokenizer = MySQL.Tokenizer()
     try:
         tokens = list(tokenizer.tokenize(sql))
-    except Exception:
+    except TokenError:
         return sql.strip()
     return _reconstruct_from_tokens(sql, tokens)
 
@@ -183,6 +195,6 @@ def strip_comments(sql: str) -> str:
         return sql or ""
     try:
         tokens = list(_choose_tokenizer(sql).tokenize(sql))
-    except Exception:
+    except TokenError:
         return sql.strip()
     return _reconstruct_from_tokens(sql, tokens)

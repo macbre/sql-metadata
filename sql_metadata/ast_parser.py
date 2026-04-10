@@ -55,6 +55,8 @@ class ASTParser:
         Set as a side-effect of :attr:`ast` access.  May be ``None``
         (default dialect), a string like ``"mysql"``, or a custom
         :class:`Dialect` subclass such as :class:`HashVarDialect`.
+
+        :rtype: DialectType
         """
         _ = self.ast
         return self._dialect
@@ -67,6 +69,8 @@ class ASTParser:
         (sqlglot otherwise produces an opaque ``Command`` node).  This
         flag allows :attr:`Parser.query_type` to restore the correct
         :class:`QueryType.REPLACE` value.
+
+        :rtype: bool
         """
         _ = self.ast
         return self._is_replace
@@ -77,6 +81,8 @@ class ASTParser:
 
         Keys are underscore-separated placeholders (``db__DOT__name``),
         values are the original dotted names (``db.name``).
+
+        :rtype: dict[str, str]
         """
         _ = self.ast
         return self._cte_name_map

@@ -218,7 +218,7 @@ def test_resolving_with_columns():
     assert parser.tables == ["t5", "t6"]
     assert parser.columns_aliases == {}
     assert parser.columns_aliases_names == []
-    assert parser.columns_aliases_dict is None
+    assert parser.columns_aliases_dict == {}
     assert parser.columns == ["c1", "c2", "c3", "c4"]
     assert parser.columns_dict == {
         "join": ["c1", "c3"],

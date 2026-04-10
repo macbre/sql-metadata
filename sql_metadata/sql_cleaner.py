@@ -29,6 +29,11 @@ def _strip_outer_parens(sql: str) -> str:
     Needed because sqlglot cannot parse double-wrapped non-SELECT
     statements like ``((UPDATE ...))``.  Uses ``itertools.accumulate``
     to verify balanced parens in one pass, with recursion for nesting.
+
+    :param sql: SQL string that may be wrapped in outer parentheses.
+    :type sql: str
+    :returns: The unwrapped SQL string.
+    :rtype: str
     """
     s = sql.strip()
 
@@ -92,7 +97,40 @@ def _normalize_cte_names(sql: str) -> tuple[str, dict[str, str]]:
 
 
 class SqlCleaner:
-    """Preprocess raw SQL strings before dialect parsing."""
+    """Preprocess raw SQL strings before dialect parsing.
+
+    All methods are ``@staticmethod`` — the class serves as a namespace
+    grouping :meth:`clean` (full preprocessing pipeline consumed by
+    :class:`ASTParser`) and :meth:`preprocess_query` (quoting/whitespace
+    normalisation consumed by :attr:`Parser.query`).
+    """
+
+    @staticmethod
+    def preprocess_query(sql: str) -> str:
+        """Normalise quoting and whitespace in raw SQL.
+
+        Replaces double-quoted identifiers with backtick-quoted ones while
+        preserving double quotes that appear inside single-quoted string
+        literals.  Also collapses newlines and redundant spaces.
+
+        :param sql: Raw SQL string.
+        :type sql: str
+        :returns: The normalised SQL string, or ``""`` for empty input.
+        :rtype: str
+        """
+        if sql == "":
+            return ""
+
+        def replace_quotes_in_string(match: re.Match[str]) -> str:
+            return re.sub('"', "<!!__QUOTE__!!>", match.group())
+
+        def replace_back_quotes_in_string(match: re.Match[str]) -> str:
+            return re.sub("<!!__QUOTE__!!>", '"', match.group())
+
+        query = re.sub(r"'.*?'", replace_quotes_in_string, sql)
+        query = re.sub(r'"([^`]+?)"', r"`\1`", query)
+        query = re.sub(r"'.*?'", replace_back_quotes_in_string, query)
+        return query.replace("\n", " ").replace("  ", " ")
 
     @staticmethod
     def clean(sql: str) -> CleanResult:

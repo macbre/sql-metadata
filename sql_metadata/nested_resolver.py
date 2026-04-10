@@ -46,6 +46,13 @@ class _PreservingGenerator(Generator):
     }
 
     def coalesce_sql(self, expression: exp.Expression) -> str:
+        """Render ``COALESCE`` back to ``IFNULL`` for two-argument calls.
+
+        :param expression: The ``exp.Coalesce`` AST node.
+        :type expression: exp.Expression
+        :returns: SQL string using ``IFNULL`` (2 args) or ``COALESCE``.
+        :rtype: str
+        """
         args = [expression.this] + expression.expressions
         if len(args) == 2:
             return f"IFNULL({self.sql(args[0])}, {self.sql(args[1])})"
@@ -53,18 +60,39 @@ class _PreservingGenerator(Generator):
         return f"COALESCE({args_sql})"
 
     def dateadd_sql(self, expression: exp.Expression) -> str:
+        """Render ``exp.DateAdd`` back to ``DATE_ADD(…)`` syntax.
+
+        :param expression: The ``exp.DateAdd`` AST node.
+        :type expression: exp.Expression
+        :rtype: str
+        """
         return (
             f"DATE_ADD({self.sql(expression, 'this')}, "
             f"{self.sql(expression, 'expression')})"
         )
 
     def datesub_sql(self, expression: exp.Expression) -> str:
+        """Render ``exp.DateSub`` back to ``DATE_SUB(…)`` syntax.
+
+        :param expression: The ``exp.DateSub`` AST node.
+        :type expression: exp.Expression
+        :rtype: str
+        """
         return (
             f"DATE_SUB({self.sql(expression, 'this')}, "
             f"{self.sql(expression, 'expression')})"
         )
 
     def tsordsadd_sql(self, expression: exp.Expression) -> str:
+        """Render ``exp.TsOrDsAdd`` as ``DATE_ADD`` or ``DATE_SUB``.
+
+        When the interval multiplier is ``-1`` the expression is rendered
+        as ``DATE_SUB`` instead, preserving the original SQL intent.
+
+        :param expression: The ``exp.TsOrDsAdd`` AST node.
+        :type expression: exp.Expression
+        :rtype: str
+        """
         this = self.sql(expression, "this")
         expr_node = expression.expression
         if isinstance(expr_node, exp.Mul):
@@ -79,6 +107,16 @@ class _PreservingGenerator(Generator):
         return f"DATE_ADD({this}, {self.sql(expression, 'expression')})"
 
     def not_sql(self, expression: exp.Expression) -> str:
+        """Render ``NOT`` expressions preserving ``IS NOT NULL`` and ``NOT IN``.
+
+        sqlglot normalises ``IS NOT NULL`` to ``NOT (x IS NULL)`` and
+        ``NOT IN`` to ``NOT (x IN (...))``; this override renders them
+        back to their original idiomatic forms.
+
+        :param expression: The ``exp.Not`` AST node.
+        :type expression: exp.Expression
+        :rtype: str
+        """
         child = expression.this
         if isinstance(child, exp.Is) and isinstance(child.expression, exp.Null):
             return f"{self.sql(child, 'this')} IS NOT NULL"
@@ -96,14 +134,26 @@ _GENERATOR = _PreservingGenerator()
 
 
 def _is_qualified_reference(result: list[str]) -> bool:
-    """Check if result is a single dotted reference like ``['cte.col']``."""
+    """Check if *result* is a single dotted reference like ``['cte.col']``.
+
+    :param result: Resolved column list to inspect.
+    :type result: list[str]
+    :rtype: bool
+    """
     return len(result) == 1 and "." in result[0]
 
 
 def _is_not_already_resolved_qualified_reference(
     result: list[str], column: str
 ) -> bool:
-    """Check if result is a qualified reference that changed from the input."""
+    """Check if *result* is a qualified reference that differs from *column*.
+
+    :param result: Resolved column list to inspect.
+    :type result: list[str]
+    :param column: The original column name before resolution.
+    :type column: str
+    :rtype: bool
+    """
     return _is_qualified_reference(result) and result != [column]
 
 

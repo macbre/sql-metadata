@@ -130,6 +130,13 @@ def test_convert_in_select():
     assert parser.columns_aliases_dict == {"select": ["alias"]}
 
 
+def test_columns_aliases_dict_triggers_extraction():
+    """Accessing columns_aliases_dict first triggers column extraction."""
+    parser = Parser("SELECT a AS b FROM t")
+    assert parser.columns_aliases_dict == {"select": ["b"]}
+    assert parser.columns == ["a"]
+
+
 def test_convert_in_join():
     parser = Parser(
         "SELECT la1.col1, la2.col2, CONVERT(la1.col2 USING utf8) FROM latin1_table la1 "

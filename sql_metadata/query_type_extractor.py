@@ -53,9 +53,11 @@ class QueryTypeExtractor:
         self,
         ast: exp.Expression | None,
         raw_query: str,
+        is_replace: bool = False,
     ):
         self._ast = ast
         self._raw_query = raw_query
+        self._is_replace = is_replace
 
     def extract(self) -> QueryType:
         """Determine the :class:`QueryType` for the parsed SQL.
@@ -83,6 +85,8 @@ class QueryTypeExtractor:
 
         simple = _SIMPLE_TYPE_MAP.get(node_type)
         if simple is not None:
+            if simple == QueryType.INSERT and self._is_replace:
+                return QueryType.REPLACE
             return simple
 
         if node_type is exp.Command:
