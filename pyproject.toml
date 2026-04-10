@@ -19,7 +19,7 @@ sqlglot = "^30.0.3"
 
 [tool.poetry.group.dev.dependencies]
 coverage = {extras = ["toml"], version = "^7.13"}
-pytest = "^9.0.2"
+pytest = "^9.0.3"
 pytest-cov = "^7.1.0"
 ruff = "^0.11"
 mypy = "^1.19"
