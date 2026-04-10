@@ -14,7 +14,6 @@ This file contains important information about the sql-metadata repository for A
 **Technology Stack:**
 - Python 3.10+
 - sqlglot library for SQL parsing and AST construction
-- sqlparse used only for legacy tokenization fallback
 - Poetry for dependency management
 - pytest for testing
 - ruff for linting and formatting
@@ -33,8 +32,8 @@ sql-metadata/
 │   ├── nested_resolver.py        # NestedResolver — CTE/subquery names, bodies, resolution
 │   ├── query_type_extractor.py   # QueryTypeExtractor — query type detection
 │   ├── comments.py               # Comment extraction/stripping (pure functions)
-│   ├── keywords_lists.py         # QueryType/TokenType enums, keyword sets
-│   ├── utils.py                  # UniqueList, flatten_list, shared helpers
+│   ├── keywords_lists.py         # QueryType enum
+│   ├── utils.py                  # UniqueList, last_segment, shared helpers
 │   ├── generalizator.py          # Query anonymisation
 │   └── __init__.py               # Exports: Parser, QueryType
 ├── test/                          # Test suite (25 test files)
@@ -220,7 +219,6 @@ Co-Authored-By: Claude <noreply@anthropic.com>
 
 ### Production
 - **sqlglot** (^30.0.3): SQL parsing and AST construction
-- **sqlparse** (>=0.4.1, <0.6.0): Legacy tokenization
 
 ### Development
 - **pytest** (^9.0.2): Testing framework

@@ -23,33 +23,43 @@ class CleanResult(NamedTuple):
     cte_name_map: dict[str, str]
 
 
-def _strip_outer_parens(sql: str) -> str:
+def _is_wrapped(text: str) -> bool:
+    """Check whether *text* is wrapped in balanced outer parentheses.
+
+    :param text: SQL string to check.
+    :type text: str
+    :returns: ``True`` if *text* has balanced outer parentheses.
+    :rtype: bool
+    """
+    if len(text) < 2 or text[0] != "(" or text[-1] != ")":
+        return False
+    inner = text[1:-1]
+    depths = list(
+        itertools.accumulate(
+            (1 if c == "(" else -1 if c == ")" else 0) for c in inner
+        )
+    )
+    return not depths or min(depths) >= 0
+
+
+def _strip_outer_parens(sql: str, _depth: int = 0) -> str:
     """Strip redundant outer parentheses from *sql*.
 
     Needed because sqlglot cannot parse double-wrapped non-SELECT
     statements like ``((UPDATE ...))``.  Uses ``itertools.accumulate``
     to verify balanced parens in one pass, with recursion for nesting.
+    A depth guard prevents stack overflow on pathological input.
 
     :param sql: SQL string that may be wrapped in outer parentheses.
     :type sql: str
     :returns: The unwrapped SQL string.
     :rtype: str
     """
+    if _depth > 100:
+        return sql
     s = sql.strip()
-
-    def _is_wrapped(text: str) -> bool:
-        if len(text) < 2 or text[0] != "(" or text[-1] != ")":
-            return False
-        inner = text[1:-1]
-        depths = list(
-            itertools.accumulate(
-                (1 if c == "(" else -1 if c == ")" else 0) for c in inner
-            )
-        )
-        return not depths or min(depths) >= 0
-
     if _is_wrapped(s):
-        return _strip_outer_parens(s[1:-1].strip())
+        return _strip_outer_parens(s[1:-1].strip(), _depth + 1)
     return s
 
 
@@ -130,7 +140,7 @@ class SqlCleaner:
         query = re.sub(r"'.*?'", replace_quotes_in_string, sql)
         query = re.sub(r'"([^`]+?)"', r"`\1`", query)
         query = re.sub(r"'.*?'", replace_back_quotes_in_string, query)
-        return query.replace("\n", " ").replace("  ", " ")
+        return re.sub(r" {2,}", " ", query.replace("\n", " "))
 
     @staticmethod
     def clean(sql: str) -> CleanResult:
@@ -166,8 +176,10 @@ class SqlCleaner:
 
         # Rewrite SELECT...INTO var1,var2 FROM → SELECT...FROM
         # so sqlglot doesn't treat variables as tables.
+        # Only match when INTO target has a comma (variable assignment),
+        # not MSSQL's SELECT...INTO new_table FROM (table creation).
         sql = re.sub(
-            r"(?i)(\bSELECT\b.+?)\bINTO\b.+?\bFROM\b",
+            r"(?i)(\bSELECT\b.+?)\bINTO\b\s+\w+\s*,.*?\bFROM\b",
             r"\1FROM",
             sql,
             count=1,

@@ -1,7 +1,7 @@
 """Edge-case tests for internals not covered by feature-specific test files."""
 
 from sql_metadata import Parser
-from sql_metadata.sql_cleaner import SqlCleaner
+from sql_metadata.sql_cleaner import SqlCleaner, _strip_outer_parens
 from sql_metadata.utils import UniqueList
 
 
@@ -34,3 +34,12 @@ def test_clean_empty_after_paren_strip():
     """SQL that becomes empty after outer-paren stripping."""
     result = SqlCleaner.clean("(())")
     assert result.sql is None
+
+
+def test_strip_outer_parens_depth_guard():
+    """Deeply nested parentheses hit the depth guard instead of stack overflow."""
+    deep = "(" * 150 + "SELECT 1" + ")" * 150
+    result = _strip_outer_parens(deep)
+    # Depth guard stops at 100 — some parens remain
+    assert "SELECT 1" in result
+    assert result.startswith("(")

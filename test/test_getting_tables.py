@@ -865,6 +865,14 @@ def test_select_into_vars_not_tables():
     assert parser.columns_dict == {"select": ["C1", "C2"]}
 
 
+def test_select_into_creates_table():
+    # MSSQL SELECT...INTO creates a new table — INTO target should appear in tables
+    query = "SELECT a, b INTO new_table FROM source_table"
+    parser = Parser(query)
+    assert parser.tables == ["new_table", "source_table"]
+    assert parser.columns == ["a", "b"]
+
+
 def test_presto_unnest_not_table():
     # solved: https://github.com/macbre/sql-metadata/issues/284
     query = """

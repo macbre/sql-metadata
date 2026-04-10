@@ -7,7 +7,7 @@
 [![Maintenance](https://img.shields.io/badge/maintained%3F-yes-green.svg)](https://github.com/macbre/sql-metadata/graphs/commit-activity)
 [![Downloads](https://pepy.tech/badge/sql-metadata/month)](https://pepy.tech/project/sql-metadata)
 
-Uses tokenized query returned by [`python-sqlparse`](https://github.com/andialbrecht/sqlparse) and generates query metadata.
+Uses [`sqlglot`](https://github.com/tobymao/sqlglot) to parse SQL queries and extract metadata.
 
 **Extracts column names and tables** used by the query. 
 Automatically conduct **column alias resolution**, **sub queries aliases resolution** as well as **tables aliases resolving**.

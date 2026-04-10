@@ -15,8 +15,8 @@ sql-metadata v3 is a Python library that parses SQL queries and extracts metadat
 | [`nested_resolver.py`](sql_metadata/nested_resolver.py) | CTE/subquery name and body extraction, nested column resolution | `NestedResolver` |
 | [`query_type_extractor.py`](sql_metadata/query_type_extractor.py) | Query type detection from AST root node | `QueryTypeExtractor` |
 | [`comments.py`](sql_metadata/comments.py) | Comment extraction/stripping via tokenizer gaps | `extract_comments`, `strip_comments` |
-| [`keywords_lists.py`](sql_metadata/keywords_lists.py) | Keyword sets, `QueryType` and `TokenType` enums | — |
-| [`utils.py`](sql_metadata/utils.py) | `UniqueList` (deduplicating list), `flatten_list`, `_make_reverse_cte_map` | — |
+| [`keywords_lists.py`](sql_metadata/keywords_lists.py) | `QueryType` enum | — |
+| [`utils.py`](sql_metadata/utils.py) | `UniqueList` (deduplicating list), `last_segment`, `DOT_PLACEHOLDER` | — |
 | [`generalizator.py`](sql_metadata/generalizator.py) | Query anonymisation for log aggregation | `Generalizator` |
 
 ---
@@ -427,16 +427,13 @@ A collection of pure stateless functions (no class). Exploits the fact that sqlg
 
 ### Supporting Modules
 
-**[`keywords_lists.py`](sql_metadata/keywords_lists.py)** — keyword sets used for token classification and query type mapping:
-- `KEYWORDS_BEFORE_COLUMNS` — keywords after which columns appear (`SELECT`, `WHERE`, `ON`, etc.)
-- `TABLE_ADJUSTMENT_KEYWORDS` — keywords after which tables appear (`FROM`, `JOIN`, `INTO`, etc.)
-- `COLUMNS_SECTIONS` — maps keywords to `columns_dict` section names
+**[`keywords_lists.py`](sql_metadata/keywords_lists.py):**
 - `QueryType` — string enum (`str, Enum`) for direct comparison (`parser.query_type == "SELECT"`)
 
 **[`utils.py`](sql_metadata/utils.py):**
 - `UniqueList` — deduplicating list with O(1) membership checks via internal `set`. Used everywhere to collect columns, tables, aliases.
-- `flatten_list` — recursively flattens nested lists from multi-column alias resolution.
-- `_make_reverse_cte_map` — builds reverse mapping from placeholder CTE names to originals, shared by `ColumnExtractor` and `NestedResolver`.
+- `last_segment` — returns the last dot-separated segment of a qualified name (e.g. ``"schema.table.column"`` → ``"column"``).
+- `DOT_PLACEHOLDER` — encoding constant for qualified CTE names (``__DOT__``).
 
 **[`generalizator.py`](sql_metadata/generalizator.py)** — anonymises SQL for log aggregation: strips comments, replaces literals with `X`, numbers with `N`, collapses `IN(...)` lists to `(XYZ)`.
 

@@ -8,6 +8,7 @@ reading order.  CTE names are excluded from the result so that only *real*
 tables are reported.
 """
 
+import functools
 import re
 
 from sqlglot import exp
@@ -421,13 +422,12 @@ class TableExtractor:
         match = self._word_pattern(name_upper).search(self._upper_sql, start)
         return int(match.start()) if match else -1
 
-    _pattern_cache: dict[str, re.Pattern[str]] = {}
-
     # Optional quote wrappers — cover backticks, single/double quotes, and brackets
     _OPT_OPEN_QUOTE = r"""[`"'\[]?"""
     _OPT_CLOSE_QUOTE = r"""[`"'\]]?"""
 
     @staticmethod
+    @functools.lru_cache(maxsize=512)
     def _word_pattern(name_upper: str) -> re.Pattern[str]:
         """Build a regex matching *name_upper* as a whole word (cached).
 
@@ -436,7 +436,7 @@ class TableExtractor:
         pattern for ``SCHEMA.TABLE`` also matches ``"SCHEMA"."TABLE"``,
         ``[SCHEMA].[TABLE]``, or ```SCHEMA`.`TABLE```.
 
-        The pattern is compiled once and cached in a class-level dict for
+        The pattern is compiled once and cached via ``lru_cache`` for
         reuse across calls and instances.
 
         .. code-block:: sql
@@ -448,14 +448,10 @@ class TableExtractor:
         :param name_upper: Upper-cased table name (may contain dots).
         :returns: Compiled regex pattern with word-boundary assertions.
         """
-        pat = TableExtractor._pattern_cache.get(name_upper)
-        if pat is None:
-            oq = TableExtractor._OPT_OPEN_QUOTE
-            cq = TableExtractor._OPT_CLOSE_QUOTE
-            segments = name_upper.split(".")
-            inner = r"\.".join(
-                oq + re.escape(seg) + cq for seg in segments
-            )
-            pat = re.compile(r"(?<![A-Za-z0-9_])" + inner + r"(?![A-Za-z0-9_])")
-            TableExtractor._pattern_cache[name_upper] = pat
-        return pat
+        oq = TableExtractor._OPT_OPEN_QUOTE
+        cq = TableExtractor._OPT_CLOSE_QUOTE
+        segments = name_upper.split(".")
+        inner = r"\.".join(
+            oq + re.escape(seg) + cq for seg in segments
+        )
+        return re.compile(r"(?<![A-Za-z0-9_])" + inner + r"(?![A-Za-z0-9_])")

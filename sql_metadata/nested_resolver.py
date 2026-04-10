@@ -8,7 +8,6 @@ those bodies with sub-:class:`Parser` instances, and resolving
 
 from __future__ import annotations
 
-import copy
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -124,8 +123,6 @@ class _PreservingGenerator(Generator):
             return f"{self.sql(child, 'this')} NOT IN ({self.expressions(child)})"
         return super().not_sql(expression)  # type: ignore[arg-type, no-any-return]
 
-
-_GENERATOR = _PreservingGenerator()
 
 
 # ---------------------------------------------------------------------------
@@ -669,10 +666,10 @@ class NestedResolver:
 
         Renders the CTE body as ``SELECT id FROM users`` (quotes stripped).
         """
-        body = copy.deepcopy(node)
+        body = node.copy()
         for ident in body.find_all(exp.Identifier):
             ident.set("quoted", False)
-        return _GENERATOR.generate(body)
+        return _PreservingGenerator().generate(body, copy=False)
 
     @staticmethod
     def _walk_subqueries(

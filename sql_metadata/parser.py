@@ -424,8 +424,6 @@ class Parser:
         if self._limit_and_offset is not None:
             return self._limit_and_offset
 
-        from sqlglot import exp
-
         ast = self._ast_parser.ast
         if ast is None:
             return None
@@ -452,7 +450,7 @@ class Parser:
 
         :rtype: list[Any]
         """
-        if self._values:
+        if self._values is not None:
             return self._values
         self._values = self._extract_values()
         return self._values
@@ -468,7 +466,7 @@ class Parser:
         :rtype: dict[str, Any] | None
         """
         values = self.values
-        if self._values_dict or not values:
+        if self._values_dict is not None or not values:
             return self._values_dict
         columns = self.columns
 
@@ -516,8 +514,6 @@ class Parser:
             multi-row inserts, or an empty list when no VALUES clause exists.
         :rtype: list[Any]
         """
-        from sqlglot import exp
-
         try:
             ast = self._ast_parser.ast
         except ValueError:
@@ -547,8 +543,6 @@ class Parser:
         :returns: The Python int, float, or str representation.
         :rtype: int | float | str
         """
-        from sqlglot import exp
-
         if isinstance(val, exp.Literal):
             if val.is_int:
                 return int(val.this)

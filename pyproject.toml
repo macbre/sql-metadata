@@ -1,8 +1,8 @@
 [tool.poetry]
 name = "sql_metadata"
-version = "2.20.0"
+version = "3.0.0"
 license="MIT"
-description = "Uses tokenized query returned by python-sqlparse and generates query metadata"
+description = "Uses sqlglot to parse SQL queries and extract metadata"
 authors = ["Maciej Brencz <maciej.brencz@gmail.com>", "Radosław Drążkiewicz <collerek@gmail.com>"]
 readme = "README.md"
 homepage = "https://github.com/macbre/sql-metadata"
@@ -14,7 +14,6 @@ packages = [
 
 [tool.poetry.dependencies]
 python = "^3.10"
-sqlparse = ">=0.4.1,<0.6.0"
 sqlglot = "^30.0.3"
 
 [tool.poetry.group.dev.dependencies]

@@ -154,7 +154,6 @@ class _Collector:
     """
 
     __slots__ = (
-        "ta",
         "columns",
         "columns_dict",
         "alias_names",
@@ -166,8 +165,7 @@ class _Collector:
         "output_columns",
     )
 
-    def __init__(self, table_aliases: dict[str, str]):
-        self.ta = table_aliases
+    def __init__(self) -> None:
         self.columns = UniqueList()
         self.columns_dict: dict[str, UniqueList] = {}
         self.alias_names = UniqueList()
@@ -252,7 +250,7 @@ class ColumnExtractor:
         self._ast = ast
         self._table_aliases = table_aliases
         self._cte_name_map = cte_name_map or {}
-        self._collector = _Collector(table_aliases)
+        self._collector = _Collector()
         self._reverse_cte_map = self._cte_name_map
 
     # -------------------------------------------------------------------
