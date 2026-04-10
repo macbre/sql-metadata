@@ -21,6 +21,7 @@ from sql_metadata.ast_parser import ASTParser
 from sql_metadata.column_extractor import ColumnExtractor
 from sql_metadata.comments import extract_comments, strip_comments
 from sql_metadata.generalizator import Generalizator
+from sql_metadata.keywords_lists import QueryType
 from sql_metadata.nested_resolver import NestedResolver
 from sql_metadata.query_type_extractor import QueryTypeExtractor
 from sql_metadata.sql_cleaner import SqlCleaner
@@ -47,7 +48,7 @@ class Parser:
         self._logger.disabled = disable_logging
 
         self._raw_query = sql
-        self._query_type: str | None = None
+        self._query_type: QueryType | None = None
 
         self._ast_parser = ASTParser(sql)
         self._resolver: NestedResolver | None = None
@@ -104,7 +105,7 @@ class Parser:
         return SqlCleaner.preprocess_query(self._raw_query)
 
     @property
-    def query_type(self) -> str:
+    def query_type(self) -> QueryType | None:
         """Return the type of the SQL query.
 
         Delegates to :class:`QueryTypeExtractor` which maps the top-level
@@ -113,7 +114,7 @@ class Parser:
         (unparseable SQL), the extractor falls back to keyword matching on
         the raw string.
 
-        :rtype: str
+        :rtype: QueryType | None
         """
         if self._query_type:
             return self._query_type
@@ -320,7 +321,7 @@ class Parser:
         if self._table_aliases is not None:
             return self._table_aliases
         ast = self._ast_parser.ast
-        assert ast is not None  # guaranteed by prior tables/query_type access
+        assert ast is not None  # mypy
         extractor = TableExtractor(ast)
         self._table_aliases = extractor.extract_aliases(self.tables)
         return self._table_aliases

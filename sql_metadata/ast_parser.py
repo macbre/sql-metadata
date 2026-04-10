@@ -48,6 +48,10 @@ class ASTParser:
         self._ast = self._parse(self._raw_sql)
         return self._ast
 
+    def _ensure_parsed(self) -> None:
+        """Trigger lazy parsing so side-effect fields are populated."""
+        _ = self.ast
+
     @property
     def dialect(self) -> DialectType:
         """The sqlglot dialect that produced the current AST.
@@ -58,7 +62,7 @@ class ASTParser:
 
         :rtype: DialectType
         """
-        _ = self.ast
+        self._ensure_parsed()
         return self._dialect
 
     @property
@@ -72,7 +76,7 @@ class ASTParser:
 
         :rtype: bool
         """
-        _ = self.ast
+        self._ensure_parsed()
         return self._is_replace
 
     @property
@@ -84,7 +88,7 @@ class ASTParser:
 
         :rtype: dict[str, str]
         """
-        _ = self.ast
+        self._ensure_parsed()
         return self._cte_name_map
 
     def _parse(self, sql: str) -> exp.Expression | None:

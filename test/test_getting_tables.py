@@ -943,11 +943,9 @@ def test_on_keyword_not_table_alias():
 def test_unmatched_parentheses_graceful():
     # solved: https://github.com/macbre/sql-metadata/issues/532
     # Should not raise IndexError; graceful handling of malformed SQL
-    try:
-        parser = Parser("SELECT arrayJoin(tags.key)) FROM foo")
-        _ = parser.tables
-    except (ValueError, Exception):
-        pass
+    parser = Parser("SELECT arrayJoin(tags.key)) FROM foo")
+    tables = parser.tables
+    assert isinstance(tables, list)
 
 
 def test_degraded_parse_falls_through_to_last_dialect():

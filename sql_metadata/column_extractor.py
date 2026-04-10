@@ -251,7 +251,7 @@ class ColumnExtractor:
         self._table_aliases = table_aliases
         self._cte_name_map = cte_name_map or {}
         self._collector = _Collector()
-        self._reverse_cte_map = self._cte_name_map
+        self._cte_restore_map = self._cte_name_map
 
     # -------------------------------------------------------------------
     # Public API
@@ -290,7 +290,7 @@ class ColumnExtractor:
         # Restore qualified CTE names (reverse placeholder mapping)
         final_cte = UniqueList()
         for name in c.cte_names:
-            final_cte.append(self._reverse_cte_map.get(name, name))
+            final_cte.append(self._cte_restore_map.get(name, name))
 
         alias_dict = c.alias_dict
         return ExtractionResult(
@@ -327,7 +327,7 @@ class ColumnExtractor:
             alias = cte.alias
             if alias:
                 self._collector.cte_names.append(
-                    self._reverse_cte_map.get(alias, alias)
+                    self._cte_restore_map.get(alias, alias)
                 )
 
     def _build_subquery_names(self) -> UniqueList:

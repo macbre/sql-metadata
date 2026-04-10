@@ -1,4 +1,10 @@
-"""Edge-case tests for internals not covered by feature-specific test files."""
+"""Edge-case tests for internal utilities.
+
+These tests exercise code paths (depth guards, degenerate inputs) that
+are difficult or impossible to trigger through the public Parser API.
+They test internal symbols directly and may need updating if those
+internals are refactored.
+"""
 
 from sql_metadata import Parser
 from sql_metadata.sql_cleaner import SqlCleaner, _strip_outer_parens

@@ -772,4 +772,5 @@ def test_cte_with_table_star_in_body():
         "WITH cte(a) AS (SELECT t.* FROM t) "
         "SELECT a FROM cte"
     )
-    assert "t.*" in p.columns or "a" in p.columns_aliases_names
+    assert p.columns == ["t.*"]
+    assert p.columns_aliases_names == ["a"]

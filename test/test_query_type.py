@@ -6,25 +6,25 @@ from sql_metadata import InvalidQueryDefinition, Parser, QueryType
 def test_insert_query():
     queries = [
         "INSERT IGNORE /* foo */ INTO bar VALUES (1, '123', '2017-01-01');",
-        "/* foo */ INSERT IGNORE INTO bar VALUES (1, '123', '2017-01-01');"
-        "-- foo\nINSERT IGNORE INTO bar VALUES (1, '123', '2017-01-01');"
+        "/* foo */ INSERT IGNORE INTO bar VALUES (1, '123', '2017-01-01');",
+        "-- foo\nINSERT IGNORE INTO bar VALUES (1, '123', '2017-01-01');",
         "# foo\nINSERT IGNORE INTO bar VALUES (1, '123', '2017-01-01');",
     ]
 
     for query in queries:
-        assert "INSERT" == Parser(query).query_type
+        assert QueryType.INSERT == Parser(query).query_type
 
 
 def test_select_query():
     queries = [
         "SELECT /* foo */ foo FROM bar",
-        "/* foo */ SELECT foo FROM bar"
-        "-- foo\nSELECT foo FROM bar"
+        "/* foo */ SELECT foo FROM bar",
+        "-- foo\nSELECT foo FROM bar",
         "# foo\nSELECT foo FROM bar",
     ]
 
     for query in queries:
-        assert "SELECT" == Parser(query).query_type
+        assert QueryType.SELECT == Parser(query).query_type
 
 
 def test_delete_query():
@@ -35,7 +35,7 @@ def test_delete_query():
 
     for query in queries:
         for comment in ["", "/* foo */", "\n--foo\n", "\n# foo\n"]:
-            assert "DELETE" == Parser(query.format(comment)).query_type
+            assert QueryType.DELETE == Parser(query.format(comment)).query_type
 
 
 def test_drop_table_query():
@@ -45,7 +45,7 @@ def test_drop_table_query():
 
     for query in queries:
         for comment in ["", "/* foo */", "\n--foo\n", "\n# foo\n"]:
-            assert "DROP TABLE" == Parser(query.format(comment)).query_type
+            assert QueryType.DROP == Parser(query.format(comment)).query_type
 
 
 def test_unsupported_query(caplog):
@@ -171,7 +171,7 @@ def test_unrecognized_command_type():
 def test_deeply_parenthesized_query():
     """Triple-parenthesized SELECT parses correctly."""
     p = Parser("(((SELECT col FROM t)))")
-    assert p.query_type == "SELECT"
+    assert p.query_type == QueryType.SELECT
     assert p.tables == ["t"]
     assert p.columns == ["col"]
 
