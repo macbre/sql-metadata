@@ -1,6 +1,6 @@
 import pytest
 
-from sql_metadata import Parser
+from sql_metadata import InvalidQueryDefinition, Parser
 from sql_metadata.keywords_lists import QueryType
 
 
@@ -19,9 +19,9 @@ LEFT JOIN database2.table2 ON ("tt"."ttt"."fff" = "xx"."xxx")
     assert parser.tables == ["table3", "table4", "database2.table2"]
     assert parser.with_names == ["database1.tableFromWith", "test"]
     assert parser.with_queries == {
-        "database1.tableFromWith": "SELECT aa.* FROM table3 as aa left join table4 on "
+        "database1.tableFromWith": "SELECT aa.* FROM table3 AS aa LEFT JOIN table4 ON "
         "aa.col1 = table4.col2",
-        "test": "SELECT * from table3",
+        "test": "SELECT * FROM table3",
     }
     parser = Parser("""
 WITH
@@ -143,18 +143,17 @@ def test_complicated_with():
     assert parser.query_type == QueryType.SELECT
     assert parser.with_names == ["uisd_filter_table"]
     assert parser.with_queries == {
-        "uisd_filter_table": "select session_id, srch_id, srch_ci, srch_co, srch_los, "
-        "srch_sort_type, impr_list from uisd where datem <= "
-        "date_sub(date_add(current_date(), 92), 7 * 52) and "
-        "lower(srch_sort_type) in ('expertpicks', 'recommended') "
-        "and srch_ci <= date_sub(date_add(current_date(), 92), 7 "
-        "* 52) and srch_co >= date_sub(date_add(current_date(), "
+        "uisd_filter_table": "SELECT session_id, srch_id, srch_ci, srch_co, srch_los, "
+        "srch_sort_type, impr_list FROM uisd WHERE datem <= "
+        "DATE_SUB(DATE_ADD(CURRENT_DATE(), 92), 7 * 52) AND "
+        "LOWER(srch_sort_type) IN ('expertpicks', 'recommended') "
+        "AND srch_ci <= DATE_SUB(DATE_ADD(CURRENT_DATE(), 92), 7 "
+        "* 52) AND srch_co >= DATE_SUB(DATE_ADD(CURRENT_DATE(), "
         "1), 7 * 52)"
     }
     assert parser.tables == [
         "uisd",
-        "impr_list",
-    ]  # this one is wrong too should be table
+    ]
     assert parser.columns == [
         "session_id",
         "srch_id",
@@ -219,7 +218,7 @@ def test_resolving_with_columns():
     assert parser.tables == ["t5", "t6"]
     assert parser.columns_aliases == {}
     assert parser.columns_aliases_names == []
-    assert parser.columns_aliases_dict is None
+    assert parser.columns_aliases_dict == {}
     assert parser.columns == ["c1", "c2", "c3", "c4"]
     assert parser.columns_dict == {
         "join": ["c1", "c3"],
@@ -268,9 +267,9 @@ def test_resolving_with_columns_with_nested_tables_prefixes():
     parser = Parser(query)
     assert parser.with_names == ["query1", "query2"]
     assert parser.with_queries == {
-        "query1": "SELECT t5.c1, t5.c2, t6.c4 FROM t5 left join t6 on t5.link1 = "
+        "query1": "SELECT t5.c1, t5.c2, t6.c4 FROM t5 LEFT JOIN t6 ON t5.link1 = "
         "t6.link2",
-        "query2": "SELECT c3, c7 FROM t7 union all select c4, c12 from t8",
+        "query2": "SELECT c3, c7 FROM t7 UNION ALL SELECT c4, c12 FROM t8",
     }
     assert parser.tables == ["t5", "t6", "t7", "t8"]
     assert parser.columns_aliases == {}
@@ -353,12 +352,12 @@ def test_nested_with_statement_in_create_table():
     assert parser.with_names == ["sub", "abc"]
     assert parser.subqueries_names == ["table_a"]
     assert parser.with_queries == {
-        "abc": "select * from other_table",
-        "sub": "select it_id from internal_table",
+        "abc": "SELECT * FROM other_table",
+        "sub": "SELECT it_id FROM internal_table",
     }
     assert parser.subqueries == {
-        "table_a": "with abc as(select * from other_table) select name, age, it_id "
-        "from table_z join abc on (table_z.it_id = abc.it_id)"
+        "table_a": "WITH abc AS (SELECT * FROM other_table) SELECT name, age, it_id "
+        "FROM table_z JOIN abc ON (table_z.it_id = abc.it_id)"
     }
 
     assert parser.query_type == QueryType.CREATE
@@ -444,7 +443,7 @@ def test_window_in_with():
     assert parser.with_names == ["cte_1"]
     assert parser.columns == ["column_1", "column_2"]
     assert parser.with_queries == {
-        "cte_1": "SELECT column_1, column_2 FROM table_1 WINDOW window_1 AS(PARTITION BY column_2)"
+        "cte_1": "SELECT column_1, column_2 FROM table_1 WINDOW window_1 AS (PARTITION BY column_2)"
     }
     assert parser.tables == ["table_1"]
 
@@ -500,7 +499,7 @@ def test_as_was_preceded_by_with_query():
         SELECT 1;
     """
     parser = Parser(query)
-    with pytest.raises(ValueError, match="This query is wrong"):
+    with pytest.raises(InvalidQueryDefinition):
         parser.tables
 
     query = """
@@ -509,7 +508,7 @@ def test_as_was_preceded_by_with_query():
         SELECT 1;
     """
     parser = Parser(query)
-    with pytest.raises(ValueError, match="This query is wrong"):
+    with pytest.raises(InvalidQueryDefinition):
         parser.tables
 
     query = """
@@ -518,7 +517,7 @@ def test_as_was_preceded_by_with_query():
         SELECT 1;
     """
     parser = Parser(query)
-    with pytest.raises(ValueError, match="This query is wrong"):
+    with pytest.raises(InvalidQueryDefinition):
         parser.tables
 
 
@@ -530,5 +529,246 @@ def test_malformed_with_query_hang():
         WHERE   domain =e''$.f') AS g
     FROM    h;"""
     parser = Parser(query)
-    with pytest.raises(ValueError, match="This query is wrong"):
+    with pytest.raises(InvalidQueryDefinition):
         parser.tables
+
+
+def test_nested_cte_not_in_tables():
+    # solved: https://github.com/macbre/sql-metadata/issues/314
+    query = """
+    WITH CTE_ROOT_1 as (
+        WITH CTE_CHILD as (
+            SELECT a FROM table_1 as t
+        )
+        SELECT a FROM CTE_CHILD
+    ),
+    CTE_ROOT_2 as (
+        SELECT b FROM table_2
+    )
+    SELECT a, b, c
+    FROM table_3 t3
+    LEFT JOIN CTE_ROOT_1 cr1 on t3.id = cr1.id
+    LEFT JOIN CTE_ROOT_2 cr2 on t3.id = cr2.id
+    LEFT JOIN table_4 t4 on t3.id = t4.id
+    """
+    parser = Parser(query)
+    assert parser.tables == ["table_1", "table_2", "table_3", "table_4"]
+    assert parser.columns == [
+        "a",
+        "b",
+        "c",
+        "table_3.id",
+        "cr1.id",
+        "cr2.id",
+        "table_4.id",
+    ]
+    assert parser.tables_aliases == {
+        "t3": "table_3",
+        "t4": "table_4",
+        "t": "table_1",
+    }
+
+
+def test_nested_with_name_not_table():
+    # solved: https://github.com/macbre/sql-metadata/issues/413
+    query = """
+    WITH
+    A as (
+        WITH intermediate_query as (
+            SELECT id, some_column FROM table_one
+        )
+        SELECT id, some_column FROM intermediate_query
+    ),
+    B as (
+        SELECT id, other_column FROM table_two
+    )
+    SELECT A.id, some_column, other_column
+    FROM A
+    INNER JOIN B ON A.id = B.id
+    """
+    parser = Parser(query)
+    assert parser.tables == ["table_one", "table_two"]
+    assert parser.columns == ["id", "some_column", "other_column"]
+
+
+def test_cte_alias_reuse():
+    # solved: https://github.com/macbre/sql-metadata/issues/262
+    query = """
+    WITH
+     cte_one AS (SELECT cte_id, cte_name FROM cte_one_table),
+     cte_two AS (SELECT B.cte_id FROM cte_one B),
+     cte_three AS (SELECT B.id FROM (SELECT id FROM table_two) B)
+    SELECT * FROM cte_two
+    """
+    parser = Parser(query)
+    assert parser.tables == ["cte_one_table", "table_two"]
+    assert "cte_id" in parser.columns
+    assert "cte_name" in parser.columns
+
+
+def test_group_by_not_table_alias_in_cte():
+    # solved: https://github.com/macbre/sql-metadata/issues/526
+    query = """
+    WITH [CTE1] AS (
+        SELECT [Col1], MAX([Col2]) AS [MaxCol2]
+        FROM [Table1]
+        GROUP BY [Col1]
+    )
+    SELECT t3.[Qty1], t4.[Code], t3.[DateCol]
+    FROM [Table1] t3
+    JOIN [CTE1] t1 ON t3.[Col1] = t1.[Col1] AND t3.[DateCol] = t1.[MaxCol2]
+    JOIN [Table2] t4 ON t4.[ID] = t3.[Col2]
+    """
+    parser = Parser(query)
+    aliases = parser.tables_aliases
+    assert "GROUP BY" not in aliases
+    assert "[Table1]" in parser.tables
+    assert "[Table2]" in parser.tables
+
+
+def test_coalesce_three_args_in_cte():
+    """COALESCE with 3+ args should render as COALESCE, not IFNULL."""
+    p = Parser(
+        "WITH cte AS (SELECT COALESCE(a, b, c) FROM t) "
+        "SELECT * FROM cte"
+    )
+    body = p.with_queries["cte"]
+    assert "COALESCE" in body.upper()
+
+
+def test_date_add_in_cte():
+    """DATE_ADD in a CTE body should be preserved by the custom generator."""
+    p = Parser(
+        "WITH cte AS (SELECT DATE_ADD(created, INTERVAL 1 DAY) FROM events) "
+        "SELECT * FROM cte"
+    )
+    body = p.with_queries["cte"]
+    assert "DATE_ADD" in body.upper()
+
+
+def test_date_sub_in_cte():
+    """DATE_SUB in a CTE body should be preserved by the custom generator."""
+    p = Parser(
+        "WITH cte AS (SELECT DATE_SUB(created, INTERVAL 1 DAY) FROM events) "
+        "SELECT * FROM cte"
+    )
+    body = p.with_queries["cte"]
+    assert "DATE_SUB" in body.upper()
+
+
+def test_not_expression_in_cte():
+    """NOT applied to a boolean expression (not IS NULL or IN) in CTE body."""
+    p = Parser(
+        "WITH cte AS (SELECT * FROM t WHERE NOT (active > 0)) "
+        "SELECT * FROM cte"
+    )
+    body = p.with_queries["cte"]
+    assert "NOT" in body.upper()
+
+
+def test_nested_resolver_unresolvable_reference():
+    """A dotted column reference not matching any CTE/subquery stays as-is."""
+    p = Parser(
+        "WITH cte AS (SELECT id FROM t) "
+        "SELECT nonexistent.col FROM cte"
+    )
+    assert "nonexistent.col" in p.columns
+
+
+def test_cte_with_subquery_and_star_alias():
+    # Solved: https://github.com/macbre/sql-metadata/issues/392
+    p = Parser("""with x as (select d.nbr, d.af_pk
+    from test_db.test_table3 d)
+    select q.hx_id, q.text
+    from (select prod_code, s.*
+        from testdb.test_table s
+        inner join testdb.test_table2 p on s.s1_fk = p.p1_sk
+    ) q
+    inner join x on q.s2_fk = x.af_pk""")
+    assert p.tables == [
+        "test_db.test_table3", "testdb.test_table", "testdb.test_table2"
+    ]
+    assert p.with_names == ["x"]
+    assert "testdb.test_table.*" in p.columns
+
+
+def test_bracketed_select_with_cte_and_column_alias():
+    # Solved: https://github.com/macbre/sql-metadata/issues/326
+    p = Parser("""with a as (select id, a from tbl1),
+    with b as (select id, b from tbl2)
+    (select a.id, a.a + b.b as t
+     from a left join b on a.id = b.id)""")
+    assert p.tables == ["tbl1", "tbl2"]
+    assert p.with_names == ["a", "b"]
+    assert p.columns == ["id", "a", "b"]
+
+
+def test_cte_without_alias_raises():
+    """CTE without a name is invalid SQL."""
+    with pytest.raises(InvalidQueryDefinition, match="All CTEs require an alias"):
+        Parser("WITH AS (SELECT 1) SELECT * FROM t").columns
+
+
+def test_with_queries_empty_when_no_cte():
+    """A query with no CTEs returns empty with_queries."""
+    p = Parser("SELECT * FROM t")
+    assert p.with_queries == {}
+
+
+def test_cte_subquery_full_resolution():
+    """Subquery + CTE: CTE-qualified columns fully resolved."""
+    parser = Parser("""
+    WITH c AS (SELECT id, name FROM t1)
+    SELECT s.id, t2.name
+    FROM (SELECT c.id FROM c) AS s
+    JOIN t2 ON s.id = t2.id
+    """)
+    assert parser.tables == ["t1", "t2"]
+    assert "c.id" not in parser.columns
+    assert "id" in parser.columns
+
+
+def test_chained_cte_qualified_columns_resolved():
+    """CTE-qualified columns should resolve through chained CTEs."""
+    # 2-level chain
+    p = Parser("""
+    WITH c1 AS (SELECT a FROM t1),
+         c2 AS (SELECT c1.a FROM c1)
+    SELECT c2.a FROM c2
+    """)
+    assert p.tables == ["t1"]
+    assert p.columns == ["a"]
+
+    # 3-level chain
+    p = Parser("""
+    WITH c1 AS (SELECT a FROM t1),
+         c2 AS (SELECT c1.a FROM c1),
+         c3 AS (SELECT c2.a FROM c2)
+    SELECT c3.a FROM c3
+    """)
+    assert p.tables == ["t1"]
+    assert p.columns == ["a"]
+
+
+def test_chained_cte_with_subquery():
+    """CTE-qualified columns in subqueries wrapping chained CTEs."""
+    p = Parser("""
+    WITH c1 AS (SELECT a FROM t1),
+         c2 AS (SELECT c1.a FROM c1)
+    SELECT s.a FROM (SELECT c2.a FROM c2) AS s
+    """)
+    assert p.tables == ["t1"]
+    assert p.columns == ["a"]
+
+
+def test_chained_cte_cross_reference():
+    """4-level CTE chain where level 3 references both level 2 and level 1."""
+    p = Parser("""
+    WITH c1 AS (SELECT a, b FROM t1),
+         c2 AS (SELECT c1.a FROM c1),
+         c3 AS (SELECT c2.a, c1.b FROM c2 JOIN c1 ON c2.a = c1.a),
+         c4 AS (SELECT c3.a, c3.b FROM c3)
+    SELECT c4.a, c4.b FROM c4
+    """)
+    assert p.tables == ["t1"]
+    assert p.columns == ["a", "b"]

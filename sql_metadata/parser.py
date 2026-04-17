@@ -1,34 +1,46 @@
-# pylint: disable=C0302
-"""
-This module provides SQL query parsing functions
+"""SQL query parsing facade.
+
+Thin facade that composes the specialised extractors via lazy properties:
+
+* :class:`~ast_parser.ASTParser` — AST construction and dialect detection.
+* :class:`~column_extractor.ColumnExtractor` — single-pass column/alias extraction.
+* :class:`~table_extractor.TableExtractor` — table extraction with position sorting.
+* :class:`~nested_resolver.NestedResolver` — CTE/subquery name and body extraction,
+  nested column resolution.
+* :mod:`query_type_extractor` — query type detection.
+* :mod:`comments` — comment extraction.
 """
 
 import logging
 import re
-from typing import Dict, List, Optional, Set, Tuple, Union
+from typing import Any
 
-import sqlparse
-from sqlparse.sql import Token
-from sqlparse.tokens import Name, Number, Whitespace
+from sqlglot import exp
 
+from sql_metadata.ast_parser import ASTParser
+from sql_metadata.column_extractor import ColumnExtractor
+from sql_metadata.comments import extract_comments, strip_comments
 from sql_metadata.generalizator import Generalizator
-from sql_metadata.keywords_lists import (
-    COLUMNS_SECTIONS,
-    KEYWORDS_BEFORE_COLUMNS,
-    TokenType,
-    RELEVANT_KEYWORDS,
-    SUBQUERY_PRECEDING_KEYWORDS,
-    SUPPORTED_QUERY_TYPES,
-    TABLE_ADJUSTMENT_KEYWORDS,
-    WITH_ENDING_KEYWORDS,
-)
-from sql_metadata.token import EmptyToken, SQLToken
-from sql_metadata.utils import UniqueList, flatten_list
+from sql_metadata.keywords_lists import QueryType
+from sql_metadata.nested_resolver import NestedResolver
+from sql_metadata.query_type_extractor import QueryTypeExtractor
+from sql_metadata.sql_cleaner import SqlCleaner
+from sql_metadata.table_extractor import TableExtractor
+from sql_metadata.utils import UniqueList
 
 
-class Parser:  # pylint: disable=R0902
-    """
-    Main class to parse sql query
+class Parser:
+    """Parse a SQL query and extract metadata.
+
+    The primary public interface of the ``sql-metadata`` library.  Given a
+    raw SQL string, the parser lazily extracts tables, columns, aliases,
+    CTE definitions, subqueries, values, comments, and more — each
+    available as a cached property.
+
+    :param sql: The SQL query string to parse.
+    :type sql: str
+    :param disable_logging: If ``True``, suppress all log output.
+    :type disable_logging: bool
     """
 
     def __init__(self, sql: str = "", disable_logging: bool = False) -> None:
@@ -36,1091 +48,587 @@ class Parser:  # pylint: disable=R0902
         self._logger.disabled = disable_logging
 
         self._raw_query = sql
-        self._query = self._preprocess_query()
-        self._query_type = None
+        self._query_type: QueryType | None = None
 
-        self._tokens = None
+        self._ast_parser = ASTParser(sql)
+        self._resolver: NestedResolver | None = None
 
-        self._columns = None
-        self._columns_dict = None
-        self._columns_aliases_names = None
-        self._columns_aliases = None
-        self._columns_with_tables_aliases = {}
-        self._columns_aliases_dict = None
+        self._tokens: list[str] | None = None
 
-        self._tables = None
-        self._table_aliases = None
+        self._columns_extracted = False
+        self._columns: UniqueList = UniqueList()
+        self._columns_dict: dict[str, UniqueList] = {}
+        self._columns_aliases_names: UniqueList = UniqueList()
+        self._columns_aliases: dict[str, str | list[str]] = {}
+        self._columns_aliases_dict: dict[str, UniqueList] = {}
+        self._output_columns: list[str] = []
 
-        self._with_names = None
-        self._with_queries = None
-        self._with_queries_columns = None
-        self._subqueries = None
-        self._subqueries_names = None
-        self._subqueries_parsers = {}
-        self._with_parsers = {}
+        self._tables: list[str] | None = None
+        self._table_aliases: dict[str, str] | None = None
 
-        self._limit_and_offset = None
+        self._with_names: list[str] | None = None
+        self._with_queries: dict[str, str] | None = None
+        self._subqueries: dict[str, str] | None = None
+        self._subqueries_names: list[str] | None = None
 
-        self._values = None
-        self._values_dict = None
+        self._limit_and_offset: tuple[int, int] | None = None
 
-        self._subquery_level = 0
-        self._nested_level = 0
-        self._parenthesis_level = 0
-        self._open_parentheses: List[SQLToken] = []
-        self._preceded_keywords: List[SQLToken] = []
-        self._aliases_to_check = None
-        self._is_in_nested_function = False
-        self._is_in_with_block = False
-        self._with_columns_candidates = {}
-        self._column_aliases_max_subquery_level = {}
+        self._values: list[Any] | None = None
+        self._values_dict: dict[str, int | float | str | list[Any]] | None = None
 
-        self.sqlparse_tokens = None
-        self.non_empty_tokens = None
-        self.tokens_length = None
+    def _require_ast(self) -> exp.Expression:
+        """Return the AST, asserting it is non-None.
+
+        Every property that needs the AST first triggers a check that
+        rejects ``None`` (either a ``ValueError`` from ``ASTParser`` on
+        malformed SQL, or an assert in ``query_type`` / ``tables_aliases``
+        on empty input).  This helper centralises the resulting
+        ``ast is not None`` narrowing so callers can write
+        ``ast = self._require_ast()`` instead of a two-line dance.
+
+        :rtype: exp.Expression
+        :raises ValueError: Propagated from ``ASTParser`` for malformed SQL.
+        """
+        ast = self._ast_parser.ast
+        assert ast is not None
+        return ast
+
+    def _get_resolver(self) -> NestedResolver:
+        """Return the cached :class:`NestedResolver` for this query.
+
+        The resolver is created lazily on first access and reused for all
+        subsequent column resolution and CTE/subquery work, so the AST is
+        only walked once for nested-structure extraction.
+
+        :returns: The shared resolver instance.
+        :rtype: NestedResolver
+        """
+        if self._resolver is None:
+            self._resolver = NestedResolver(
+                self._require_ast(), parser_factory=Parser
+            )
+        return self._resolver
 
     @property
     def query(self) -> str:
+        """Return the preprocessed SQL query.
+
+        Preprocessing normalises quoting (double-quoted identifiers become
+        backtick-quoted) while preserving quotes inside string literals, and
+        collapses newlines and redundant whitespace.
+
+        :rtype: str
         """
-        Returns preprocessed query
-        """
-        return self._query.replace("\n", " ").replace("  ", " ")
+        return SqlCleaner.preprocess_query(self._raw_query)
 
     @property
-    def query_type(self) -> str:
-        """
-        Returns type of the query.
-        Currently supported queries are:
-        select, insert, update, replace, create table, alter table, with + select
+    def query_type(self) -> QueryType | None:
+        """Return the type of the SQL query.
+
+        Delegates to :class:`QueryTypeExtractor` which maps the top-level
+        AST node to a :class:`~keywords_lists.QueryType` value (SELECT,
+        INSERT, UPDATE, DELETE, CREATE, etc.).  If the AST cannot be built
+        (unparseable SQL), the extractor falls back to keyword matching on
+        the raw string.
+
+        :rtype: QueryType | None
         """
         if self._query_type:
             return self._query_type
-        if not self._tokens:
-            _ = self.tokens
-
-        # remove comment tokens to not confuse the logic below (see #163)
-        tokens: List[SQLToken] = list(
-            filter(lambda token: not token.is_comment, self._tokens or [])
-        )
-
-        if not tokens:
-            raise ValueError("Empty queries are not supported!")
-
-        index = (
-            0
-            if not tokens[0].is_left_parenthesis
-            else tokens[0]
-            .find_nearest_token(
-                value=False, value_attribute="is_left_parenthesis", direction="right"
-            )
-            .position
-        )
-        if tokens[index].normalized == "CREATE":
-            switch = self._get_switch_by_create_query(tokens, index)
-        elif tokens[index].normalized in ("ALTER", "DROP", "TRUNCATE"):
-            switch = tokens[index].normalized + tokens[index + 1].normalized
-        else:
-            switch = tokens[index].normalized
-        self._query_type = SUPPORTED_QUERY_TYPES.get(switch, "UNSUPPORTED")
-        if self._query_type == "UNSUPPORTED":
-            # do not log the full query
-            # https://github.com/macbre/sql-metadata/issues/543
-            shorten_query = " ".join(self._raw_query.split(" ")[:3])
-
-            self._logger.error("Not supported query type: %s", shorten_query)
-            raise ValueError("Not supported query type!")
+        try:
+            ast = self._ast_parser.ast
+        except ValueError:
+            ast = None
+        self._query_type = QueryTypeExtractor(
+            ast, self._raw_query, is_replace=self._ast_parser.is_replace
+        ).extract()
         return self._query_type
 
     @property
-    def tokens(self) -> List[SQLToken]:  # noqa: C901
-        """
-        Tokenizes the query
+    def tokens(self) -> list[str]:
+        """Return the SQL as a list of token strings.
+
+        Uses the sqlglot tokenizer (dialect-aware) and strips backtick and
+        double-quote delimiters from each token so identifiers appear as
+        plain names.
+
+        :rtype: list[str]
         """
         if self._tokens is not None:
             return self._tokens
+        if not self._raw_query or not self._raw_query.strip():
+            self._tokens = []
+            return self._tokens
+        from sql_metadata.comments import _choose_tokenizer
 
-        # allow parser to be overriden
-        parsed = self._parse(self._query)
-        tokens = []
-        # handle empty queries (#12)
-        if not parsed:
-            return tokens
-        self._get_sqlparse_tokens(parsed)
-        last_keyword = None
-        combine_flag = False
-        for index, tok in enumerate(self.non_empty_tokens):
-            # combine dot separated identifiers
-            if self._is_token_part_of_complex_identifier(token=tok, index=index):
-                combine_flag = True
-                continue
-            token = SQLToken(
-                tok=tok,
-                index=index,
-                subquery_level=self._subquery_level,
-                last_keyword=last_keyword,
-            )
-            if combine_flag:
-                self._combine_qualified_names(index=index, token=token)
-                combine_flag = False
-
-            previous_token = tokens[-1] if index > 0 else EmptyToken
-            token.previous_token = previous_token
-            previous_token.next_token = token if index > 0 else None
-
-            if token.is_left_parenthesis:
-                token.token_type = TokenType.PARENTHESIS
-                self._determine_opening_parenthesis_type(token=token)
-            elif token.is_right_parenthesis:
-                token.token_type = TokenType.PARENTHESIS
-                self._determine_closing_parenthesis_type(token=token)
-                if token.is_subquery_end:
-                    last_keyword = self._preceded_keywords.pop()
-
-            last_keyword = self._determine_last_relevant_keyword(
-                token=token, last_keyword=last_keyword
-            )
-            token.is_in_nested_function = self._is_in_nested_function
-            token.parenthesis_level = self._parenthesis_level
-            tokens.append(token)
-
-        self._tokens = tokens
-        # since tokens are used in all methods required parsing (so w/o generalization)
-        # we set the query type here (and not in init) to allow for generalization
-        # but disallow any other usage for not supported queries to avoid unexpected
-        # results which are not really an error
-        _ = self.query_type
-        return tokens
+        sg_tokens = list(
+            _choose_tokenizer(self._raw_query).tokenize(self._raw_query)
+        )
+        self._tokens = [t.text.strip("`").strip('"') for t in sg_tokens]
+        return self._tokens
 
     @property
-    def columns(self) -> List[str]:
+    def columns(self) -> list[str]:
+        """Return the list of column names referenced in the query.
+
+        Walks the sqlglot AST via :class:`ColumnExtractor` in a single DFS
+        pass, then resolves CTE and subquery references through
+        :class:`NestedResolver`.  When AST construction fails (unparseable
+        SQL), falls back to a regex extraction of ``INTO … (col1, col2)``
+        column lists.
+
+        :rtype: list[str]
         """
-        Returns the list columns this query refers to
-        """
-        if self._columns is not None:
+        if self._columns_extracted:
             return self._columns
-        columns = UniqueList()
+        self._columns_extracted = True
 
-        for token in self._not_parsed_tokens:
-            if token.is_name or token.is_keyword_column_name:
-                if token.is_column_definition_inside_create_table(
-                    query_type=self.query_type
-                ):
-                    token.token_type = TokenType.COLUMN
-                    columns.append(token.value)
-                elif (
-                    token.is_potential_column_name
-                    and token.is_not_an_alias_or_is_self_alias_outside_of_subquery(
-                        columns_aliases_names=self.columns_aliases_names,
-                        max_subquery_level=self._column_aliases_max_subquery_level,
-                    )
-                    and not token.is_sub_query_name_or_with_name_or_function_name(
-                        sub_queries_names=self.subqueries_names,
-                        with_names=self.with_names,
-                    )
-                    and not token.is_table_definition_suffix_in_non_select_create_table(
-                        query_type=self.query_type
-                    )
-                    and not token.is_conversion_specifier
-                ):
-                    self._handle_column_save(token=token, columns=columns)
+        try:
+            ast = self._require_ast()
+            ta = self.tables_aliases
+        except ValueError:
+            self._columns = UniqueList(self._extract_columns_regex())
+            return self._columns
 
-                elif token.is_column_name_inside_insert_clause:
-                    column = str(token.value)
-                    self._add_to_columns_subsection(
-                        keyword=token.last_keyword_normalized, column=column
-                    )
-                    token.token_type = TokenType.COLUMN
-                    columns.append(column)
-            elif token.is_a_wildcard_in_select_statement:
-                self._handle_column_save(token=token, columns=columns)
+        extractor = ColumnExtractor(ast, ta, self._ast_parser.cte_name_map)
+        result = extractor.extract()
 
-        self._columns = columns
+        self._columns = result.columns
+        self._columns_dict = result.columns_dict
+        self._columns_aliases_names = result.alias_names
+        self._columns_aliases_dict = result.alias_dict
+        self._columns_aliases = result.alias_map
+        self._output_columns = result.output_columns
+
+        # Use only aliased subquery names for column resolution —
+        # auto-generated names (subquery_1, …) are never referenced in SQL.
+        aliased_names = result.subquery_names
+        all_names, all_bodies = NestedResolver.extract_subqueries(ast)
+        aliased_bodies = {k: v for k, v in all_bodies.items() if k in aliased_names}
+        resolver = self._get_resolver()
+        self._columns, self._columns_dict, self._columns_aliases = resolver.resolve(
+            self._columns,
+            self._columns_dict,
+            self._columns_aliases,
+            aliased_names,
+            aliased_bodies,
+            self.with_names,
+            self.with_queries,
+        )
+        # Cache full results for the public properties
+        self._subqueries_names = all_names
+        self._subqueries = all_bodies
+
         return self._columns
 
     @property
-    def columns_dict(self) -> Dict[str, List[str]]:
-        """
-        Returns dictionary of column names divided into section of the query in which
-        given column is present.
+    def columns_dict(self) -> dict[str, UniqueList]:
+        """Return column names organised by query clause.
 
-        Sections consist of: select, where, order_by, group_by, join, insert and update
+        Keys are SQL clause names (``"select"``, ``"where"``, ``"join"``,
+        ``"order_by"``, ``"group_by"``, etc.) and values are
+        :class:`~utils.UniqueList` instances of column names found in that
+        clause.  Column aliases are resolved back to their underlying
+        columns before inclusion.
+
+        :rtype: dict[str, UniqueList]
         """
-        if not self._columns_dict:
+        if not self._columns_extracted:
             _ = self.columns
+        # Resolve aliases used in other sections
         if self.columns_aliases_dict:
+            resolver = self._get_resolver()
             for key, value in self.columns_aliases_dict.items():
                 for alias in value:
-                    resolved = self._resolve_column_alias(alias)
-                    if isinstance(resolved, list):
-                        for res_alias in resolved:
-                            self._columns_dict.setdefault(key, UniqueList()).append(
-                                res_alias
-                            )
-                    else:
-                        self._columns_dict.setdefault(key, UniqueList()).append(
-                            resolved
-                        )
+                    resolved = resolver.resolve_column_alias(
+                        alias, self.columns_aliases
+                    )
+                    for r in resolved:
+                        self._columns_dict.setdefault(key, UniqueList()).append(r)
         return self._columns_dict
 
     @property
-    def columns_aliases(self) -> Dict:
-        """
-        Returns a dictionary of column aliases with columns
-        """
-        if self._columns_aliases is not None:
-            return self._columns_aliases
-        column_aliases = {}
-        _ = self.columns
-        self._aliases_to_check = (
-            list(self._columns_with_tables_aliases.keys())
-            + self.columns_aliases_names
-            + ["*"]
-        )
-        for token in self.tokens:
-            if token.is_potential_column_alias(
-                column_aliases=column_aliases,
-                columns_aliases_names=self.columns_aliases_names,
-            ):
-                token_check = (
-                    token.previous_token
-                    if not token.previous_token.is_as_keyword
-                    else token.get_nth_previous(2)
-                )
-                if token_check.is_column_definition_end:
-                    alias_of = self._resolve_subquery_alias(token=token)
-                elif token_check.is_partition_clause_end:
-                    start_token = token.find_nearest_token(
-                        True, value_attribute="is_partition_clause_start"
-                    )
-                    alias_of = self._find_all_columns_between_tokens(
-                        start_token=start_token, end_token=token
-                    )
-                elif token.is_in_with_columns:
-                    # columns definition is to the right in subquery
-                    # we are in: with with_name (<aliases>) as (subquery)
-                    alias_of = self._find_column_for_with_column_alias(token)
-                else:
-                    alias_of = self._resolve_function_alias(token=token)
-                if token.value != alias_of:
-                    # skip aliases of self, like sum(column) as column
-                    column_aliases[token.value] = alias_of
+    def columns_aliases(self) -> dict[str, str | list[str]]:
+        """Return the alias-to-column mapping for column aliases.
 
-        self._columns_aliases = column_aliases
+        Maps each column alias to the underlying column name(s) it was
+        derived from, e.g. ``{"total": "SUM(amount)"}``.  When a CASE
+        expression produces multiple source columns the value is a list.
+
+        :rtype: dict[str, str | list[str]]
+        """
+        if not self._columns_extracted:
+            _ = self.columns
         return self._columns_aliases
 
     @property
-    def columns_aliases_dict(self) -> Dict[str, List[str]]:
-        """
-        Returns dictionary of column names divided into section of the query in which
-        given column is present.
+    def columns_aliases_dict(self) -> dict[str, UniqueList]:
+        """Return column alias names organised by query clause.
 
-        Sections consist of: select, where, order_by, group_by, join, insert and update
+        Keys are SQL clause names and values are :class:`~utils.UniqueList`
+        instances of alias names defined in that clause.  Complements
+        :attr:`columns_aliases` which maps alias → source column.
+
+        :rtype: dict[str, UniqueList]
         """
-        if self._columns_aliases_dict:
-            return self._columns_aliases_dict
-        _ = self.columns_aliases_names
+        if not self._columns_extracted:
+            _ = self.columns
         return self._columns_aliases_dict
 
     @property
-    def columns_aliases_names(self) -> List[str]:
-        """
-        Extract names of the column aliases used in query
-        """
-        if self._columns_aliases_names is not None:
-            return self._columns_aliases_names
-        column_aliases_names = UniqueList()
-        with_names = self.with_names
-        subqueries_names = self.subqueries_names
-        for token in self._not_parsed_tokens:
-            if token.is_potential_alias:
-                if token.value in column_aliases_names:
-                    self._handle_column_alias_subquery_level_update(token=token)
-                elif (
-                    token.is_a_valid_alias
-                    and token.value not in with_names + subqueries_names
-                ):
-                    column_aliases_names.append(token.value)
-                    self._handle_column_alias_subquery_level_update(token=token)
+    def columns_aliases_names(self) -> list[str]:
+        """Return the names of all column aliases used in the query.
 
-        self._columns_aliases_names = column_aliases_names
+        :rtype: list[str]
+        """
+        if not self._columns_extracted:
+            _ = self.columns
         return self._columns_aliases_names
 
     @property
-    def tables(self) -> List[str]:
+    def output_columns(self) -> list[str]:
+        """Return the ordered list of SELECT output column names.
+
+        Combines real columns and aliases in their original position.
+        For example, ``SELECT a, b AS c FROM t`` returns ``["a", "c"]``.
+
+        :rtype: list[str]
         """
-        Return the list of tables this query refers to
+        if not self._columns_extracted:
+            _ = self.columns
+        return self._output_columns
+
+    @property
+    def tables(self) -> list[str]:
+        """Return the list of table names referenced in the query.
+
+        Tables are extracted from the AST by :class:`TableExtractor`,
+        sorted by their position in the SQL text, and filtered to exclude
+        CTE names (which appear in :attr:`with_names` instead).
+
+        :rtype: list[str]
         """
         if self._tables is not None:
             return self._tables
-        tables = UniqueList()
-        with_names = self.with_names
-
-        for token in self._not_parsed_tokens:
-            if token.is_potential_table_name:
-                if (
-                    token.is_alias_of_table_or_alias_of_subquery
-                    or token.is_with_statement_nested_in_subquery
-                    or token.is_constraint_definition_inside_create_table_clause(
-                        query_type=self.query_type
-                    )
-                    or token.is_columns_alias_of_with_query_or_column_in_insert_query(
-                        with_names=with_names
-                    )
-                ):
-                    continue
-
-                # handle INSERT INTO ON DUPLICATE KEY UPDATE queries
-                if (
-                    token.last_keyword_normalized == "UPDATE"
-                    and self.query_type == "INSERT"
-                ):
-                    continue
-                token.token_type = TokenType.TABLE
-                tables.append(str(token.value))
-
-        self._tables = tables - with_names
+        _ = self.query_type
+        ast = self._require_ast()
+        cte_names = set(self.with_names)
+        for placeholder in self._ast_parser.cte_name_map:
+            cte_names.add(placeholder)
+        extractor = TableExtractor(
+            ast,
+            cte_names,
+            dialect=self._ast_parser.dialect,
+        )
+        self._tables = extractor.extract()
         return self._tables
 
     @property
-    def limit_and_offset(self) -> Optional[Tuple[int, int]]:
-        """
-        Returns value for limit and offset if set
-        """
-        if self._limit_and_offset is not None:
-            return self._limit_and_offset
-        limit = None
-        offset = None
+    def tables_aliases(self) -> dict[str, str]:
+        """Return the table alias mapping for this query.
 
-        for token in self._not_parsed_tokens:
-            if token.is_integer:
-                if token.last_keyword_normalized == "LIMIT" and not limit:
-                    # LIMIT <limit>
-                    limit = int(token.value)
-                elif token.last_keyword_normalized == "OFFSET":
-                    # OFFSET <offset>
-                    offset = int(token.value)
-                elif (
-                    token.previous_token.is_punctuation
-                    and token.last_keyword_normalized == "LIMIT"
-                ):
-                    # LIMIT <offset>,<limit>
-                    #  enter this condition only when the limit has already been parsed
-                    offset = limit
-                    limit = int(token.value)
+        Maps each table alias to the real table name it refers to, e.g.
+        ``{"u": "users", "o": "orders"}``.
 
-        if limit is None:
-            return None
-
-        self._limit_and_offset = limit, offset or 0
-        return self._limit_and_offset
-
-    @property
-    def tables_aliases(self) -> Dict[str, str]:
-        """
-        Returns tables aliases mapping from a given query
-
-        E.g. SELECT a.* FROM users1 AS a JOIN users2 AS b ON a.ip_address = b.ip_address
-        will give you {'a': 'users1', 'b': 'users2'}
+        :rtype: dict[str, str]
         """
         if self._table_aliases is not None:
             return self._table_aliases
-        aliases = {}
-        tables = self.tables
-
-        for token in self._not_parsed_tokens:
-            if (
-                token.last_keyword_normalized in TABLE_ADJUSTMENT_KEYWORDS
-                and (token.is_name or (token.is_keyword and not token.is_as_keyword))
-                and not token.next_token.is_as_keyword
-            ):
-                if token.previous_token.is_as_keyword:
-                    # potential <DB.<SCHEMA>.<TABLE> as <ALIAS>
-                    potential_table_name = token.get_nth_previous(2).value
-                else:
-                    # potential <DB.<SCHEMA>.<TABLE> <ALIAS>
-                    potential_table_name = token.previous_token.value
-
-                if potential_table_name in tables:
-                    token.token_type = TokenType.TABLE_ALIAS
-                    aliases[token.value] = potential_table_name
-
-        self._table_aliases = aliases
+        extractor = TableExtractor(self._require_ast())
+        self._table_aliases = extractor.extract_aliases(self.tables)
         return self._table_aliases
 
     @property
-    def with_names(self) -> List[str]:  # noqa: C901
-        """
-        Returns with statements aliases list from a given query
+    def with_names(self) -> list[str]:
+        """Return the CTE (Common Table Expression) names from the query.
 
-        E.g. WITH database1.tableFromWith AS (SELECT * FROM table3)
-             SELECT "xxxxx" FROM database1.tableFromWith alias
-             LEFT JOIN database2.table2 ON ("tt"."ttt"."fff" = "xx"."xxx")
-        will return ["database1.tableFromWith"]
+        :rtype: list[str]
         """
         if self._with_names is not None:
             return self._with_names
-        with_names = UniqueList()
-        for token in self._not_parsed_tokens:
-            if token.previous_token.normalized == "WITH":
-                self._is_in_with_block = True
-                while self._is_in_with_block and token.next_token:
-                    if token.next_token.is_as_keyword:
-                        self._handle_with_name_save(token=token, with_names=with_names)
-                        while token.next_token and not token.is_with_query_end:
-                            token = token.next_token
-                        is_end_of_with_block = (
-                            token.next_token_not_comment is None
-                            or token.next_token_not_comment.normalized
-                            in WITH_ENDING_KEYWORDS
-                        )
-                        if is_end_of_with_block:
-                            self._is_in_with_block = False
-                        elif token.next_token and token.next_token.is_as_keyword:
-                            # Malformed SQL like "... AS (...) AS ..."
-                            raise ValueError("This query is wrong")
-                        else:
-                            # Advance token to prevent infinite loop
-                            token = token.next_token
-                    else:
-                        token = token.next_token
-
-        self._with_names = with_names
+        resolver = self._get_resolver()
+        self._with_names = resolver.extract_cte_names(
+            self._ast_parser.cte_name_map
+        )
         return self._with_names
 
     @property
-    def with_queries(self) -> Dict[str, str]:
-        """
-        Returns "WITH" subqueries with names
+    def with_queries(self) -> dict[str, str]:
+        """Return the SQL body for each CTE defined in the query.
 
-        E.g. WITH tableFromWith AS (SELECT * FROM table3)
-             SELECT "xxxxx" FROM database1.tableFromWith alias
-             LEFT JOIN database2.table2 ON ("tt"."ttt"."fff" = "xx"."xxx")
-        will return {"tableFromWith": "SELECT * FROM table3"}
+        Maps each CTE name to its defining SQL text, e.g.
+        ``{"active_users": "SELECT id FROM users WHERE active = 1"}``.
+
+        :rtype: dict[str, str]
         """
         if self._with_queries is not None:
             return self._with_queries
-        with_queries = {}
-        with_queries_columns = {}
-        for name in self.with_names:
-            token = self.tokens[0].find_nearest_token(
-                name, value_attribute="value", direction="right"
-            )
-            if token.next_token.is_with_columns_start:
-                with_queries_columns[name] = True
-            else:
-                with_queries_columns[name] = False
-            current_with_query = []
-            with_start = token.find_nearest_token(
-                True, value_attribute="is_with_query_start", direction="right"
-            )
-            with_end = with_start.find_nearest_token(
-                True, value_attribute="is_with_query_end", direction="right"
-            )
-            query_token = with_start.next_token
-            while query_token is not None and query_token != with_end:
-                current_with_query.append(query_token)
-                query_token = query_token.next_token
-            with_query_text = "".join([x.stringified_token for x in current_with_query])
-            with_queries[name] = with_query_text
-        self._with_queries = with_queries
-        self._with_queries_columns = with_queries_columns
+        resolver = self._get_resolver()
+        self._with_queries = resolver.extract_cte_bodies(
+            self._ast_parser.cte_name_map
+        )
         return self._with_queries
 
     @property
-    def subqueries(self) -> Dict:
-        """
-        Returns a dictionary with all sub-queries existing in query
+    def subqueries(self) -> dict[str, str]:
+        """Return the SQL body for each subquery in the query.
+
+        Maps each subquery name to its SQL text.  Aliased subqueries use
+        their alias as the key; unaliased ones get auto-generated names
+        (``subquery_1``, ``subquery_2``, …).
+
+        :rtype: dict[str, str]
         """
         if self._subqueries is not None:
             return self._subqueries
-        subqueries = {}
-        token = self.tokens[0]
-        while token.next_token:
-            if token.previous_token.is_subquery_start:
-                current_subquery = []
-                current_level = token.subquery_level
-                inner_token = token
-                while (
-                    inner_token.next_token
-                    and not inner_token.next_token.subquery_level < current_level
-                ):
-                    current_subquery.append(inner_token)
-                    inner_token = inner_token.next_token
-
-                query_name = None
-                if inner_token.next_token.value in self.subqueries_names:
-                    query_name = inner_token.next_token.value
-                elif inner_token.next_token.is_as_keyword:
-                    query_name = inner_token.next_token.next_token.value
-
-                subquery_text = "".join([x.stringified_token for x in current_subquery])
-                if query_name is not None:
-                    subqueries[query_name] = subquery_text
-
-            token = token.next_token
-
-        self._subqueries = subqueries
+        self._subqueries_names, self._subqueries = (
+            NestedResolver.extract_subqueries(self._require_ast())
+        )
         return self._subqueries
 
     @property
-    def subqueries_names(self) -> List[str]:
-        """
-        Returns sub-queries aliases list from a given query
+    def subqueries_names(self) -> list[str]:
+        """Return the names of all subqueries (innermost first).
 
-        e.g. SELECT COUNT(1) FROM
-            (SELECT std.task_id FROM some_task_detail std WHERE std.STATUS = 1) a
-             JOIN (SELECT st.task_id FROM some_task st WHERE task_type_id = 80) b
-             ON a.task_id = b.task_id;
-        will return ["a", "b"]
+        Aliased subqueries use their alias; unaliased ones get
+        auto-generated names (``subquery_1``, ``subquery_2``, …).
+
+        :rtype: list[str]
         """
         if self._subqueries_names is not None:
             return self._subqueries_names
-        subqueries_names = UniqueList()
-        for token in self.tokens:
-            if (token.previous_token.is_subquery_end and not token.is_as_keyword) or (
-                token.previous_token.is_as_keyword
-                and token.get_nth_previous(2).is_subquery_end
-            ):
-                token.token_type = TokenType.SUB_QUERY_NAME
-                subqueries_names.append(str(token))
-
-        self._subqueries_names = subqueries_names
+        self._subqueries_names, self._subqueries = (
+            NestedResolver.extract_subqueries(self._require_ast())
+        )
         return self._subqueries_names
 
+    @staticmethod
+    def _extract_int_from_node(node: Any) -> int | None:
+        """Safely extract an integer value from a Limit or Offset node.
+
+        :param node: A sqlglot AST node (typically ``exp.Limit`` or
+            ``exp.Offset``), or ``None``.
+        :type node: Any
+        :returns: The integer value, or ``None`` if the node is absent or
+            cannot be converted.
+        :rtype: int | None
+        """
+        if not node:
+            return None
+        try:
+            return int(node.expression.this)
+        except (ValueError, AttributeError, TypeError):
+            return None
+
     @property
-    def values(self) -> List:
+    def limit_and_offset(self) -> tuple[int, int] | None:
+        """Return the LIMIT and OFFSET values, if present.
+
+        Extracts values from the AST first; when the AST has no Limit node
+        (e.g. dialect-specific syntax), falls back to regex matching on the
+        raw SQL.
+
+        :rtype: tuple[int, int] | None
         """
-        Returns list of values from insert queries
+        if self._limit_and_offset is not None:
+            return self._limit_and_offset
+
+        ast = self._ast_parser.ast
+        if ast is None:
+            return None
+
+        select = ast if isinstance(ast, exp.Select) else ast.find(exp.Select)
+        if select is None:
+            return None
+
+        limit_val = self._extract_int_from_node(select.args.get("limit"))
+        offset_val = self._extract_int_from_node(select.args.get("offset"))
+
+        if limit_val is None:
+            return self._extract_limit_regex()
+
+        self._limit_and_offset = limit_val, offset_val or 0
+        return self._limit_and_offset
+
+    @property
+    def values(self) -> list[Any]:
+        """Return the list of literal values from INSERT/REPLACE queries.
+
+        A single-row INSERT returns a flat list of values; a multi-row
+        INSERT returns a list of lists (one per row).
+
+        :rtype: list[Any]
         """
-        if self._values:
+        if self._values is not None:
             return self._values
-        values = []
-        for token in self._not_parsed_tokens:
-            if (
-                token.last_keyword_normalized == "VALUES"
-                and token.is_in_parenthesis
-                and token.next_token.is_punctuation
-            ):
-                if token.is_integer:
-                    value = int(token.value)
-                elif token.is_float:
-                    value = float(token.value)
-                else:
-                    value = token.value.strip("'\"")
-                values.append(value)
-        self._values = values
+        self._values = self._extract_values()
         return self._values
 
     @property
-    def values_dict(self) -> Dict:
-        """
-        Returns dictionary of column-value pairs.
-        If columns are not set the auto generated column_<col_number> are added.
+    def values_dict(self) -> dict[str, Any] | None:
+        """Return column-value pairs from INSERT/REPLACE queries.
+
+        Maps each column name to its value (single-row) or list of values
+        (multi-row).  When column names cannot be determined, auto-generated
+        names (``column_1``, ``column_2``, …) are used as keys.
+
+        :rtype: dict[str, Any] | None
         """
         values = self.values
-        if self._values_dict or not values:
+        if self._values_dict is not None or not values:
             return self._values_dict
         columns = self.columns
+
+        is_multi = values and isinstance(values[0], list)
+        first_row = values[0] if is_multi else values
         if not columns:
-            columns = [f"column_{ind + 1}" for ind in range(len(values))]
-        values_dict = dict(zip(columns, values))
-        self._values_dict = values_dict
+            columns = [f"column_{ind + 1}" for ind in range(len(first_row))]
+
+        if is_multi:
+            self._values_dict = {
+                col: [row[i] for row in values] for i, col in enumerate(columns)
+            }
+        else:
+            self._values_dict = dict(zip(columns, values))
         return self._values_dict
 
     @property
-    def comments(self) -> List[str]:
+    def comments(self) -> list[str]:
+        """Return all comments from the SQL query.
+
+        :rtype: list[str]
         """
-        Return comments from SQL query
-        """
-        return [x.value for x in self.tokens if x.is_comment]
+        return extract_comments(self._raw_query)
 
     @property
     def without_comments(self) -> str:
+        """Return the SQL with all comments removed.
+
+        :rtype: str
         """
-        Removes comments from SQL query
-        """
-        return Generalizator(self._raw_query).without_comments
+        return strip_comments(self._raw_query)
 
     @property
     def generalize(self) -> str:
-        """
-        Removes most variables from an SQL query
-        and replaces them with X or N for numbers.
+        """Return a generalised (anonymised) version of the query.
 
-        Based on Mediawiki's DatabaseBase::generalizeSQL
+        :rtype: str
         """
         return Generalizator(self._raw_query).generalize
 
-    @property
-    def _not_parsed_tokens(self):
-        """
-        Returns only tokens that have no type assigned yet
-        """
-        return [x for x in self.tokens if x.token_type is None]
+    def _extract_values(self) -> list[Any]:
+        """Extract literal values from INSERT/REPLACE query AST.
 
-    def _handle_column_save(self, token: SQLToken, columns: List[str]):
-        column = token.table_prefixed_column(self.tables_aliases)
-        if self._is_with_query_already_resolved(column):
-            self._add_to_columns_aliases_subsection(token=token, left_expand=False)
-            token.token_type = TokenType.COLUMN_ALIAS
-            return
-        column = self._resolve_sub_queries(column)
-        self._add_to_columns_with_tables(token, column)
-        self._add_to_columns_subsection(
-            keyword=token.last_keyword_normalized, column=column
-        )
-        token.token_type = TokenType.COLUMN
-        columns.extend(column)
-
-    @staticmethod
-    def _handle_with_name_save(token: SQLToken, with_names: List[str]) -> None:
-        if token.is_right_parenthesis:
-            # inside columns of with statement
-            # like: with (col1, col2) as (subquery)
-            token.is_with_columns_end = True
-            token.is_nested_function_end = False
-            start_token = token.find_nearest_token("(")
-            # like: with (col1, col2) as (subquery) as ..., it enters an infinite loop.
-            # return exception
-            if start_token.is_with_query_start:
-                raise ValueError("This query is wrong")  # pragma: no cover
-            start_token.is_with_columns_start = True
-            start_token.is_nested_function_start = False
-            prev_token = start_token.previous_token
-            prev_token.token_type = TokenType.WITH_NAME
-            with_names.append(prev_token.value)
-        else:
-            token.token_type = TokenType.WITH_NAME
-            with_names.append(token.value)
-
-    def _handle_column_alias_subquery_level_update(self, token: SQLToken) -> None:
-        token.token_type = TokenType.COLUMN_ALIAS
-        self._add_to_columns_aliases_subsection(token=token)
-        current_level = self._column_aliases_max_subquery_level.setdefault(
-            token.value, 0
-        )
-        if token.subquery_level > current_level:
-            self._column_aliases_max_subquery_level[token.value] = token.subquery_level
-
-    def _resolve_subquery_alias(self, token: SQLToken) -> Union[str, List[str]]:
-        # nested subquery like select a, (select a as b from x) as column
-        start_token = token.find_nearest_token(
-            True, value_attribute="is_column_definition_start"
-        )
-        if start_token.next_token.normalized == "SELECT":
-            # we have a subquery
-            alias_token = start_token.next_token.find_nearest_token(
-                self._aliases_to_check,
-                direction="right",
-                value_attribute="value",
-            )
-            return self._resolve_alias_to_column(alias_token)
-
-        # chain of functions or redundant parenthesis
-        return self._find_all_columns_between_tokens(
-            start_token=start_token, end_token=token
-        )
-
-    def _resolve_function_alias(self, token: SQLToken) -> Union[str, List[str]]:
-        # it can be one function or a chain of functions
-        # like: sum(a) + sum(b) as alias
-        # or operation on columns like: col1 + col2 as alias
-        start_token = token.find_nearest_token(
-            [",", "SELECT"], value_attribute="normalized"
-        )
-        while start_token.is_in_nested_function:
-            start_token = start_token.find_nearest_token(
-                [",", "SELECT"], value_attribute="normalized"
-            )
-        return self._find_all_columns_between_tokens(
-            start_token=start_token, end_token=token
-        )
-
-    def _add_to_columns_subsection(self, keyword: str, column: Union[str, List[str]]):
+        :returns: A flat list for single-row inserts, a list of lists for
+            multi-row inserts, or an empty list when no VALUES clause exists.
+        :rtype: list[Any]
         """
-        Add columns to the section in which it appears in query
-        """
-        section = COLUMNS_SECTIONS[keyword]
-        self._columns_dict = self._columns_dict or {}
-        current_section = self._columns_dict.setdefault(section, UniqueList())
-        if isinstance(column, str):
-            current_section.append(column)
-        else:
-            current_section.extend(column)
-
-    def _add_to_columns_aliases_subsection(
-        self, token: SQLToken, left_expand: bool = True
-    ) -> None:
-        """
-        Add alias to the section in which it appears in query
-        """
-        keyword = token.last_keyword_normalized
-        alias = token.value if left_expand else token.value.split(".")[-1]
-        if (
-            token.last_keyword_normalized in ["FROM", "WITH"]
-            and token.find_nearest_token("(").is_with_columns_start
-        ):
-            keyword = "SELECT"
-        section = COLUMNS_SECTIONS[keyword]
-        self._columns_aliases_dict = self._columns_aliases_dict or {}
-        self._columns_aliases_dict.setdefault(section, UniqueList()).append(alias)
-
-    def _add_to_columns_with_tables(
-        self, token: SQLToken, column: Union[str, List[str]]
-    ) -> None:
-        if isinstance(column, list) and len(column) == 1:
-            column = column[0]
-        self._columns_with_tables_aliases[token.value] = column
-
-    def _resolve_column_alias(
-        self, alias: Union[str, List[str]], visited: Set = None
-    ) -> Union[str, List]:
-        """
-        Returns a column name for a given alias
-        """
-        visited = visited or set()
-        if isinstance(alias, list):
-            return [self._resolve_column_alias(x, visited) for x in alias]
-        while alias in self.columns_aliases and alias not in visited:
-            visited.add(alias)
-            alias = self.columns_aliases[alias]
-            if isinstance(alias, list):
-                return self._resolve_column_alias(alias, visited)
-        return alias
-
-    def _resolve_alias_to_column(self, alias_token: SQLToken) -> str:
-        """
-        Resolves aliases of tables to already resolved columns
-        """
-        if alias_token.value in self._columns_with_tables_aliases:
-            alias_of = self._columns_with_tables_aliases[alias_token.value]
-        else:
-            alias_of = alias_token.value
-        return alias_of
-
-    def _resolve_sub_queries(self, column: str) -> List[str]:
-        """
-        Resolve column names coming from sub queries and with queries to actual
-        column names as they appear in the query
-        """
-        column = self._resolve_nested_query(
-            subquery_alias=column,
-            nested_queries_names=self.subqueries_names,
-            nested_queries=self.subqueries,
-            already_parsed=self._subqueries_parsers,
-        )
-        if isinstance(column, str):
-            column = self._resolve_nested_query(
-                subquery_alias=column,
-                nested_queries_names=self.with_names,
-                nested_queries=self.with_queries,
-                already_parsed=self._with_parsers,
-            )
-        return column if isinstance(column, list) else [column]
-
-    @staticmethod
-    # pylint:disable=too-many-return-statements
-    def _resolve_nested_query(  # noqa: C901
-        subquery_alias: str,
-        nested_queries_names: List[str],
-        nested_queries: Dict,
-        already_parsed: Dict,
-    ) -> Union[str, List[str]]:
-        """
-        Resolves subquery reference to the actual column in the subquery
-        """
-        parts = subquery_alias.split(".")
-        if len(parts) != 2 or parts[0] not in nested_queries_names:
-            return subquery_alias
-        sub_query, column_name = parts[0], parts[-1]
-        sub_query_definition = nested_queries.get(sub_query)
-        subparser = already_parsed.setdefault(sub_query, Parser(sub_query_definition))
-        # in subquery you cannot have more than one column with given name
-        # so it either has to have an alias or only one column with given name exists
-        if column_name in subparser.columns_aliases_names:
-            resolved_column = subparser._resolve_column_alias(  # pylint: disable=W0212
-                column_name
-            )
-            if isinstance(resolved_column, list):
-                resolved_column = flatten_list(resolved_column)
-                return resolved_column
-            return [resolved_column]
-
-        if column_name == "*":
-            return subparser.columns
         try:
-            column_index = [x.split(".")[-1] for x in subparser.columns].index(
-                column_name
-            )
-        except ValueError as exc:
-            # handle case when column name is used but subquery select all by wildcard
-            if "*" in subparser.columns:
-                return column_name
-            for table in subparser.tables:
-                if f"{table}.*" in subparser.columns:
-                    return column_name
-            raise exc  # pragma: no cover
-        resolved_column = subparser.columns[column_index]
-        return [resolved_column]
+            ast = self._ast_parser.ast
+        except ValueError:
+            return []
 
-    def _is_with_query_already_resolved(self, col_alias: str) -> bool:
-        """
-        Checks if columns comes from a with query that has columns defined
-        cause if it does that means that column name is an alias and is already
-        resolved in aliases.
-        """
-        parts = col_alias.split(".")
-        if len(parts) != 2 or parts[0] not in self.with_names:
-            return False
-        if self._with_queries_columns.get(parts[0]):
-            return True
-        return False
+        if ast is None:
+            return []
 
-    def _determine_opening_parenthesis_type(self, token: SQLToken):
-        """
-        Determines the type of left parenthesis in query
-        """
-        if token.previous_token.normalized in SUBQUERY_PRECEDING_KEYWORDS:
-            # inside subquery / derived table
-            token.is_subquery_start = True
-            self._subquery_level += 1
-            self._preceded_keywords.append(token.last_keyword_normalized)
-            token.subquery_level = self._subquery_level
-        elif token.previous_token.normalized in KEYWORDS_BEFORE_COLUMNS.union({","}):
-            # we are in columns and in a column subquery definition
-            token.is_column_definition_start = True
-        elif (
-            token.previous_token_not_comment.is_as_keyword
-            and token.last_keyword_normalized != "WINDOW"
-        ):
-            # window clause also contains AS keyword, but it is not a query
-            token.is_with_query_start = True
-        elif (
-            token.last_keyword_normalized == "TABLE"
-            and token.find_nearest_token("(") is EmptyToken
-        ):
-            token.is_create_table_columns_declaration_start = True
-        elif token.previous_token.normalized == "OVER":
-            token.is_partition_clause_start = True
-        else:
-            # nested function
-            token.is_nested_function_start = True
-            self._nested_level += 1
-            self._is_in_nested_function = True
-        self._open_parentheses.append(token)
-        self._parenthesis_level += 1
+        values_node = ast.find(exp.Values)
+        if not values_node:
+            return []
 
-    def _determine_closing_parenthesis_type(self, token: SQLToken):
-        """
-        Determines the type of right parenthesis in query
-        """
-        last_open_parenthesis = self._open_parentheses.pop(-1)
-        if last_open_parenthesis.is_subquery_start:
-            token.is_subquery_end = True
-            self._subquery_level -= 1
-        elif last_open_parenthesis.is_column_definition_start:
-            token.is_column_definition_end = True
-        elif last_open_parenthesis.is_with_query_start:
-            token.is_with_query_end = True
-        elif last_open_parenthesis.is_create_table_columns_declaration_start:
-            token.is_create_table_columns_declaration_end = True
-        elif last_open_parenthesis.is_partition_clause_start:
-            token.is_partition_clause_end = True
-        else:
-            token.is_nested_function_end = True
-            self._nested_level -= 1
-            if self._nested_level == 0:
-                self._is_in_nested_function = False
-        self._parenthesis_level -= 1
-
-    def _find_column_for_with_column_alias(self, token: SQLToken) -> str:
-        start_token = token.find_nearest_token(
-            True, direction="right", value_attribute="is_with_query_start"
-        )
-        if start_token not in self._with_columns_candidates:
-            end_token = start_token.find_nearest_token(
-                True, direction="right", value_attribute="is_with_query_end"
-            )
-            columns = self._find_all_columns_between_tokens(
-                start_token=start_token, end_token=end_token
-            )
-            self._with_columns_candidates[start_token] = columns
-        if isinstance(self._with_columns_candidates[start_token], list):
-            alias_of = self._with_columns_candidates[start_token].pop(0)
-        else:
-            alias_of = self._with_columns_candidates[start_token]
-        return alias_of
-
-    def _find_all_columns_between_tokens(
-        self, start_token: SQLToken, end_token: SQLToken
-    ) -> Union[str, List[str]]:
-        """
-        Returns a list of columns between two tokens
-        """
-        loop_token = start_token
-        aliases = UniqueList()
-        while loop_token.next_token != end_token:
-            if loop_token.next_token.value in self._aliases_to_check:
-                alias_token = loop_token.next_token
-                if (
-                    alias_token.normalized != "*"
-                    or alias_token.is_wildcard_not_operator
-                ):
-                    aliases.append(self._resolve_alias_to_column(alias_token))
-            loop_token = loop_token.next_token
-        return aliases[0] if len(aliases) == 1 else aliases
-
-    def _preprocess_query(self) -> str:
-        """
-        Perform initial query cleanup
-        """
-        if self._raw_query == "":
-            return ""
-
-        # python re does not have variable length look back/forward
-        # so we need to replace all the " (double quote) for a
-        # temporary placeholder as we DO NOT want to replace those
-        # in the strings as this is something that user provided
-        def replace_quotes_in_string(match):
-            return re.sub('"', "<!!__QUOTE__!!>", match.group())
-
-        def replace_back_quotes_in_string(match):
-            return re.sub("<!!__QUOTE__!!>", '"', match.group())
-
-        # unify quoting in queries, replace double quotes to backticks
-        # it's best to keep the quotes as they can have keywords
-        # or digits at the beginning so we only strip them in SQLToken
-        # as double quotes are not properly handled in sqlparse
-        query = re.sub(r"'.*?'", replace_quotes_in_string, self._raw_query)
-        query = re.sub(r'"([^`]+?)"', r"`\1`", query)
-        query = re.sub(r"'.*?'", replace_back_quotes_in_string, query)
-
-        return query
-
-    def _determine_last_relevant_keyword(self, token: SQLToken, last_keyword: str):
-        if token.value == "," and token.last_keyword_normalized == "ON":
-            return "FROM"
-        if token.is_keyword and "".join(token.normalized.split()) in RELEVANT_KEYWORDS:
-            if (
-                not (
-                    token.normalized == "FROM"
-                    and token.get_nth_previous(3).normalized == "EXTRACT"
-                )
-                and not (
-                    token.normalized == "ORDERBY"
-                    and len(self._open_parentheses) > 0
-                    and self._open_parentheses[-1].is_partition_clause_start
-                )
-                and not (token.normalized == "USING" and last_keyword == "SELECT")
-                and not (token.normalized == "IFNOTEXISTS")
-            ):
-                last_keyword = token.normalized
-        return last_keyword
-
-    def _is_token_part_of_complex_identifier(
-        self, token: sqlparse.tokens.Token, index: int
-    ) -> bool:
-        """
-        Checks if token is a part of complex identifier like
-        <schema>.<table>.<column> or <table/sub_query>.<column>
-        """
-        if token.is_keyword:
-            return False
-        return str(token) == "." or (
-            index + 1 < self.tokens_length
-            and str(self.non_empty_tokens[index + 1]) == "."
-        )
-
-    def _combine_qualified_names(self, index: int, token: SQLToken) -> None:
-        """
-        Combines names like <schema>.<table>.<column> or <table/sub_query>.<column>
-        """
-        value = token.value
-        is_complex = True
-        while is_complex:
-            value, is_complex = self._combine_tokens(index=index, value=value)
-            index = index - 1
-        token.value = value
-
-    def _combine_tokens(self, index: int, value: str) -> Tuple[str, bool]:
-        """
-        Checks if complex identifier is longer and follows back until it's finished
-        """
-        if index > 1:
-            prev_value = self.non_empty_tokens[index - 1]
-            if not self._is_token_part_of_complex_identifier(prev_value, index - 1):
-                return value, False
-            prev_value = str(prev_value).strip("`")
-            value = f"{prev_value}{value}"
-            return value, True
-        return value, False
-
-    def _get_sqlparse_tokens(self, parsed) -> None:
-        """
-        Flattens the tokens and removes whitespace
-        """
-        self.sqlparse_tokens = parsed[0].tokens
-        sqlparse_tokens = self._flatten_sqlparse()
-        self.non_empty_tokens = [
-            token
-            for token in sqlparse_tokens
-            if token.ttype is not Whitespace and token.ttype.parent is not Whitespace
-        ]
-        self.tokens_length = len(self.non_empty_tokens)
-
-    def _flatten_sqlparse(self):
-        for token in self.sqlparse_tokens:
-            # sqlparse returns mysql digit starting identifiers as group
-            # check https://github.com/andialbrecht/sqlparse/issues/337
-            is_grouped_mysql_digit_name = (
-                token.is_group
-                and len(token.tokens) == 2
-                and token.tokens[0].ttype is Number.Integer
-                and (
-                    token.tokens[1].is_group and token.tokens[1].tokens[0].ttype is Name
-                )
-            )
-            if token.is_group and not is_grouped_mysql_digit_name:
-                yield from token.flatten()
-            elif is_grouped_mysql_digit_name:
-                # we have digit starting name
-                new_tok = Token(
-                    value=f"{token.tokens[0].normalized}"
-                    f"{token.tokens[1].tokens[0].normalized}",
-                    ttype=token.tokens[1].tokens[0].ttype,
-                )
-                new_tok.parent = token.parent
-                yield new_tok
-                if len(token.tokens[1].tokens) > 1:
-                    # unfortunately there might be nested groups
-                    remaining_tokens = token.tokens[1].tokens[1:]
-                    for tok in remaining_tokens:
-                        if tok.is_group:
-                            yield from tok.flatten()
-                        else:
-                            yield tok
-            else:
-                yield token
+        rows = []
+        for tup in values_node.expressions:
+            rows.append([self._convert_value(val) for val in tup.expressions])
+        if len(rows) == 1:
+            return rows[0]
+        return rows
 
     @staticmethod
-    def _get_switch_by_create_query(tokens: List[SQLToken], index: int) -> str:
-        """
-        Return the switch that creates query type.
-        """
-        switch = tokens[index].normalized + tokens[index + 1].normalized
+    def _convert_value(val: exp.Expression) -> int | float | str:
+        """Convert a sqlglot literal AST node to a Python type.
 
-        # Hive CREATE FUNCTION
-        if any(
-            index + i < len(tokens) and tokens[index + i].normalized == "FUNCTION"
-            for i in (1, 2)
-        ):
-            switch = "CREATEFUNCTION"
-
-        return switch
-
-    @staticmethod
-    def _parse(sql: str) -> Tuple[sqlparse.sql.Statement]:
+        :param val: A sqlglot expression node (typically ``exp.Literal``
+            or ``exp.Neg``).
+        :type val: exp.Expression
+        :returns: The Python int, float, or str representation.
+        :rtype: int | float | str
         """
-        Parse the SQL query using sqlparse library
+        if isinstance(val, exp.Literal):
+            if val.is_int:
+                return int(val.this)
+            if val.is_number:
+                return float(val.this)
+            return str(val.this)
+        if isinstance(val, exp.Neg):
+            inner = val.this
+            if isinstance(inner, exp.Literal):
+                if inner.is_int:
+                    return -int(inner.this)
+                return -float(inner.this)
+        return str(val)
+
+    def _extract_limit_regex(self) -> tuple[int, int] | None:
+        """Extract LIMIT and OFFSET using regex as a fallback.
+
+        Handles both ``LIMIT n OFFSET m`` and MySQL-style ``LIMIT m, n``
+        syntax.
+
+        :returns: A ``(limit, offset)`` tuple, or ``None`` if no LIMIT
+            clause is found.
+        :rtype: tuple[int, int] | None
         """
-        return sqlparse.parse(sql)
+        sql = strip_comments(self._raw_query)
+        match = re.search(r"LIMIT\s+(\d+)\s*,\s*(\d+)", sql, re.IGNORECASE)
+        if match:
+            offset_val = int(match.group(1))
+            limit_val = int(match.group(2))
+            self._limit_and_offset = limit_val, offset_val
+            return self._limit_and_offset
+
+        match = re.search(
+            r"LIMIT\s+(\d+)(?:\s+OFFSET\s+(\d+))?",
+            sql,
+            re.IGNORECASE,
+        )
+        if match:
+            limit_val = int(match.group(1))
+            offset_val = int(match.group(2)) if match.group(2) else 0
+            self._limit_and_offset = limit_val, offset_val
+            return self._limit_and_offset
+        return None
+
+    def _extract_columns_regex(self) -> list[str]:
+        """Extract column names from ``INTO … (col1, col2)`` using regex.
+
+        Used as a fallback when AST construction fails (e.g. malformed SQL
+        that still contains an identifiable INSERT column list).
+
+        :returns: Column names, or an empty list if no match is found.
+        :rtype: list[str]
+        """
+        match = re.search(
+            r"INTO\s+\S+\s*\(([^)]+)\)",
+            self._raw_query,
+            re.IGNORECASE,
+        )
+        if not match:
+            return []
+        cols = []
+        for col in match.group(1).split(","):
+            col = col.strip().strip("`").strip('"').strip("'")
+            if col:
+                cols.append(col)
+        return cols
+
+    def _resolve_column_alias(self, alias: str | list[str]) -> list[str]:
+        """Recursively resolve a column alias to its underlying column(s).
+
+        Delegates to :meth:`NestedResolver.resolve_column_alias` which
+        follows alias chains through CTEs and subqueries.
+
+        :param alias: The alias name or list of alias names to resolve.
+        :type alias: str | list[str]
+        :returns: The resolved column name(s).
+        :rtype: list[str]
+        """
+        resolver = self._get_resolver()
+        return resolver.resolve_column_alias(alias, self.columns_aliases)

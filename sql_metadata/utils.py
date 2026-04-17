@@ -1,35 +1,86 @@
+"""Utility classes and functions shared across the sql-metadata package.
+
+Provides ``UniqueList``, a deduplicating list used to collect columns,
+tables, aliases, and CTE names while preserving insertion order, and
+a ``last_segment`` helper for qualified name handling.
 """
-Module with various utils
-"""
 
-from typing import Any, List, Sequence
+from typing import Any, Iterable
+
+#: Placeholder used to encode dots in qualified CTE names so that sqlglot
+#: does not misinterpret ``db.cte_name`` as a table reference.
+DOT_PLACEHOLDER = "__DOT__"
 
 
-class UniqueList(list):
+class UniqueList(list[str]):
+    """A list subclass that silently rejects duplicate items.
+
+    Used throughout the extraction pipeline (``_extract.py``, ``parser.py``)
+    to collect columns, tables, aliases, CTE names, and subquery names while
+    guaranteeing uniqueness and preserving first-insertion order.  Maintains
+    an internal ``set`` for O(1) membership checks.
     """
-    List that keeps it's items unique
-    """
+
+    def __init__(self, iterable: Any = None, **kwargs: Any) -> None:
+        self._seen: set[str] = set()
+        if iterable is not None:
+            super().__init__(**kwargs)
+            self.extend(iterable)
+        else:
+            super().__init__(**kwargs)
+            self._seen = set(self)
 
     def append(self, item: Any) -> None:
-        if item not in self:
+        """Append *item* only if it is not already present.
+
+        Uses the internal ``set`` for an O(1) duplicate check.
+
+        :param item: The string to append.
+        :type item: Any
+        """
+        if item not in self._seen:
+            self._seen.add(item)
             super().append(item)
 
-    def extend(self, items: Sequence[Any]) -> None:
+    def extend(self, items: Iterable[Any]) -> None:  # type: ignore[override]
+        """Extend the list with *items*, skipping duplicates.
+
+        :param items: Iterable of strings to add.
+        :type items: Iterable[Any]
+        """
         for item in items:
             self.append(item)
 
-    def __sub__(self, other) -> List:
-        return [x for x in self if x not in other]
+    def __contains__(self, item: Any) -> bool:
+        """O(1) membership check using the internal set.
+
+        :param item: The value to look up.
+        :type item: Any
+        :rtype: bool
+        """
+        return item in self._seen
+
+    def __sub__(self, other: Any) -> list[str]:
+        """Return a plain list of elements in *self* that are not in *other*.
+
+        :param other: Collection of items to exclude.
+        :type other: Any
+        :rtype: list[str]
+        """
+        other_set = set(other)
+        return [x for x in self if x not in other_set]
 
 
-def flatten_list(input_list: List) -> List[str]:
+
+def last_segment(name: str) -> str:
+    """Return the last dot-separated segment of a qualified name.
+
+    For example, ``"schema.table.column"`` → ``"column"``.
+
+    :param name: A possibly dot-qualified name.
+    :type name: str
+    :rtype: str
     """
-    Flattens list of string and lists if there are nested lists.
-    """
-    result = []
-    for item in input_list:
-        if isinstance(item, list):
-            result.extend(flatten_list(item))
-        else:
-            result.append(item)
-    return result
+    return name.rsplit(".", 1)[-1]
+
+

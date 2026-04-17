@@ -155,61 +155,37 @@ def test_inline_comments_with_hash():
     assert parser.comments == []
 
 
-def test_next_token_not_comment_single():
-    query = """
-        SELECT column_1 -- comment_1
-        FROM table_1 
-    """
-    parser = Parser(query)
-    column_1_tok = parser.tokens[1]
-
-    assert column_1_tok.next_token.is_comment
-    assert not column_1_tok.next_token_not_comment.is_comment
-    assert column_1_tok.next_token.next_token == column_1_tok.next_token_not_comment
-
-
-def test_next_token_not_comment_multiple():
-    query = """
-            SELECT column_1 -- comment_1
-            
-            /*
-            comment_2
-            */
-            
-            # comment_3
-            FROM table_1
-        """
-    parser = Parser(query)
-    column_1_tok = parser.tokens[1]
-
-    assert column_1_tok.next_token.is_comment
-    assert column_1_tok.next_token.next_token.is_comment
-    assert column_1_tok.next_token.next_token.next_token.is_comment
-    assert not column_1_tok.next_token_not_comment.is_comment
-    assert (
-        column_1_tok.next_token.next_token.next_token.next_token
-        == column_1_tok.next_token_not_comment
-    )
-
-
-def test_next_token_not_comment_on_non_comments():
-    query = """
-            SELECT column_1
-            FROM table_1
-        """
-    parser = Parser(query)
-    select_tok = parser.tokens[0]
-
-    assert select_tok.next_token == select_tok.next_token_not_comment
-    assert (
-        select_tok.next_token.next_token
-        == select_tok.next_token_not_comment.next_token_not_comment
-    )
-
-
 def test_without_comments_for_multiline_query():
     query = """SELECT * -- comment
         FROM table
         WHERE table.id = '123'"""
     parser = Parser(query)
     assert parser.without_comments == """SELECT * FROM table WHERE table.id = '123'"""
+
+
+def test_table_after_comment_not_ignored():
+    # solved: https://github.com/macbre/sql-metadata/issues/251
+    query = """SELECT c1 FROM
+       --Comment--
+        d1, d2, d3"""
+    parser = Parser(query)
+    assert parser.tables == ["d1", "d2", "d3"]
+    assert parser.columns == ["c1"]
+    assert parser.columns_dict == {"select": ["c1"]}
+
+
+def test_extract_comments_empty_string():
+    """Extracting comments from empty SQL returns empty list."""
+    assert Parser("").comments == []
+
+
+def test_strip_comments_empty_string():
+    """Stripping comments from empty SQL returns empty string."""
+    assert Parser("").without_comments == ""
+
+
+def test_strip_comments_for_parsing_empty():
+    """SqlCleaner handles empty strings via strip_comments_for_parsing."""
+    from sql_metadata.comments import strip_comments_for_parsing
+
+    assert strip_comments_for_parsing("") == ""

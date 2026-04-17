@@ -7,10 +7,10 @@ def test_get_query_tokens():
     tokens = Parser("SELECT * FROM foo").tokens
 
     assert len(tokens) == 4
-    assert str(tokens[0]) == "SELECT"
-    assert tokens[1].is_wildcard
-    assert tokens[2].is_keyword
-    assert str(tokens[2]) == "FROM"
+    assert tokens[0] == "SELECT"
+    assert tokens[1] == "*"
+    assert tokens[2] == "FROM"
+    assert tokens[3] == "foo"
 
 
 def test_preprocessing():
@@ -126,3 +126,26 @@ def test_case_syntax():
     assert Parser(
         "SELECT case when p > 0 then 1 else 0 end as cs from c where g > f"
     ).tables == ["c"]
+
+
+def test_empty_query_property():
+    """The query property returns empty string for empty SQL."""
+    assert Parser("").query == ""
+
+
+def test_query_rewrites_double_quoted_identifier_with_hash_comment():
+    """Double-quoted identifiers are rewritten even when a # comment is present."""
+    # Regression guard: the MySQL tokenizer reclassifies "X" as STRING,
+    # so preprocess_query must use the default tokenizer unconditionally.
+    assert (
+        Parser('SELECT "col_a" FROM t # trailing hash').query
+        == "SELECT `col_a` FROM t # trailing hash"
+    )
+
+
+def test_tokens_caching():
+    """Second access to tokens returns the cached list."""
+    p = Parser("SELECT col FROM t")
+    first = p.tokens
+    second = p.tokens
+    assert first is second

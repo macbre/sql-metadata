@@ -1,0 +1,30 @@
+name: Type Check
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+
+jobs:
+  type-check:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v6
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: "3.12"
+
+    - name: Install Poetry
+      uses: snok/install-poetry@v1.4.1
+      with:
+        version: latest
+        virtualenvs-create: true
+        virtualenvs-in-project: true
+
+    - name: Install dependencies with poetry
+      run: poetry install --no-root
+
+    - name: Type check with mypy
+      run: make type_check

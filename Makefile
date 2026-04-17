@@ -8,11 +8,13 @@ coverage:
 	poetry run pytest -vv --cov=sql_metadata --cov-report=term --cov-report=html
 
 lint:
-	poetry run flake8 sql_metadata
-	poetry run pylint sql_metadata
+	poetry run ruff check --fix sql_metadata
 
 format:
-	poetry run black .
+	poetry run ruff format .
+
+type_check:
+	poetry run mypy sql_metadata
 
 publish:
 	# run git tag -a v0.0.0 before running make publish

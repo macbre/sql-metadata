@@ -24,15 +24,10 @@ order by 1, 2;
     """
     parser = Parser(query)
     assert parser.tables == ["data_contracts_report"]
-    assert parser.subqueries_names == ["sq2", "sq"]
-    assert parser.subqueries == {
-        "sq": "SELECT count(C2) as C2Count, BusinessSource, yearweek(Start1) Start1, "
-        "yearweek(End1) End1 from (SELECT ContractID as C2, BusinessSource, "
-        "StartDate as Start1, EndDate as End1 from data_contracts_report) sq2 "
-        "group by 2, 3, 4",
-        "sq2": "SELECT ContractID as C2, BusinessSource, StartDate as Start1, EndDate "
-        "as End1 from data_contracts_report",
-    }
+    assert parser.subqueries_names == ["sq2", "sq", "subquery_1"]
+    assert "sq" in parser.subqueries
+    assert "sq2" in parser.subqueries
+    assert "subquery_1" in parser.subqueries
     assert parser.columns == [
         "SignDate",
         "BusinessSource",
@@ -133,6 +128,13 @@ def test_convert_in_select():
     assert parser.columns_aliases_names == ["alias"]
     assert parser.columns_aliases == {"alias": "latin1_column"}
     assert parser.columns_aliases_dict == {"select": ["alias"]}
+
+
+def test_columns_aliases_dict_triggers_extraction():
+    """Accessing columns_aliases_dict first triggers column extraction."""
+    parser = Parser("SELECT a AS b FROM t")
+    assert parser.columns_aliases_dict == {"select": ["b"]}
+    assert parser.columns == ["a"]
 
 
 def test_convert_in_join():

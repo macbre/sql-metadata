@@ -1,11 +1,11 @@
 import pytest
 
-from sql_metadata import Parser
+from sql_metadata import InvalidQueryDefinition, Parser
 from sql_metadata.keywords_lists import QueryType
 
 
 def test_is_create_table_query():
-    with pytest.raises(ValueError):
+    with pytest.raises(InvalidQueryDefinition):
         assert Parser("BEGIN").query_type
 
     assert Parser("SELECT * FROM `foo` ()").query_type == QueryType.SELECT
@@ -78,7 +78,7 @@ def test_creating_table_as_select_with_with_clause():
     parser = Parser(qry)
     assert parser.query_type == QueryType.CREATE
     assert parser.with_names == ["sub"]
-    assert parser.with_queries == {"sub": "select it_id from internal_table"}
+    assert parser.with_queries == {"sub": "SELECT it_id FROM internal_table"}
     assert parser.columns == [
         "it_id",
         "*",
@@ -170,3 +170,75 @@ def test_create_temporary_table():
     assert parser.query_type == QueryType.CREATE
     assert parser.tables == ["new_tbl", "orig_tbl"]
     assert parser.columns == ["*"]
+
+
+def test_create_index_extracts_table():
+    """CREATE INDEX correctly extracts the target table."""
+    p = Parser("CREATE INDEX idx ON t (col)")
+    assert "t" in p.tables
+
+
+def test_create_table_with_columns_only():
+    """CREATE TABLE with column definitions (no SELECT) extracts columns."""
+    p = Parser("CREATE TABLE users (id INT, name VARCHAR(100), active BOOL)")
+    assert p.columns == ["id", "name", "active"]
+    assert p.tables == ["users"]
+
+
+def test_create_table_with_column_defs_and_select():
+    """CREATE TABLE with both column definitions and AS SELECT."""
+    p = Parser("CREATE TABLE t (id INT) AS SELECT a FROM t2")
+    assert p.columns == ["id", "a"]
+    assert p.tables == ["t", "t2"]
+
+
+def test_ctas_with_redshift_distkey_sortkey():
+    # Solved: https://github.com/macbre/sql-metadata/issues/367
+    p = Parser(
+        "CREATE TABLE my_table distkey(col1) sortkey(col1, col3) "
+        "AS SELECT col1, col2, col3 FROM source_table"
+    )
+    assert p.tables == ["my_table", "source_table"]
+    assert p.columns == ["col1", "col2", "col3"]
+
+
+def test_create_table_mysql_charset_and_collate():
+    # Solved: https://github.com/macbre/sql-metadata/issues/358
+    p = Parser("""CREATE TABLE `jeecg_order_main` (
+      `id` varchar(32) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL,
+      `order_code` varchar(50) CHARACTER SET utf8 COLLATE utf8_general_ci NULL,
+      `order_date` datetime NULL DEFAULT NULL,
+      `order_money` double(10, 3) NULL DEFAULT NULL,
+      `bpm_status` varchar(3) CHARACTER SET utf8 COLLATE utf8_general_ci NULL,
+      PRIMARY KEY (`id`) USING BTREE
+    ) ENGINE = InnoDB CHARACTER SET = utf8 COLLATE = utf8_general_ci""")
+    assert p.tables == ["jeecg_order_main"]
+    assert p.columns == ["id", "order_code", "order_date", "order_money", "bpm_status"]
+
+
+def test_create_table_with_comments_and_keyword_columns():
+    # Solved: https://github.com/macbre/sql-metadata/issues/507
+    p = Parser("""
+        CREATE TABLE accounts (
+            id INTEGER,     /* comment */
+            username TEXT UNIQUE,
+            status TEXT,
+            online_at INTEGER,
+            hash TEXT UNIQUE,
+            uid TEXT UNIQUE,
+            test INTEGER,
+            usage INTEGER,
+            PRIMARY KEY (id)
+        )
+    """)
+    assert p.tables == ["accounts"]
+    assert p.columns == [
+        "id", "username", "status", "online_at", "hash", "uid", "test", "usage"
+    ]
+
+
+def test_create_table_as_select_with_cte_same_name():
+    """CREATE TABLE target should be reported even when a CTE shares its name."""
+    query = "CREATE TABLE foo AS WITH foo AS (SELECT 1 as id) SELECT * FROM foo"
+    parser = Parser(query)
+    assert parser.tables == ["foo"]

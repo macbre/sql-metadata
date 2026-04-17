@@ -113,6 +113,52 @@ def test_columns_with_order_by():
         "foo",
         "id",
     ]
+    # Star inside COUNT(*) in ORDER BY should not be extracted as a column
+    assert Parser(
+        "SELECT dept FROM employees GROUP BY dept ORDER BY COUNT(*) DESC"
+    ).columns == ["dept"]
+
+
+def test_output_columns():
+    # Solved: https://github.com/macbre/sql-metadata/issues/468
+    parser = Parser("""SELECT
+        dj.field_1,
+        cardinality(dj.field_1) as field_1_count,
+        dj.field_2,
+        cardinality(dj.field_2) as field_2_count,
+        dj.field_3 as field_3
+    FROM dj""")
+    assert parser.output_columns == [
+        "dj.field_1", "field_1_count", "dj.field_2", "field_2_count", "field_3"
+    ]
+
+    # Simple alias
+    assert Parser("SELECT a, b AS c FROM t").output_columns == ["a", "c"]
+
+    # Star
+    assert Parser("SELECT * FROM t").output_columns == ["*"]
+
+    # Self-alias preserves original name
+    assert Parser("SELECT a AS a FROM t").output_columns == ["a"]
+
+    # Non-SELECT query returns empty list
+    assert Parser("CREATE TABLE t (id INT)").output_columns == []
+
+    # Solved: https://github.com/macbre/sql-metadata/issues/421
+    # Window function alias resolved in output_columns
+    parser = Parser("""SELECT
+        DATE_TRUNC('month', o.order_date) AS month,
+        c.customer_id,
+        SUM(oi.quantity * oi.unit_price) AS revenue,
+        ROW_NUMBER() OVER (PARTITION BY c.customer_id
+            ORDER BY SUM(oi.quantity * oi.unit_price) DESC) AS revenue_rank
+    FROM orders o
+    JOIN customers c ON o.customer_id = c.customer_id
+    JOIN order_items oi ON o.order_id = oi.order_id""")
+    assert parser.output_columns == [
+        "month", "customers.customer_id", "revenue", "revenue_rank"
+    ]
+    assert "revenue_rank" in parser.columns_aliases
 
 
 def test_update_and_replace():
@@ -302,6 +348,24 @@ def test_columns_and_sql_functions():
         "SELECT count(col)+max(col2)+ min(col3)+ count(distinct  col4) + "
         "custom_func(col5) from dual"
     ).columns == ["col", "col2", "col3", "col4", "col5"]
+
+
+def test_odbc_escape_function():
+    # Solved: https://github.com/macbre/sql-metadata/issues/391
+    parser = Parser(
+        "SELECT Calendar_year_lookup.Yr, "
+        "{fn concat('Q', Calendar_year_lookup.Qtr)}, "
+        "sum(Shop_facts.Amount_sold) "
+        "FROM Calendar_year_lookup, Shop_facts "
+        "GROUP BY Calendar_year_lookup.Yr, "
+        "{fn concat('Q', Calendar_year_lookup.Qtr)}"
+    )
+    assert parser.tables == ["Calendar_year_lookup", "Shop_facts"]
+    assert parser.columns == [
+        "Calendar_year_lookup.Yr",
+        "Calendar_year_lookup.Qtr",
+        "Shop_facts.Amount_sold",
+    ]
 
 
 def test_columns_starting_with_keywords():
@@ -533,7 +597,7 @@ def test_double_inner_join():
 
     parser = Parser(query)
     assert "loan.account_id" in parser.columns
-    assert parser.tables == ["loan", "account"]
+    assert parser.tables == ["loan", "account", "district"]
 
 
 def test_keyword_column_source():
@@ -555,3 +619,158 @@ def test_keyword_column_source():
     # Test with 'source' as only column
     parser = Parser("select source from my_table")
     assert parser.columns == ["source"]
+
+
+def test_sum_case_when_columns():
+    # solved: https://github.com/macbre/sql-metadata/issues/579
+    query = """
+    SELECT CAST(
+    SUM(CASE WHEN segment = 'Premium' THEN 1 ELSE 0 END) AS REAL) * 100 / 
+    COUNT(*) AS premiumpercentage 
+    FROM gasstations WHERE country = 'SVK'"""
+    parser = Parser(query)
+    assert parser.columns == ["segment", "country"]
+    assert parser.columns_dict == {"select": ["segment"], "where": ["country"]}
+    assert parser.tables == ["gasstations"]
+
+
+def test_quoted_column_with_whitespace():
+    # solved: https://github.com/macbre/sql-metadata/issues/578
+    query = (
+        """SELECT COUNT(*) FROM examination WHERE "Examination Date" > '1997-01-01'"""
+    )
+    parser = Parser(query)
+    assert parser.columns == ["Examination Date"]
+    assert parser.columns_dict == {"where": ["Examination Date"]}
+    assert parser.tables == ["examination"]
+
+
+def test_coalesce_in_joins():
+    # solved: https://github.com/macbre/sql-metadata/issues/559
+    query = """
+    select OPR.ID, OPR.year from operations OPR
+    INNER JOIN my_db_name.ipps_wage_index_annual WI ON OPR.year = WI.cms_year
+    INNER JOIN my_db_name.geo_county_cbsa CBS 
+    ON WI.cbsa_cd = COALESCE(CBS.metropolitan_division_code, CBS.cbsa_code, SUBSTRING(CBS.ssa_codes, 1, 2))"""
+    parser = Parser(query)
+    assert parser.columns == [
+        "operations.ID",
+        "operations.year",
+        "my_db_name.ipps_wage_index_annual.cms_year",
+        "my_db_name.ipps_wage_index_annual.cbsa_cd",
+        "my_db_name.geo_county_cbsa.metropolitan_division_code",
+        "my_db_name.geo_county_cbsa.cbsa_code",
+        "my_db_name.geo_county_cbsa.ssa_codes",
+    ]
+    assert parser.columns_dict == {
+        "join": [
+            "operations.year",
+            "my_db_name.ipps_wage_index_annual.cms_year",
+            "my_db_name.ipps_wage_index_annual.cbsa_cd",
+            "my_db_name.geo_county_cbsa.metropolitan_division_code",
+            "my_db_name.geo_county_cbsa.cbsa_code",
+            "my_db_name.geo_county_cbsa.ssa_codes",
+        ],
+        "select": ["operations.ID", "operations.year"],
+    }
+    assert parser.tables == [
+        "operations",
+        "my_db_name.ipps_wage_index_annual",
+        "my_db_name.geo_county_cbsa",
+    ]
+
+
+def test_uid_pad_parsed_as_columns():
+    # solved: https://github.com/macbre/sql-metadata/issues/412
+    parser = Parser("SELECT * FROM t1 WHERE uid = 4")
+    assert parser.tables == ["t1"]
+    assert parser.columns == ["*", "uid"]
+    assert parser.columns_dict == {"select": ["*"], "where": ["uid"]}
+
+    parser2 = Parser("SELECT * FROM t1 WHERE pad = 4")
+    assert parser2.tables == ["t1"]
+    assert parser2.columns == ["*", "pad"]
+    assert parser2.columns_dict == {"select": ["*"], "where": ["pad"]}
+
+
+def test_dateadd_unit_not_column():
+    # solved: https://github.com/macbre/sql-metadata/issues/411
+    query = """
+    SELECT
+        dateadd(dd, 30, DateReleased),
+        dateadd(WK, 2, DateReleased)
+    FROM test a
+    """
+    parser = Parser(query)
+    assert parser.tables == ["test"]
+    assert parser.columns == ["DateReleased"]
+    assert parser.tables_aliases == {"a": "test"}
+    assert parser.columns_dict == {"select": ["DateReleased"]}
+
+
+def test_backtick_column_with_operation():
+    # solved: https://github.com/macbre/sql-metadata/issues/448
+    query = "SELECT `col1 with space` / `col2_anything` FROM table1"
+    parser = Parser(query)
+    assert parser.tables == ["table1"]
+    assert parser.columns == ["col1 with space", "col2_anything"]
+    assert parser.columns_dict == {
+        "select": ["col1 with space", "col2_anything"],
+    }
+
+
+def test_separator_not_column():
+    # solved: https://github.com/macbre/sql-metadata/issues/400
+    query = """
+    SELECT JoinedMonth,
+      group_concat(
+      distinct FirstName
+      order by FirstName
+      separator '/') as FirstName
+    FROM customers
+    GROUP BY JoinedMonth
+    """
+    parser = Parser(query)
+    assert parser.columns == ["JoinedMonth", "FirstName"]
+    columns_lower = [c.lower() for c in parser.columns]
+    assert "separator" not in columns_lower
+
+
+def test_mssql_top_columns():
+    # solved: https://github.com/macbre/sql-metadata/issues/318
+    query = "SELECT TOP 10 id, name FROM foo"
+    parser = Parser(query)
+    assert parser.tables == ["foo"]
+    assert parser.columns == ["id", "name"]
+    assert parser.columns_dict == {"select": ["id", "name"]}
+
+
+def test_columns_regex_fallback_on_invalid_insert():
+    """Invalid INSERT falls back to regex for column extraction."""
+    p = Parser("INSERT INTO t (col1, col2, col3) GARBAGE GARBAGE GARBAGE")
+    assert p.columns == ["col1", "col2", "col3"]
+
+
+def test_columns_via_regex_on_completely_invalid_sql():
+    """Totally invalid SQL with INTO...(cols) pattern uses regex fallback."""
+    p = Parser("INTO tbl (col_a, col_b) FROM TO WHERE")
+    assert p.columns == ["col_a", "col_b"]
+
+
+def test_cte_with_more_column_aliases_than_body():
+    """CTE defines more column names than the body SELECT produces."""
+    p = Parser(
+        "WITH cte(a, b, c) AS (SELECT x FROM t) "
+        "SELECT a FROM cte"
+    )
+    assert "a" in p.columns_aliases_names
+
+
+def test_cte_with_table_star_in_body():
+    """CTE body uses table.* — exercises _flat_columns with table-qualified star."""
+    p = Parser(
+        "WITH cte(a) AS (SELECT t.* FROM t) "
+        "SELECT a FROM cte"
+    )
+    assert p.columns == ["t.*"]
+    assert p.columns_aliases_names == ["a"]

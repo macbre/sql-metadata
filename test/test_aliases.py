@@ -16,9 +16,9 @@ def test_get_query_table_aliases():
     assert Parser(
         "SELECT bar AS value FROM foo AS f INNER JOIN dimensions AS d ON f.id = d.id"
     ).tables_aliases == {"f": "foo", "d": "dimensions"}
-    assert (
-        Parser("SELECT e.foo FROM (SELECT * FROM bar) AS e").tables_aliases == {}
-    ), "Sub-query aliases are ignored"
+    assert Parser("SELECT e.foo FROM (SELECT * FROM bar) AS e").tables_aliases == {}, (
+        "Sub-query aliases are ignored"
+    )
     assert Parser(
         "SELECT a.* FROM product_a AS a "
         "JOIN product_b AS b ON a.ip_address = b.ip_address"
@@ -44,3 +44,27 @@ def test_tables_aliases_are_resolved():
         "users1.ip_address",
         "users2.ip_address",
     ]
+
+
+def test_column_alias_same_as_join_table_alias():
+    # solved: https://github.com/macbre/sql-metadata/issues/424
+    query = """
+    SELECT
+        dependent_schema.name as dependent_schema,
+        relationships.dependent_name as dependent_name
+    FROM relationships
+        JOIN schema AS dependent_schema
+            ON relationships.dependent_schema_id = dependent_schema.id
+        JOIN schema AS referenced_schema
+            ON relationships.referenced_schema_id = referenced_schema.id
+    GROUP BY dependent_schema, dependent_name
+    ORDER BY dependent_schema, dependent_name
+    """
+    parser = Parser(query)
+    assert parser.tables == ["relationships", "schema"]
+    assert parser.tables_aliases == {
+        "dependent_schema": "schema",
+        "referenced_schema": "schema",
+    }
+    assert "schema.name" in parser.columns
+    assert "relationships.dependent_name" in parser.columns

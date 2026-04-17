@@ -52,7 +52,7 @@ def test_getting_values():
         " '2021-02-27 03:21:52', 'test comment', 0, '0', "
         "'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv: 78.0) "
         "Gecko/20100101 Firefox/78.0', "
-        "'comment', 0, 0)',"
+        "'comment', 0, 0)"
     )
     assert parser.values == [
         1,
@@ -93,3 +93,65 @@ def test_getting_values():
         "comment_parent": 0,
         "user_id": 0,
     }
+
+
+def test_values_on_invalid_sql():
+    """Values extraction returns empty list for unparseable SQL."""
+    from sql_metadata import Parser
+
+    p = Parser(";;;")
+    assert p.values == []
+
+
+def test_values_on_comment_only_sql():
+    """Values extraction returns empty list when SQL is only comments."""
+    from sql_metadata import Parser
+
+    p = Parser("/* just a comment */")
+    assert p.values == []
+
+
+def test_negative_integer_values():
+    """INSERT with a negative integer value."""
+    p = Parser("INSERT INTO scores (player, points) VALUES ('alice', -42)")
+    assert p.values == ["alice", -42]
+    assert p.values_dict == {"player": "alice", "points": -42}
+
+
+def test_negative_float_values():
+    """INSERT with a negative float value."""
+    p = Parser(
+        "INSERT INTO measurements (sensor, reading) VALUES ('temp', -3.14)"
+    )
+    assert p.values == ["temp", -3.14]
+    assert p.values_dict == {"sensor": "temp", "reading": -3.14}
+
+
+def test_insert_with_null_value():
+    """INSERT with NULL triggers the str(val) fallback in _convert_value."""
+    p = Parser("INSERT INTO t (a, b) VALUES (1, NULL)")
+    assert p.values == [1, "NULL"]
+    assert p.values_dict == {"a": 1, "b": "NULL"}
+
+
+def test_insert_with_scalar_subquery_in_values():
+    """Scalar subquery inside VALUES — columns from the subquery are extracted."""
+    p = Parser(
+        "INSERT INTO orders (customer_id) "
+        "VALUES ((SELECT id FROM customers WHERE email = 'foo@bar.com'))"
+    )
+    assert p.tables == ["orders", "customers"]
+    assert p.columns == ["customer_id", "id", "email"]
+
+
+def test_insert_multi_row_values():
+    # Solved: https://github.com/macbre/sql-metadata/issues/558
+    p = Parser("INSERT INTO t (field1, field2) VALUES (1, 2), (3, 4)")
+    assert p.values == [[1, 2], [3, 4]]
+    assert p.values_dict == {"field1": [1, 3], "field2": [2, 4]}
+
+
+def test_insert_with_expression_value():
+    """INSERT with a function call in VALUES uses str(val) fallback."""
+    p = Parser("INSERT INTO t (a) VALUES (CURRENT_TIMESTAMP)")
+    assert len(p.values) == 1
