@@ -1,15 +1,13 @@
 """Extract tables and table aliases from a sqlglot AST.
 
-The :class:`TableExtractor` class walks the AST for ``exp.Table`` and
-``exp.Lateral`` nodes, builds fully-qualified table names (optionally
-preserving ``[bracket]`` notation for TSQL), and sorts results by their
-first occurrence in the raw SQL so the output order matches left-to-right
-reading order.  CTE names are excluded from the result so that only *real*
-tables are reported.
+The :class:`TableExtractor` class walks the AST for ``exp.Table`` nodes,
+builds fully-qualified table names (optionally preserving ``[bracket]``
+notation for TSQL), and sorts results by each table identifier's
+character position from sqlglot's tokenizer (``Identifier.meta['start']``),
+so the output order matches left-to-right reading order without any
+regex scan of the raw SQL.  CTE names are excluded from the result so
+that only *real* tables are reported.
 """
-
-import functools
-import re
 
 from sqlglot import exp
 from sqlglot.dialects.dialect import DialectType
@@ -105,53 +103,6 @@ def _bracketed_full_name(table: exp.Table) -> str:
     return ".".join(parts) if parts else ""
 
 
-def _ends_with_table_keyword(before: str) -> bool:
-    """Check whether *before* ends with a table-introducing keyword.
-
-    Used to determine if a table name appears right after ``FROM``,
-    ``JOIN``, ``TABLE``, ``INTO``, or ``UPDATE``.
-
-    :param before: Upper-cased SQL text preceding the candidate table name.
-    :returns: ``True`` if the text ends with a table keyword.
-    """
-    return any(before.endswith(kw) for kw in _TABLE_CONTEXT_KEYWORDS)
-
-
-def _is_in_comma_list_after_keyword(before: str) -> bool:
-    """Check whether a comma-preceded name belongs to a table list.
-
-    Looks backward for the nearest table-introducing keyword (e.g. ``FROM``)
-    and verifies that no interrupting keyword (e.g. ``WHERE``, ``SELECT``)
-    appears between it and the comma.  This handles multi-table ``FROM``
-    clauses.
-
-    .. code-block:: sql
-
-       SELECT * FROM t1, t2, t3  -- t2 and t3 are in comma list after FROM
-
-    :param before: Upper-cased SQL text preceding the comma + candidate name.
-    :returns: ``True`` if the name is part of a comma-separated table list.
-    """
-    best_kw_pos = -1
-    for kw in _TABLE_CONTEXT_KEYWORDS:
-        kw_pos = before.rfind(kw)
-        if kw_pos > best_kw_pos:
-            best_kw_pos = kw_pos
-    if best_kw_pos < 0:
-        # no table keyword found at all
-        return False
-    between = before[best_kw_pos:]
-    # e.g. FROM t1 WHERE ... , x — WHERE interrupts, so x is not a table
-    return not any(ik in between for ik in _INTERRUPTING_KEYWORDS)
-
-
-#: SQL keywords that introduce a table-name context.
-_TABLE_CONTEXT_KEYWORDS = {"FROM", "JOIN", "TABLE", "INTO", "UPDATE"}
-
-#: Keywords that interrupt a comma-separated table list.
-_INTERRUPTING_KEYWORDS = {"SELECT", "WHERE", "ORDER", "GROUP", "HAVING", "SET"}
-
-
 # ---------------------------------------------------------------------------
 # TableExtractor class
 # ---------------------------------------------------------------------------
@@ -160,18 +111,12 @@ _INTERRUPTING_KEYWORDS = {"SELECT", "WHERE", "ORDER", "GROUP", "HAVING", "SET"}
 class TableExtractor:
     """Extract table names and aliases from a sqlglot AST.
 
-    Encapsulates the raw SQL string and AST needed for position-based
-    table sorting, bracket-mode detection, and CTE name filtering.
-
-    The extraction pipeline:
-
-    1. Collect all ``exp.Table`` nodes from the AST.
-    2. Build fully-qualified names (with bracket preservation for TSQL).
-    3. Filter out CTE names so only real tables are reported.
-    4. Sort by first occurrence in the raw SQL for left-to-right order.
+    Collects ``exp.Table`` nodes from the AST, builds fully-qualified
+    names (with bracket preservation for TSQL), filters out CTE names,
+    and sorts by each table identifier's character position from
+    sqlglot's tokenizer (``Identifier.meta['start']``).
 
     :param ast: Root AST node produced by sqlglot.
-    :param raw_sql: Original SQL string, used for position-based sorting.
     :param cte_names: Set of CTE names to exclude from the result.
     :param dialect: The dialect used to parse the AST.
     """
@@ -179,13 +124,10 @@ class TableExtractor:
     def __init__(
         self,
         ast: exp.Expression,
-        raw_sql: str = "",
         cte_names: set[str] | None = None,
         dialect: DialectType = None,
     ):
         self._ast = ast
-        self._raw_sql = raw_sql
-        self._upper_sql = raw_sql.upper()
         self._cte_names = cte_names or set()
 
         from sql_metadata.dialect_parser import BracketedTableDialect
@@ -204,8 +146,9 @@ class TableExtractor:
 
         For ``CREATE TABLE`` statements, the target table is always placed
         first in the result regardless of its position in the SQL text.
-        All other tables are sorted by their first occurrence in the raw
-        SQL (left-to-right reading order).
+        All other tables are sorted by the character position of their
+        first identifier token (from sqlglot's ``Identifier.meta``),
+        giving left-to-right reading order.
 
         .. code-block:: sql
 
@@ -219,11 +162,15 @@ class TableExtractor:
             # e.g. CREATE TABLE t AS SELECT ... — extract target first
             create_target = self._extract_create_target()
 
-        collected = self._collect_all()
-        collected_sorted = sorted(collected, key=lambda t: self._first_position(t))
+        tables_with_pos: list[tuple[str, int]] = []
+        for node in self._table_nodes():
+            name = self._table_full_name(node)
+            if name and name not in self._cte_names:
+                tables_with_pos.append((name, self._table_start_position(node)))
+        tables_with_pos.sort(key=lambda pair: pair[1])
+        sorted_names = [name for name, _ in tables_with_pos]
         return UniqueList(
-            [create_target, *collected_sorted] if create_target
-            else collected_sorted
+            [create_target, *sorted_names] if create_target else sorted_names
         )
 
     def extract_aliases(self, tables: list[str]) -> dict[str, str]:
@@ -279,28 +226,6 @@ class TableExtractor:
         name = self._table_full_name(target_table)
         return name or None
 
-    def _collect_all(self) -> UniqueList:
-        """Collect table names from all ``exp.Table`` AST nodes.
-
-        Iterates over every ``exp.Table`` node, builds the full name, and
-        filters out CTE names so that only real tables are collected.
-
-        .. code-block:: sql
-
-           WITH cte AS (SELECT 1) SELECT * FROM cte, real_table
-           -- cte is filtered out → collects only "real_table"
-
-        :returns: :class:`UniqueList` of table names (unsorted).
-        """
-        collected = UniqueList()
-        for table in self._table_nodes():
-            full_name = self._table_full_name(table)
-            if full_name and full_name not in self._cte_names:
-                # e.g. FROM users — real table, collect it
-                collected.append(full_name)
-            # else: e.g. FROM cte_name — CTE reference, skip
-        return collected
-
     def _table_nodes(self) -> list[exp.Table]:
         """Return all ``exp.Table`` nodes from the AST (cached).
 
@@ -325,7 +250,9 @@ class TableExtractor:
         In bracket mode (TSQL), delegates to :func:`_bracketed_full_name` to
         preserve ``[square bracket]`` quoting.  Otherwise, assembles a
         dot-joined name from catalog, db, and name parts.  Double-dot
-        notation (``server..table``) is detected from the raw SQL.
+        notation (``server..table``) is detected from the AST itself —
+        sqlglot parses the empty segment as ``db=''`` (a string), whereas
+        an absent segment is ``db=None``.
 
         .. code-block:: sql
 
@@ -344,8 +271,9 @@ class TableExtractor:
             if bracketed:
                 return bracketed
 
-        # e.g. SELECT * FROM server..table — detect double-dot in raw SQL
-        has_double_dot = bool(name and f"..{name}" in self._raw_sql)
+        # e.g. SELECT * FROM server..table — sqlglot records the empty
+        # middle segment as db="" (string), whereas a missing db slot is None.
+        has_double_dot = table.args.get("db") == ""
         return _assemble_dotted_name(
             table.catalog, table.db, name, preserve_empty=has_double_dot
         )
@@ -354,104 +282,26 @@ class TableExtractor:
     # Position detection
     # -------------------------------------------------------------------
 
-    def _first_position(self, name: str) -> int:
-        """Find the first occurrence of a table name in a table context.
-
-        Position sorting ensures the output order matches the left-to-right
-        reading order of the SQL.  First tries to find the name after a
-        table-introducing keyword (``FROM``, ``JOIN``, etc.); if not found,
-        falls back to any whole-word occurrence; if still not found, returns
-        the SQL length (pushing unknown names to the end).
-
-        .. code-block:: sql
-
-           SELECT * FROM b JOIN a ON ...  -- a at pos ~22, b at pos ~14 → [b, a]
-
-        :param name: Table name to locate.
-        :returns: Character position (0-based), or ``len(sql)`` if not found.
-        """
-        name_upper = name.upper()
-
-        # try 1: find after a table keyword (FROM, JOIN, etc.)
-        pos = self._find_word_in_table_context(name_upper)
-        if pos >= 0:
-            return pos
-
-        # try 2: find as a bare word anywhere in the SQL
-        pos = self._find_word(name_upper)
-        return pos if pos >= 0 else len(self._raw_sql)
-
-    def _find_word_in_table_context(self, name_upper: str) -> int:
-        """Find a table name that appears after a table-introducing keyword.
-
-        Scans all whole-word occurrences of *name_upper* and returns the
-        position of the first one that is directly preceded by a table
-        keyword (``FROM``, ``JOIN``, etc.) or is part of a comma-separated
-        table list following such a keyword.
-
-        .. code-block:: sql
-
-           SELECT t.id FROM users t   -- "users" preceded by FROM → match
-           SELECT * FROM t1, t2       -- "t2" preceded by comma after FROM → match
-           SELECT users FROM other    -- "users" in SELECT list → no match here
-
-        :param name_upper: Upper-cased table name to search for.
-        :returns: Position of the match, or ``-1`` if not found in table context.
-        """
-        for match in self._word_pattern(name_upper).finditer(self._upper_sql):
-            pos: int = int(match.start())
-            before = self._upper_sql[:pos].rstrip()
-            if _ends_with_table_keyword(before):
-                # e.g. FROM users — directly after table keyword
-                return pos
-            if before.endswith(",") and _is_in_comma_list_after_keyword(before):
-                # e.g. FROM t1, t2 — part of comma-separated list
-                return pos
-        return -1
-
-    def _find_word(self, name_upper: str, start: int = 0) -> int:
-        """Find *name_upper* as a whole word in the upper-cased SQL.
-
-        Uses a cached regex pattern that respects word boundaries and
-        handles optionally-quoted segments for dotted names.
-
-        :param name_upper: Upper-cased name to search for.
-        :param start: Position to start searching from.
-        :returns: Position of the match, or ``-1`` if not found.
-        """
-        match = self._word_pattern(name_upper).search(self._upper_sql, start)
-        return int(match.start()) if match else -1
-
-    # Optional quote wrappers — cover backticks, single/double quotes, and brackets
-    _OPT_OPEN_QUOTE = r"""[`"'\[]?"""
-    _OPT_CLOSE_QUOTE = r"""[`"'\]]?"""
-
     @staticmethod
-    @functools.lru_cache(maxsize=512)
-    def _word_pattern(name_upper: str) -> re.Pattern[str]:
-        """Build a regex matching *name_upper* as a whole word (cached).
+    def _table_start_position(table: exp.Table) -> int:
+        """Return the earliest identifier start position for *table*.
 
-        For qualified names (containing dots), each segment may be optionally
-        wrapped in backticks, single/double quotes, or brackets — so the
-        pattern for ``SCHEMA.TABLE`` also matches ``"SCHEMA"."TABLE"``,
-        ``[SCHEMA].[TABLE]``, or ```SCHEMA`.`TABLE```.
+        sqlglot's tokenizer attaches ``meta['start']`` (0-based character
+        offset in the raw SQL) to every ``exp.Identifier`` it produces.
+        A qualified name like ``catalog.db.name`` has three Identifier
+        children inside ``exp.Table.args``; we take the minimum so the
+        whole reference sorts by its leftmost character.
 
-        The pattern is compiled once and cached via ``lru_cache`` for
-        reuse across calls and instances.
+        Tables without any positioned identifier (e.g. AST nodes built
+        programmatically rather than parsed) sort to the front via ``0``.
 
-        .. code-block:: sql
-
-           SELECT * FROM schema.table       -- matched by SCHEMA.TABLE
-           SELECT * FROM "schema"."table"   -- also matched
-           SELECT * FROM [schema].[table]   -- also matched
-
-        :param name_upper: Upper-cased table name (may contain dots).
-        :returns: Compiled regex pattern with word-boundary assertions.
+        :param table: An ``exp.Table`` AST node.
+        :returns: Character position (0-based) of the first identifier.
         """
-        oq = TableExtractor._OPT_OPEN_QUOTE
-        cq = TableExtractor._OPT_CLOSE_QUOTE
-        segments = name_upper.split(".")
-        inner = r"\.".join(
-            oq + re.escape(seg) + cq for seg in segments
-        )
-        return re.compile(r"(?<![A-Za-z0-9_])" + inner + r"(?![A-Za-z0-9_])")
+        positions = [
+            n.meta["start"]
+            for key in ("catalog", "db", "this")
+            if isinstance((n := table.args.get(key)), exp.Identifier)
+            and "start" in n.meta
+        ]
+        return min(positions) if positions else 0

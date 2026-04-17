@@ -76,6 +76,23 @@ class Parser:
         self._values: list[Any] | None = None
         self._values_dict: dict[str, int | float | str | list[Any]] | None = None
 
+    def _require_ast(self) -> exp.Expression:
+        """Return the AST, asserting it is non-None.
+
+        Every property that needs the AST first triggers a check that
+        rejects ``None`` (either a ``ValueError`` from ``ASTParser`` on
+        malformed SQL, or an assert in ``query_type`` / ``tables_aliases``
+        on empty input).  This helper centralises the resulting
+        ``ast is not None`` narrowing so callers can write
+        ``ast = self._require_ast()`` instead of a two-line dance.
+
+        :rtype: exp.Expression
+        :raises ValueError: Propagated from ``ASTParser`` for malformed SQL.
+        """
+        ast = self._ast_parser.ast
+        assert ast is not None
+        return ast
+
     def _get_resolver(self) -> NestedResolver:
         """Return the cached :class:`NestedResolver` for this query.
 
@@ -87,9 +104,9 @@ class Parser:
         :rtype: NestedResolver
         """
         if self._resolver is None:
-            ast = self._ast_parser.ast
-            assert ast is not None
-            self._resolver = NestedResolver(ast, parser_factory=Parser)
+            self._resolver = NestedResolver(
+                self._require_ast(), parser_factory=Parser
+            )
         return self._resolver
 
     @property
@@ -167,13 +184,12 @@ class Parser:
         self._columns_extracted = True
 
         try:
-            ast = self._ast_parser.ast
+            ast = self._require_ast()
             ta = self.tables_aliases
         except ValueError:
             self._columns = UniqueList(self._extract_columns_regex())
             return self._columns
 
-        assert ast is not None  # guaranteed: tables_aliases asserts non-None
         extractor = ColumnExtractor(ast, ta, self._ast_parser.cte_name_map)
         result = extractor.extract()
 
@@ -295,14 +311,12 @@ class Parser:
         if self._tables is not None:
             return self._tables
         _ = self.query_type
-        ast = self._ast_parser.ast
-        assert ast is not None  # guaranteed by query_type raising on None
+        ast = self._require_ast()
         cte_names = set(self.with_names)
         for placeholder in self._ast_parser.cte_name_map:
             cte_names.add(placeholder)
         extractor = TableExtractor(
             ast,
-            self._raw_query,
             cte_names,
             dialect=self._ast_parser.dialect,
         )
@@ -320,9 +334,7 @@ class Parser:
         """
         if self._table_aliases is not None:
             return self._table_aliases
-        ast = self._ast_parser.ast
-        assert ast is not None  # mypy
-        extractor = TableExtractor(ast)
+        extractor = TableExtractor(self._require_ast())
         self._table_aliases = extractor.extract_aliases(self.tables)
         return self._table_aliases
 
@@ -369,10 +381,8 @@ class Parser:
         """
         if self._subqueries is not None:
             return self._subqueries
-        ast = self._ast_parser.ast
-        assert ast is not None
         self._subqueries_names, self._subqueries = (
-            NestedResolver.extract_subqueries(ast)
+            NestedResolver.extract_subqueries(self._require_ast())
         )
         return self._subqueries
 
@@ -387,10 +397,8 @@ class Parser:
         """
         if self._subqueries_names is not None:
             return self._subqueries_names
-        ast = self._ast_parser.ast
-        assert ast is not None
         self._subqueries_names, self._subqueries = (
-            NestedResolver.extract_subqueries(ast)
+            NestedResolver.extract_subqueries(self._require_ast())
         )
         return self._subqueries_names
 

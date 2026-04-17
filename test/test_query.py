@@ -133,6 +133,16 @@ def test_empty_query_property():
     assert Parser("").query == ""
 
 
+def test_query_rewrites_double_quoted_identifier_with_hash_comment():
+    """Double-quoted identifiers are rewritten even when a # comment is present."""
+    # Regression guard: the MySQL tokenizer reclassifies "X" as STRING,
+    # so preprocess_query must use the default tokenizer unconditionally.
+    assert (
+        Parser('SELECT "col_a" FROM t # trailing hash').query
+        == "SELECT `col_a` FROM t # trailing hash"
+    )
+
+
 def test_tokens_caching():
     """Second access to tokens returns the cached list."""
     p = Parser("SELECT col FROM t")

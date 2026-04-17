@@ -140,6 +140,36 @@ poetry run ruff check sql_metadata                                   # linting
 - Enabled rule sets: E, F, W (pycodestyle/pyflakes), C90 (mccabe), I (isort)
 - Exceptions: Use `# noqa: C901` for complex but necessary functions
 
+## Review Practices
+
+### Verify before grading severity
+
+When reviewing code (or producing a critical review of a branch/PR), **spike
+every claim before attaching a severity or a "~N LoC removable" number**:
+
+1. Read the tests that cover the code path you're flagging — they encode
+   the actual contract you'd be changing.
+2. If the claim is "library X already handles this", actually run X against
+   a handful of real inputs from the codebase and confirm the output shape
+   matches what downstream code consumes.
+3. If the claim is "N lines removable", sketch the replacement and see
+   whether tests still pass — mentally or via a throwaway branch.
+4. Only verified claims deserve HIGH severity or concrete LoC numbers.
+   Unverified hunches belong in a "needs investigation" list, not a
+   severity-ranked review.
+
+Estimates without verification give false authority to findings that may
+not hold up.  In a past v3 review four HIGH/MEDIUM items (comment
+extraction, scope-based resolution, LIMIT regex, "god class" LoC grade)
+dissolved within minutes of actual investigation; all four would have
+been caught by a pre-grade spike.
+
+Before closing a review phase, re-read every HIGH and MEDIUM finding and
+confirm a verification step exists in the session transcript for each
+one.  If a spike did not happen, downgrade or drop the finding before
+publishing.  Codifying the rule in memory is not enough — it has to be
+applied *before* the claim is formed, not consulted afterwards.
+
 ## Error Handling Patterns
 
 ### Malformed SQL Detection

@@ -10,6 +10,9 @@ import itertools
 import re
 from typing import NamedTuple
 
+from sqlglot.errors import TokenError
+from sqlglot.tokens import Tokenizer, TokenType
+
 from sql_metadata.comments import strip_comments_for_parsing as _strip_comments
 from sql_metadata.exceptions import InvalidQueryDefinition
 from sql_metadata.utils import DOT_PLACEHOLDER
@@ -119,28 +122,46 @@ class SqlCleaner:
     def preprocess_query(sql: str) -> str:
         """Normalise quoting and whitespace in raw SQL.
 
-        Replaces double-quoted identifiers with backtick-quoted ones while
-        preserving double quotes that appear inside single-quoted string
-        literals.  Also collapses newlines and redundant spaces.
+        Walks sqlglot's tokenizer output, emitting each token's original
+        text verbatim except double-quoted identifiers, which are rewritten
+        to backtick-quoted.  Because string literals are ``STRING`` tokens,
+        any ``"`` characters inside them are preserved automatically — no
+        sentinel substitution needed.  Newlines between tokens (which is
+        where whitespace and comments live) are collapsed to spaces.
 
         :param sql: Raw SQL string.
         :type sql: str
         :returns: The normalised SQL string, or ``""`` for empty input.
         :rtype: str
         """
-        if sql == "":
+        if not sql:
             return ""
+        try:
+            # Use the default tokenizer unconditionally — the MySQL
+            # tokenizer reclassifies ``"X"`` as a STRING token (because
+            # MySQL with ANSI_QUOTES off treats double-quotes as strings),
+            # which would skip the identifier rewrite below.
+            tokens = list(Tokenizer().tokenize(sql))
+        except TokenError:
+            # Malformed SQL — fall back to plain whitespace collapse.
+            return re.sub(r" {2,}", " ", sql.replace("\n", " ")).strip()
 
-        def replace_quotes_in_string(match: re.Match[str]) -> str:
-            return re.sub('"', "<!!__QUOTE__!!>", match.group())
-
-        def replace_back_quotes_in_string(match: re.Match[str]) -> str:
-            return re.sub("<!!__QUOTE__!!>", '"', match.group())
-
-        query = re.sub(r"'.*?'", replace_quotes_in_string, sql)
-        query = re.sub(r'"([^`]+?)"', r"`\1`", query)
-        query = re.sub(r"'.*?'", replace_back_quotes_in_string, query)
-        return re.sub(r" {2,}", " ", query.replace("\n", " "))
+        parts: list[str] = []
+        prev_end = 0
+        for tok in tokens:
+            # Gap before the token holds whitespace and comments —
+            # collapse newlines so the output stays single-line.
+            parts.append(sql[prev_end:tok.start].replace("\n", " "))
+            raw = sql[tok.start:tok.end + 1]
+            if tok.token_type == TokenType.IDENTIFIER and raw.startswith('"'):
+                # e.g. "col" → `col`.  String literals are STRING tokens
+                # and never enter this branch, so embedded " are safe.
+                parts.append(f"`{tok.text}`")
+            else:
+                parts.append(raw)
+            prev_end = tok.end + 1
+        parts.append(sql[prev_end:].replace("\n", " "))
+        return re.sub(r" {2,}", " ", "".join(parts))
 
     @staticmethod
     def clean(sql: str) -> CleanResult:

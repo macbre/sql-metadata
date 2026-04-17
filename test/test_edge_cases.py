@@ -36,6 +36,13 @@ def test_strip_comments_unterminated_block_comment():
     assert parser.without_comments == "/*"
 
 
+def test_preprocess_query_unterminated_block_comment():
+    """Tokenizer failure on Parser.query falls back to whitespace collapse."""
+    # Exercises the TokenError branch in SqlCleaner.preprocess_query.
+    assert Parser("/*").query == "/*"
+    assert Parser("  /*\n  ").query == "/*"
+
+
 def test_clean_empty_after_paren_strip():
     """SQL that becomes empty after outer-paren stripping."""
     result = SqlCleaner.clean("(())")
