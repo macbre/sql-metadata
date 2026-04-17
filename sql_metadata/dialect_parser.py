@@ -254,6 +254,9 @@ class DialectParser:
 
         if not results or results[0] is None:
             return None
+        # sqlglot.parse's stub returns list[Expression | None]; the None case
+        # is filtered one line above but mypy does not narrow through the
+        # indexed access.
         return results[0]  # type: ignore[return-value]
 
     # -- quality checks -----------------------------------------------------

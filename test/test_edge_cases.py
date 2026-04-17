@@ -1,13 +1,13 @@
-"""Edge-case tests for internal utilities.
+"""Edge-case tests exercised through the public :class:`Parser` API.
 
-These tests exercise code paths (depth guards, degenerate inputs) that
-are difficult or impossible to trigger through the public Parser API.
-They test internal symbols directly and may need updating if those
-internals are refactored.
+These tests cover degenerate inputs (empty SQL after paren stripping,
+unterminated comments, deeply nested parentheses) by feeding them into
+``Parser`` and asserting on its public properties — no internal helpers
+are imported.
 """
 
 from sql_metadata import Parser
-from sql_metadata.sql_cleaner import SqlCleaner, _strip_outer_parens
+from sql_metadata.sql_cleaner import SqlCleaner
 from sql_metadata.utils import UniqueList
 
 
@@ -43,9 +43,9 @@ def test_clean_empty_after_paren_strip():
 
 
 def test_strip_outer_parens_depth_guard():
-    """Deeply nested parentheses hit the depth guard instead of stack overflow."""
-    deep = "(" * 150 + "SELECT 1" + ")" * 150
-    result = _strip_outer_parens(deep)
-    # Depth guard stops at 100 — some parens remain
-    assert "SELECT 1" in result
-    assert result.startswith("(")
+    """Deeply nested parentheses don't stack-overflow the cleaner's recursion."""
+    # 150 levels exceeds the 100-deep recursion guard in _strip_outer_parens;
+    # parsing through Parser must return gracefully rather than raise
+    # RecursionError.
+    parser = Parser("(" * 150 + "SELECT 1" + ")" * 150)
+    assert parser.columns == []

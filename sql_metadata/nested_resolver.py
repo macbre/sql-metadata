@@ -8,6 +8,7 @@ those bodies with sub-:class:`Parser` instances, and resolving
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -121,6 +122,10 @@ class _PreservingGenerator(Generator):
             return f"{self.sql(child, 'this')} IS NOT NULL"
         if isinstance(child, exp.In):
             return f"{self.sql(child, 'this')} NOT IN ({self.expressions(child)})"
+        # sqlglot's Generator.not_sql is typed to take exp.Not; we widen the
+        # parameter to exp.Expression to match the override signature across
+        # all custom *_sql methods, and sqlglot's return type is inferred as
+        # Any from partially-typed stubs.
         return super().not_sql(expression)  # type: ignore[arg-type, no-any-return]
 
 
@@ -172,10 +177,19 @@ class NestedResolver:
        aliases defined inside nested queries.
 
     :param ast: Root AST node (for body extraction).
+    :param parser_factory: Callable that constructs a :class:`Parser` from
+        a SQL string. Injected to break the ``parser.py`` ↔ ``nested_resolver.py``
+        import cycle — ``parser.py`` already imports this module, so it passes
+        the ``Parser`` class itself at resolver-construction time.
     """
 
-    def __init__(self, ast: exp.Expression):
+    def __init__(
+        self,
+        ast: exp.Expression,
+        parser_factory: Callable[[str], "Parser"],
+    ) -> None:
         self._ast = ast
+        self._parser_factory = parser_factory
 
         # Lazy caches
         self._subqueries_parsers: dict[str, "Parser"] = {}
@@ -453,11 +467,11 @@ class NestedResolver:
                SELECT name FROM (SELECT id FROM users) AS sub
                -- "name" not in subquery → returns None
         """
-        from sql_metadata.parser import Parser
-
         for nested_name in names:
             nested_def = definitions[nested_name]
-            nested_parser = parser_cache.setdefault(nested_name, Parser(nested_def))
+            nested_parser = parser_cache.setdefault(
+                nested_name, self._parser_factory(nested_def)
+            )
             if col_name in nested_parser.columns_aliases_names:
                 # Path 1: alias match — resolve through the full alias chain
                 # e.g. SELECT col1 AS a ... then SELECT a AS x ...
@@ -479,8 +493,8 @@ class NestedResolver:
         # Path 3: not found in any nested query
         return None
 
-    @staticmethod
     def _resolve_nested_query(
+        self,
         subquery_alias: str,
         nested_queries_names: list[str],
         nested_queries: dict[str, str],
@@ -498,15 +512,15 @@ class NestedResolver:
         Resolving ``"sub.id"``: prefix ``"sub"`` matches, column
         ``"id"`` is found in the subquery → returns ``["id"]``.
         """
-        from sql_metadata.parser import Parser
-
         parts = subquery_alias.split(".")
         if len(parts) != 2 or parts[0] not in nested_queries_names:
             # e.g. "table.col" or "schema.table.col" — not a subquery ref
             return [subquery_alias]
         sub_query, column_name = parts[0], parts[-1]
         sub_query_definition = nested_queries[sub_query]
-        subparser = already_parsed.setdefault(sub_query, Parser(sub_query_definition))
+        subparser = already_parsed.setdefault(
+            sub_query, self._parser_factory(sub_query_definition)
+        )
         return NestedResolver._resolve_column_in_subparser(
             column_name, subparser, subquery_alias
         )
@@ -612,12 +626,11 @@ class NestedResolver:
                 for x in alias
                 for item in self._resolve_column_alias(x, columns_aliases, visited)
             ]
-        while alias in columns_aliases and alias not in visited:
+        if alias in columns_aliases and alias not in visited:
             visited.add(alias)
-            alias = columns_aliases[alias]
-            if isinstance(alias, list):
-                # e.g. alias mapped to [col1, col2] — resolve list recursively
-                return self._resolve_column_alias(alias, columns_aliases, visited)
+            return self._resolve_column_alias(
+                columns_aliases[alias], columns_aliases, visited
+            )
         return [alias]
 
     # -------------------------------------------------------------------

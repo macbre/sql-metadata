@@ -89,7 +89,7 @@ class Parser:
         if self._resolver is None:
             ast = self._ast_parser.ast
             assert ast is not None
-            self._resolver = NestedResolver(ast)
+            self._resolver = NestedResolver(ast, parser_factory=Parser)
         return self._resolver
 
     @property
