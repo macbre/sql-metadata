@@ -148,10 +148,7 @@ def _is_date_part_unit(node: exp.Column) -> bool:
 
 
 class _Collector:
-    """Mutable accumulator for metadata gathered during the AST walk.
-
-    :param table_aliases: Pre-computed table alias → real name mapping.
-    """
+    """Mutable accumulator for metadata gathered during the AST walk."""
 
     __slots__ = (
         "columns",

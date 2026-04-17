@@ -56,3 +56,12 @@ def test_strip_outer_parens_depth_guard():
     # RecursionError.
     parser = Parser("(" * 150 + "SELECT 1" + ")" * 150)
     assert parser.columns == []
+
+
+def test_strip_outer_parens_unbalanced_middle():
+    """Queries that look paren-wrapped but aren't (UNION of parenthesised SELECTs)."""
+    # "(SELECT ...) UNION (SELECT ...)" starts with "(" and ends with ")" but the
+    # inner parens go negative — _is_wrapped must short-circuit and leave the SQL
+    # intact so both SELECT branches parse.
+    parser = Parser("(SELECT a FROM t1) UNION (SELECT b FROM t2)")
+    assert parser.tables == ["t1", "t2"]

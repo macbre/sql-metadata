@@ -122,12 +122,8 @@ class _PreservingGenerator(Generator):
             return f"{self.sql(child, 'this')} IS NOT NULL"
         if isinstance(child, exp.In):
             return f"{self.sql(child, 'this')} NOT IN ({self.expressions(child)})"
-        # sqlglot's Generator.not_sql is typed to take exp.Not; we widen the
-        # parameter to exp.Expression to match the override signature across
-        # all custom *_sql methods, and sqlglot's return type is inferred as
-        # Any from partially-typed stubs.
+        # sqlglot stubs under-type not_sql's parameter and return type.
         return super().not_sql(expression)  # type: ignore[arg-type, no-any-return]
-
 
 
 # ---------------------------------------------------------------------------

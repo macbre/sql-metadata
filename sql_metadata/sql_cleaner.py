@@ -6,7 +6,6 @@ DB2 isolation-level clauses, malformed-query rejection, and redundant
 outer-parenthesis removal.
 """
 
-import itertools
 import re
 from typing import NamedTuple
 
@@ -36,34 +35,39 @@ def _is_wrapped(text: str) -> bool:
     """
     if len(text) < 2 or text[0] != "(" or text[-1] != ")":
         return False
-    inner = text[1:-1]
-    depths = list(
-        itertools.accumulate(
-            (1 if c == "(" else -1 if c == ")" else 0) for c in inner
-        )
-    )
-    return not depths or min(depths) >= 0
+    depth = 0
+    for c in text[1:-1]:
+        if c == "(":
+            depth += 1
+        elif c == ")":
+            depth -= 1
+            if depth < 0:
+                return False
+    return True
 
 
-def _strip_outer_parens(sql: str, _depth: int = 0) -> str:
+def _strip_outer_parens(sql: str) -> str:
     """Strip redundant outer parentheses from *sql*.
 
     Needed because sqlglot cannot parse double-wrapped non-SELECT
-    statements like ``((UPDATE ...))``.  Uses ``itertools.accumulate``
-    to verify balanced parens in one pass, with recursion for nesting.
-    A depth guard prevents stack overflow on pathological input.
+    statements like ``((UPDATE ...))``.  A depth guard prevents stack
+    overflow on pathological input.
 
     :param sql: SQL string that may be wrapped in outer parentheses.
     :type sql: str
     :returns: The unwrapped SQL string.
     :rtype: str
     """
-    if _depth > 100:
-        return sql
-    s = sql.strip()
-    if _is_wrapped(s):
-        return _strip_outer_parens(s[1:-1].strip(), _depth + 1)
-    return s
+
+    def _recur(s: str, depth: int) -> str:
+        if depth > 100:
+            return s
+        s = s.strip()
+        if _is_wrapped(s):
+            return _recur(s[1:-1], depth + 1)
+        return s
+
+    return _recur(sql, 0)
 
 
 def _normalize_cte_names(sql: str) -> tuple[str, dict[str, str]]:
