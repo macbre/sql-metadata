@@ -1,8 +1,8 @@
 [tool.poetry]
 name = "sql_metadata"
-version = "2.20.0"
+version = "3.0.0"
 license="MIT"
-description = "Uses tokenized query returned by python-sqlparse and generates query metadata"
+description = "Uses sqlglot to parse SQL queries and extract metadata"
 authors = ["Maciej Brencz <maciej.brencz@gmail.com>", "Radosław Drążkiewicz <collerek@gmail.com>"]
 readme = "README.md"
 homepage = "https://github.com/macbre/sql-metadata"
@@ -14,19 +14,37 @@ packages = [
 
 [tool.poetry.dependencies]
 python = "^3.10"
-sqlparse = ">=0.4.1,<0.6.0"
+sqlglot = "^30.0.3"
 
-[tool.poetry.dev-dependencies]
-black = "^26.3"
+[tool.poetry.group.dev.dependencies]
 coverage = {extras = ["toml"], version = "^7.13"}
-pylint = "^4.0.5"
 pytest = "^9.0.3"
 pytest-cov = "^7.1.0"
-flake8 = "^7.3.0"
+ruff = "^0.11"
+mypy = "^1.19"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "C90", "I"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 8
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+check_untyped_defs = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+ignore_missing_imports = true
 
 [tool.coverage.run]
 relative_files = true

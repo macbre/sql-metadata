@@ -1,26 +1,52 @@
-"""
-Module used to produce generalized sql out of given query
+"""Produce a generalised (anonymised) version of a SQL query.
+
+Replaces string literals with ``X``, numbers with ``N``, and
+multi-value ``IN (...)`` / ``VALUES (...)`` lists with ``(XYZ)`` so
+that structurally identical queries can be grouped for analysis
+(e.g. slow-query log aggregation).  Based on MediaWiki's
+``DatabaseBase::generalizeSQL``.
 """
 
 import re
-import sqlparse
+
+from sql_metadata.comments import strip_comments
 
 
 class Generalizator:
-    """
-    Class used to produce generalized sql out of given query
+    """Produce a generalised form of a SQL query.
+
+    Strips comments, removes string literals and numeric values, and
+    collapses repeated ``LIKE`` / ``IN`` / ``VALUES`` clauses.  Designed
+    for grouping structurally identical queries in monitoring and logging
+    pipelines.
+
+    Used by :attr:`Parser.generalize`, which delegates to
+    :attr:`Generalizator.generalize`.
+
+    :param sql: Raw SQL query string to generalise.
+    :type sql: str
     """
 
     def __init__(self, sql: str = ""):
+        """Initialise with the raw SQL string.
+
+        :param sql: SQL query to generalise.
+        :type sql: str
+        """
         self._raw_query = sql
 
     # SQL queries normalization (#16)
     @staticmethod
     def _normalize_likes(sql: str) -> str:
-        """
-        Normalize and wrap LIKE statements
+        """Normalise and collapse repeated ``LIKE`` clauses.
 
-        :type sql str
+        Strips ``%`` wildcards, replaces ``LIKE '...'`` with ``LIKE X``,
+        and collapses consecutive ``or/and ... LIKE X`` clauses into a
+        single instance with ``...`` suffix.
+
+        :param sql: SQL string with LIKE clauses.
+        :type sql: str
+        :returns: SQL with LIKE clauses normalised.
         :rtype: str
         """
         sql = sql.replace("%", "")
@@ -29,11 +55,11 @@ class Generalizator:
         sql = re.sub(r"LIKE '[^\']+'", "LIKE X", sql)
 
         # or all_groups LIKE X or all_groups LIKE X
-        matches = re.finditer(r"(or|and) [^\s]+ LIKE X", sql, flags=re.IGNORECASE)
-        matches = [match.group(0) for match in matches] if matches else None
+        found = re.finditer(r"(or|and) [^\s]+ LIKE X", sql, flags=re.IGNORECASE)
+        like_matches = [m.group(0) for m in found]
 
-        if matches:
-            for match in set(matches):
+        if like_matches:
+            for match in set(like_matches):
                 sql = re.sub(
                     r"(\s?" + re.escape(match) + ")+", " " + match + " ...", sql
                 )
@@ -42,23 +68,33 @@ class Generalizator:
 
     @property
     def without_comments(self) -> str:
-        """
-        Removes comments from SQL query
+        """Return the SQL with all comments removed.
 
+        Delegates to :func:`strip_comments` from ``_comments.py``.
+
+        :returns: Comment-free SQL string.
         :rtype: str
         """
-        sql = sqlparse.format(self._raw_query, strip_comments=True)
-        sql = sql.replace("\n", " ")
-        sql = re.sub(r"[ \t]+", " ", sql)
-        return sql
+        return strip_comments(self._raw_query)
 
     @property
     def generalize(self) -> str:
-        """
-        Removes most variables from an SQL query
-        and replaces them with X or N for numbers.
+        """Return a generalised version of the SQL query.
 
-        Based on Mediawiki's DatabaseBase::generalizeSQL
+        Applies the following transformations in order:
+
+        1. Strip comments.
+        2. Remove double-quotes.
+        3. Collapse multiple spaces.
+        4. Normalise ``LIKE`` clauses.
+        5. Replace escaped characters.
+        6. Replace string literals with ``X``.
+        7. Collapse whitespace to single spaces.
+        8. Replace numbers with ``N``.
+        9. Collapse ``IN (...)`` / ``VALUES (...)`` lists to ``(XYZ)``.
+
+        :returns: Generalised SQL string, or ``""`` for empty input.
+        :rtype: str
         """
         if self._raw_query == "":
             return ""

@@ -3,11 +3,11 @@
 [![PyPI](https://img.shields.io/pypi/v/sql_metadata.svg)](https://pypi.python.org/pypi/sql_metadata)
 [![Tests](https://github.com/macbre/sql-metadata/actions/workflows/python-ci.yml/badge.svg)](https://github.com/macbre/sql-metadata/actions/workflows/python-ci.yml)
 [![Coverage Status](https://coveralls.io/repos/github/macbre/sql-metadata/badge.svg?branch=master&1)](https://coveralls.io/github/macbre/sql-metadata?branch=master)
-<a href="https://github.com/psf/black"><img alt="Code style: black" src="https://img.shields.io/badge/code%20style-black-000000.svg"></a>
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Maintenance](https://img.shields.io/badge/maintained%3F-yes-green.svg)](https://github.com/macbre/sql-metadata/graphs/commit-activity)
 [![Downloads](https://pepy.tech/badge/sql-metadata/month)](https://pepy.tech/project/sql-metadata)
 
-Uses tokenized query returned by [`python-sqlparse`](https://github.com/andialbrecht/sqlparse) and generates query metadata.
+Uses [`sqlglot`](https://github.com/tobymao/sqlglot) to parse SQL queries and extract metadata.
 
 **Extracts column names and tables** used by the query. 
 Automatically conduct **column alias resolution**, **sub queries aliases resolution** as well as **tables aliases resolving**.
@@ -58,7 +58,7 @@ parser = Parser("SELECT a.* FROM product_a.users AS a JOIN product_b.users AS b 
 
 # note that aliases are auto-resolved
 parser.columns
-# ['product_a.*', 'product_a.users.ip_address', 'product_b.users.ip_address']
+# ['product_a.users.*', 'product_a.users.ip_address', 'product_b.users.ip_address']
 
 # note that you can also extract columns with their place in the query
 # which will return dict with lists divided into select, where, order_by, group_by, join, insert and update
@@ -92,6 +92,71 @@ parser.columns_aliases_dict
 # here only the alias is used in order by but it's resolved to actual columns
 assert parser.columns_dict == {'order_by': ['b', 'c', 'u'],
                                'select': ['a', 'b', 'c', 'u', 'd']}
+```
+
+### Extracting output column names
+
+```python
+from sql_metadata import Parser
+
+# output_columns returns the ordered list of names that the SELECT would produce,
+# preserving aliases (unlike `columns`, which resolves aliases back to real columns)
+Parser("SELECT a, b AS c FROM t").output_columns
+# ['a', 'c']
+
+# works with function calls, window functions, computed aliases
+Parser("""SELECT
+    id,
+    UPPER(email) AS email_upper,
+    ROW_NUMBER() OVER (PARTITION BY country ORDER BY created_at) AS rn
+FROM users""").output_columns
+# ['id', 'email_upper', 'rn']
+
+# SELECT * stays as '*'
+Parser("SELECT * FROM t").output_columns
+# ['*']
+
+# non-SELECT queries return an empty list
+Parser("CREATE TABLE t (id INT)").output_columns
+# []
+```
+
+### Detecting query type
+
+```python
+from sql_metadata import Parser, QueryType
+
+Parser("SELECT * FROM foo").query_type
+# <QueryType.SELECT: 'SELECT'>
+
+# QueryType is a str-enum, so it compares equal to both strings and enum values
+Parser("INSERT INTO foo VALUES (1)").query_type == QueryType.INSERT   # True
+Parser("INSERT INTO foo VALUES (1)").query_type == "INSERT"           # True
+
+# REPLACE INTO is reported distinctly from INSERT
+Parser("REPLACE INTO foo VALUES (1)").query_type
+# <QueryType.REPLACE: 'REPLACE'>
+
+# Supported types: SELECT, INSERT, REPLACE, UPDATE, DELETE,
+# CREATE, ALTER, DROP, TRUNCATE, MERGE
+```
+
+### Handling invalid queries
+
+```python
+from sql_metadata import Parser, InvalidQueryDefinition
+
+# structurally invalid SQL raises `InvalidQueryDefinition` (a subclass of
+# `ValueError`, so existing `except ValueError` handlers keep working)
+try:
+    Parser("").query_type
+except InvalidQueryDefinition as exc:
+    print(exc)  # "Empty queries are not supported!"
+
+try:
+    Parser("THIS IS NOT SQL").query_type
+except InvalidQueryDefinition as exc:
+    print(exc)  # "Not supported query type!"
 ```
 
 ### Extracting tables from query
@@ -181,9 +246,10 @@ parser.with_names
 # ["database1.tableFromWith", "test"]
 
 # get definition of with queries
+# (sqlglot normalises keyword casing and spacing when rendering the body SQL)
 parser.with_queries
-# {"database1.tableFromWith": "SELECT aa.* FROM table3 as aa left join table4 on aa.col1=table4.col2"
-#  "test": "SELECT * from table3"}
+# {"database1.tableFromWith": "SELECT aa.* FROM table3 AS aa LEFT JOIN table4 ON aa.col1 = table4.col2",
+#  "test": "SELECT * FROM table3"}
 
 # note that names of with statements do not appear in tables
 parser.tables
@@ -205,9 +271,10 @@ ON a.task_id = b.task_id;
 )
 
 # get sub-queries dictionary
+# (sqlglot normalises keyword casing — implicit table aliases become explicit `AS`)
 parser.subqueries
-# {"a": "SELECT std.task_id FROM some_task_detail std WHERE std.STATUS = 1",
-#  "b": "SELECT st.task_id FROM some_task st WHERE task_type_id = 80"}
+# {"a": "SELECT std.task_id FROM some_task_detail AS std WHERE std.STATUS = 1",
+#  "b": "SELECT st.task_id FROM some_task AS st WHERE task_type_id = 80"}
 
 
 # get names/ aliases of sub-queries / derived tables
@@ -250,30 +317,23 @@ parser.comments
 
 See `test/test_normalization.py` file for more examples of a bit more complex queries.
 
-## Migrating from `sql_metadata` 1.x
+## Migrating from `sql_metadata` 1.x / 2.x
 
-`sql_metadata.compat` module has been implemented to make the introduction of sql-metadata v2.0 smoother.
+The `sql_metadata.compat` module (previously provided for v1 → v2 migration) has been **removed in v3**.  Port your code to the class-based `Parser` API shown in the examples above:
 
-You can use it by simply changing the imports in your code from:
+| Old v1 helper                 | v3 replacement                            |
+|-------------------------------|-------------------------------------------|
+| `generalize_sql(sql)`         | `Parser(sql).generalize`                  |
+| `get_query_columns(sql)`      | `Parser(sql).columns`                     |
+| `get_query_tables(sql)`       | `Parser(sql).tables`                      |
+| `get_query_limit_and_offset(sql)` | `Parser(sql).limit_and_offset`        |
+| `get_query_tokens(sql)`       | `Parser(sql).tokens`                      |
+| `preprocess_query(sql)`       | `Parser(sql).query`                       |
 
-```python
-from sql_metadata import get_query_columns, get_query_tables
-```
+For v2 → v3 users, the public `Parser` API is unchanged except:
 
-into:
-
-```python
-from sql_metadata.compat import get_query_columns, get_query_tables
-```
-
-The following functions from the old API are available in the `sql_metadata.compat` module:
-
-* `generalize_sql`
-* `get_query_columns` (since #131 columns aliases ARE NOT returned by this function)
-* `get_query_limit_and_offset`
-* `get_query_tables`
-* `get_query_tokens`
-* `preprocess_query`
+* The parsing engine is now [sqlglot](https://github.com/tobymao/sqlglot), which may normalise the *casing* and *spacing* of rendered CTE/subquery bodies (see the `with_queries` / `subqueries` examples above).
+* Malformed SQL now raises `InvalidQueryDefinition` (a `ValueError` subclass) instead of a plain `ValueError` — existing `except ValueError:` handlers continue to work.
 
 ## Authors and contributors
 

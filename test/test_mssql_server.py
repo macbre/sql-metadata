@@ -104,7 +104,7 @@ def test_sql_server_cte_sales_by_year():
     assert parser.tables == ["sales.orders"]
     assert parser.with_names == ["cte_sales"]
     assert parser.with_queries == {
-        "cte_sales": "SELECT staff_id, COUNT(*) order_count FROM sales.orders WHERE "
+        "cte_sales": "SELECT staff_id, COUNT(*) AS order_count FROM sales.orders WHERE "
         "YEAR(order_date) = 2018 GROUP BY staff_id"
     }
     assert parser.columns_aliases_names == ["order_count", "average_orders_by_staff"]
@@ -181,3 +181,9 @@ def test_partition_over_with_row_number_and_many_orders():
         "select": ["col_one", "col_two", "col_three", "col_four"],
         "where": ["col_one", "col_two", "col_three", "col_four"],
     }
+
+
+def test_mssql_catalog_double_dot():
+    """SQL Server three-part name with empty db: catalog..table."""
+    p = Parser("SELECT * FROM mydb..orders")
+    assert "mydb..orders" in p.tables
