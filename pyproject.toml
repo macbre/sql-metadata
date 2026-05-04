@@ -20,7 +20,7 @@ sqlglot = "^30.0.3"
 coverage = {extras = ["toml"], version = "^7.13"}
 pytest = "^9.0.3"
 pytest-cov = "^7.1.0"
-ruff = "^0.11"
+ruff = "^0.15"
 mypy = "^1.19"
 
 [build-system]
