@@ -41,7 +41,11 @@ def _choose_tokenizer(sql: str) -> Tokenizer:
     if "#" in sql and not _has_hash_variables(sql):
         from sqlglot.dialects.mysql import MySQL
 
-        return MySQL.Tokenizer()
+        # Pass dialect="mysql" so the cached TokenizerCore (sqlglot >=30.7.0
+        # caches per-class) is built with MySQL identifier semantics — without
+        # it the cache is primed from the default dialect and later mysql
+        # parses misclassify e.g. ``0020_big_table`` as NUMBER + VAR.
+        return MySQL.Tokenizer(dialect="mysql")
     return Tokenizer()
 
 
@@ -167,7 +171,10 @@ def strip_comments_for_parsing(sql: str) -> str:
     else:
         from sqlglot.dialects.mysql import MySQL
 
-        tokenizer = MySQL.Tokenizer()
+        # See _choose_tokenizer — the explicit dialect prevents the
+        # sqlglot >=30.7.0 TokenizerCore cache from being primed with
+        # default-dialect semantics.
+        tokenizer = MySQL.Tokenizer(dialect="mysql")
     try:
         tokens = list(tokenizer.tokenize(sql))
     except TokenError:
