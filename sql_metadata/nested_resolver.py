@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from sql_metadata.parser import Parser
 
 from sqlglot import exp
+from sqlglot.errors import ErrorLevel
 from sqlglot.generator import Generator
 
 from sql_metadata.utils import (
@@ -678,7 +679,13 @@ class NestedResolver:
         body = node.copy()
         for ident in body.find_all(exp.Identifier):
             ident.set("quoted", False)
-        return _PreservingGenerator().generate(body, copy=False)
+        # IGNORE unsupported-feature warnings: the rendered SQL is only fed
+        # back into a sub-Parser and never shown to the user, so warnings
+        # about constructs sqlglot can't faithfully re-emit (e.g. T-SQL
+        # FOR XML PATH) are noise.
+        return _PreservingGenerator(unsupported_level=ErrorLevel.IGNORE).generate(
+            body, copy=False
+        )
 
     @staticmethod
     def _walk_subqueries(

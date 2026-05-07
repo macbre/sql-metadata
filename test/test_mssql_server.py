@@ -187,3 +187,19 @@ def test_mssql_catalog_double_dot():
     """SQL Server three-part name with empty db: catalog..table."""
     p = Parser("SELECT * FROM mydb..orders")
     assert "mydb..orders" in p.tables
+
+
+def test_for_xml_path_does_not_emit_sqlglot_warning(caplog):
+    # Test for issue #261: T-SQL FOR XML PATH queries parsed cleanly but
+    # sqlglot leaked "Unsupported query option." warnings when
+    # NestedResolver re-rendered subquery bodies internally.
+    # https://github.com/macbre/sql-metadata/issues/261
+    query = """
+        SELECT B.id, STUFF((SELECT ', ' + A.[name]
+            FROM (SELECT id, name FROM table_enc) A
+            WHERE A.id = B.[id] FOR XML PATH('')), 1, 1, '') AS [output]
+        FROM (SELECT id FROM table_enc) B
+    """
+    with caplog.at_level("WARNING", logger="sqlglot"):
+        Parser(query).columns  # .columns drives NestedResolver._body_sql
+    assert caplog.records == []
