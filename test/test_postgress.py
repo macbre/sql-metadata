@@ -32,3 +32,22 @@ def test_postgress_quoted_names():
     assert ["name", "test.id"] == parser.columns
     assert {"update": ["name"], "where": ["test.id"]} == parser.columns_dict
     assert "UPDATE test SET name = X WHERE test.id = N" == parser.generalize
+
+
+def test_postgres_quoted_column_only():
+    # regression: https://github.com/macbre/sql-metadata/issues/85
+    # used to raise ValueError: Not supported query type!
+    parser = Parser('SELECT "qouted" FROM foo')
+    assert parser.tables == ["foo"]
+    assert parser.columns == ["qouted"]
+    assert parser.generalize == "SELECT qouted FROM foo"
+
+
+def test_postgres_double_quote_inside_string_literal():
+    # regression: https://github.com/macbre/sql-metadata/issues/85
+    # a literal containing a `"` char used to break parsing
+    query = "select 'some string with quote \" char'"
+    parser = Parser(query)
+    assert parser.tables == []
+    assert parser.columns == []
+    assert parser.generalize == "select X"
