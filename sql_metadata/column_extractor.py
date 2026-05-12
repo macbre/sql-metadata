@@ -200,7 +200,20 @@ class _Collector:
         if clause:
             self.alias_dict.setdefault(clause, UniqueList()).append(name)
         if target is not None:
-            self.alias_map[name] = target
+            if name in self.alias_map:
+                # Alias already exists — aggregate targets into a list
+                existing = self.alias_map[name]
+                if isinstance(existing, list):
+                    # Already a list — append new target
+                    if target not in existing:
+                        existing.append(target)
+                else:
+                    # Single value — convert to list
+                    if existing != target:
+                        self.alias_map[name] = [existing, target]
+            else:
+                # First occurrence — store as-is
+                self.alias_map[name] = target
 
 
 # ---------------------------------------------------------------------------

@@ -1,6 +1,23 @@
 from sql_metadata import Parser
 
 
+def test_union_column_aliases():
+    # https://github.com/macbre/sql-metadata/issues/401
+    # When UNION combines queries with the same alias,
+    # columns_aliases should aggregate all source columns
+    query = """
+    select a.A as M
+    from tab1 a
+    union all
+    select b.B as M
+    from tab2 b
+    """
+    parser = Parser(query)
+    assert parser.columns_aliases == {"M": ["tab1.A", "tab2.B"]}
+    assert parser.columns == ["tab1.A", "tab2.B"]
+    assert parser.tables == ["tab1", "tab2"]
+
+
 def test_union():
     query = """
     SELECT
