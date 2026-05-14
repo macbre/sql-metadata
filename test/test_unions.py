@@ -18,6 +18,24 @@ def test_union_column_aliases():
     assert parser.tables == ["tab1", "tab2"]
 
 
+def test_union_alias_with_expression_targets():
+    # Regression: scalar then list-target must not nest
+    q1 = """
+    SELECT a AS x FROM t1
+    UNION ALL
+    SELECT b + c AS x FROM t2
+    """
+    assert Parser(q1).columns_aliases == {"x": ["a", "b", "c"]}
+
+    # Regression: list then list-target must not raise TypeError on UniqueList
+    q2 = """
+    SELECT a + b AS x FROM t1
+    UNION ALL
+    SELECT c + d AS x FROM t2
+    """
+    assert Parser(q2).columns_aliases == {"x": ["a", "b", "c", "d"]}
+
+
 def test_union():
     query = """
     SELECT
