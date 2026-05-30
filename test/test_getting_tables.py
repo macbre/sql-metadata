@@ -948,6 +948,28 @@ def test_unmatched_parentheses_graceful():
     assert isinstance(tables, list)
 
 
+def test_mysql_view_definition_with_bracketed_join():
+    # solved: https://github.com/macbre/sql-metadata/issues/253
+    # MySQL view definitions wrap the FROM source in parentheses and
+    # double-bracket the ON clause; used to crash with AttributeError.
+    query = (
+        "select `t`.`symbol` AS `symbol` "
+        "from (`stock`.`top_momentum_sector` `s` "
+        "join `stock`.`daily_companies` `t` "
+        "on((`s`.`symbol` = `t`.`symbol`)))"
+    )
+    parser = Parser(query)
+    assert parser.tables == ["stock.top_momentum_sector", "stock.daily_companies"]
+    assert parser.columns == [
+        "stock.daily_companies.symbol",
+        "stock.top_momentum_sector.symbol",
+    ]
+    assert parser.tables_aliases == {
+        "s": "stock.top_momentum_sector",
+        "t": "stock.daily_companies",
+    }
+
+
 def test_degraded_parse_falls_through_to_last_dialect():
     """SELECT UNIQUE triggers multi-dialect retry."""
     p = Parser("SELECT UNIQUE col FROM t")
