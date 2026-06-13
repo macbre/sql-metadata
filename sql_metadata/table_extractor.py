@@ -141,7 +141,7 @@ class TableExtractor:
     # Public API
     # -------------------------------------------------------------------
 
-    def extract(self) -> list[str]:
+    def extract(self) -> UniqueList:
         """Extract table names, excluding CTE definitions.
 
         For ``CREATE TABLE`` statements, the target table is always placed
