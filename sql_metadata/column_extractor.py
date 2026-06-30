@@ -199,8 +199,12 @@ class _Collector:
         self.alias_names.append(name)
         if clause:
             self.alias_dict.setdefault(clause, UniqueList()).append(name)
-        if target is not None:
-            self.alias_map[name] = target
+        if target is None:
+            return
+        existing = self.alias_map.get(name, [])
+        merged = UniqueList(existing if isinstance(existing, list) else [existing])
+        merged.extend(target if isinstance(target, list) else [target])
+        self.alias_map[name] = merged if len(merged) > 1 else merged[0]
 
 
 # ---------------------------------------------------------------------------

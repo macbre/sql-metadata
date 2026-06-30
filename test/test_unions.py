@@ -1,6 +1,41 @@
 from sql_metadata import Parser
 
 
+def test_union_column_aliases():
+    # https://github.com/macbre/sql-metadata/issues/401
+    # When UNION combines queries with the same alias,
+    # columns_aliases should aggregate all source columns
+    query = """
+    select a.A as M
+    from tab1 a
+    union all
+    select b.B as M
+    from tab2 b
+    """
+    parser = Parser(query)
+    assert parser.columns_aliases == {"M": ["tab1.A", "tab2.B"]}
+    assert parser.columns == ["tab1.A", "tab2.B"]
+    assert parser.tables == ["tab1", "tab2"]
+
+
+def test_union_alias_with_expression_targets():
+    # Regression: scalar then list-target must not nest
+    q1 = """
+    SELECT a AS x FROM t1
+    UNION ALL
+    SELECT b + c AS x FROM t2
+    """
+    assert Parser(q1).columns_aliases == {"x": ["a", "b", "c"]}
+
+    # Regression: list then list-target must not raise TypeError on UniqueList
+    q2 = """
+    SELECT a + b AS x FROM t1
+    UNION ALL
+    SELECT c + d AS x FROM t2
+    """
+    assert Parser(q2).columns_aliases == {"x": ["a", "b", "c", "d"]}
+
+
 def test_union():
     query = """
     SELECT
