@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "sql_metadata"
-version = "3.0.0"
+version = "3.0.1"
 license="MIT"
 description = "Uses sqlglot to parse SQL queries and extract metadata"
 authors = ["Maciej Brencz <maciej.brencz@gmail.com>", "Radosław Drążkiewicz <collerek@gmail.com>"]
