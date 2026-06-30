@@ -63,13 +63,13 @@ class Parser:
         self._columns_aliases_dict: dict[str, UniqueList] = {}
         self._output_columns: list[str] = []
 
-        self._tables: list[str] | None = None
+        self._tables: UniqueList | None = None
         self._table_aliases: dict[str, str] | None = None
 
-        self._with_names: list[str] | None = None
+        self._with_names: UniqueList | None = None
         self._with_queries: dict[str, str] | None = None
         self._subqueries: dict[str, str] | None = None
-        self._subqueries_names: list[str] | None = None
+        self._subqueries_names: UniqueList | None = None
 
         self._limit_and_offset: tuple[int, int] | None = None
 
@@ -168,7 +168,7 @@ class Parser:
         return self._tokens
 
     @property
-    def columns(self) -> list[str]:
+    def columns(self) -> UniqueList:
         """Return the list of column names referenced in the query.
 
         Walks the sqlglot AST via :class:`ColumnExtractor` in a single DFS
@@ -177,7 +177,7 @@ class Parser:
         SQL), falls back to a regex extraction of ``INTO … (col1, col2)``
         column lists.
 
-        :rtype: list[str]
+        :rtype: UniqueList
         """
         if self._columns_extracted:
             return self._columns
@@ -276,10 +276,10 @@ class Parser:
         return self._columns_aliases_dict
 
     @property
-    def columns_aliases_names(self) -> list[str]:
+    def columns_aliases_names(self) -> UniqueList:
         """Return the names of all column aliases used in the query.
 
-        :rtype: list[str]
+        :rtype: UniqueList
         """
         if not self._columns_extracted:
             _ = self.columns
@@ -299,14 +299,14 @@ class Parser:
         return self._output_columns
 
     @property
-    def tables(self) -> list[str]:
+    def tables(self) -> UniqueList:
         """Return the list of table names referenced in the query.
 
         Tables are extracted from the AST by :class:`TableExtractor`,
         sorted by their position in the SQL text, and filtered to exclude
         CTE names (which appear in :attr:`with_names` instead).
 
-        :rtype: list[str]
+        :rtype: UniqueList
         """
         if self._tables is not None:
             return self._tables
@@ -339,10 +339,10 @@ class Parser:
         return self._table_aliases
 
     @property
-    def with_names(self) -> list[str]:
+    def with_names(self) -> UniqueList:
         """Return the CTE (Common Table Expression) names from the query.
 
-        :rtype: list[str]
+        :rtype: UniqueList
         """
         if self._with_names is not None:
             return self._with_names
@@ -387,13 +387,13 @@ class Parser:
         return self._subqueries
 
     @property
-    def subqueries_names(self) -> list[str]:
+    def subqueries_names(self) -> UniqueList:
         """Return the names of all subqueries (innermost first).
 
         Aliased subqueries use their alias; unaliased ones get
         auto-generated names (``subquery_1``, ``subquery_2``, …).
 
-        :rtype: list[str]
+        :rtype: UniqueList
         """
         if self._subqueries_names is not None:
             return self._subqueries_names
@@ -482,7 +482,9 @@ class Parser:
         is_multi = values and isinstance(values[0], list)
         first_row = values[0] if is_multi else values
         if not columns:
-            columns = [f"column_{ind + 1}" for ind in range(len(first_row))]
+            columns = UniqueList(
+                f"column_{ind + 1}" for ind in range(len(first_row))
+            )
 
         if is_multi:
             self._values_dict = {
