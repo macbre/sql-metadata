@@ -207,7 +207,7 @@ class NestedResolver:
     def extract_cte_names(
         self,
         cte_name_map: dict[str, str],
-    ) -> list[str]:
+    ) -> UniqueList:
         """Extract CTE names from the AST.
 
         Called by :attr:`Parser.with_names`.
@@ -247,7 +247,7 @@ class NestedResolver:
     @staticmethod
     def extract_subqueries(
         ast: exp.Expression,
-    ) -> tuple[list[str], dict[str, str]]:
+    ) -> tuple[UniqueList, dict[str, str]]:
         """Extract subquery names and bodies in a single post-order walk.
 
         Aliased subqueries keep their alias as the name.  Unaliased
@@ -262,7 +262,7 @@ class NestedResolver:
         :returns: ``(names, bodies)`` where *names* is ordered innermost-first,
             e.g. ``(["subquery_1", "sub"], {...})``.
         """
-        names: list[str] = UniqueList()
+        names = UniqueList()
         bodies: dict[str, str] = {}
         NestedResolver._walk_subqueries(ast, names, bodies, 0)
         return names, bodies
