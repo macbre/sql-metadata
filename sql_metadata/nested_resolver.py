@@ -240,6 +240,10 @@ class NestedResolver:
         for cte in self._cte_nodes():
             alias = cte.alias
             original_name = cte_name_map.get(alias, alias)
+            # Empty CTE bodies (WITH a AS ()) leave cte.this as None.
+            if cte.this is None:
+                results[original_name] = ""
+                continue
             results[original_name] = self._body_sql(cte.this)
 
         return results

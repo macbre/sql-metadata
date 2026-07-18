@@ -715,6 +715,13 @@ def test_with_queries_empty_when_no_cte():
     assert p.with_queries == {}
 
 
+def test_with_queries_empty_cte_body():
+    """Empty CTE body WITH a AS () must not AttributeError on with_queries."""
+    p = Parser("WITH a AS () SELECT 1")
+    assert p.with_queries == {"a": ""}
+    assert p.columns == []
+
+
 def test_cte_subquery_full_resolution():
     """Subquery + CTE: CTE-qualified columns fully resolved."""
     parser = Parser("""
