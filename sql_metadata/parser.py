@@ -13,7 +13,6 @@ Thin facade that composes the specialised extractors via lazy properties:
 
 import logging
 import re
-from itertools import zip_longest
 from typing import Any
 
 from sqlglot import exp
@@ -488,19 +487,15 @@ class Parser:
             )
 
         if is_multi:
-            # Pad short rows to column width so trailing columns stay present.
-            transposed = list(zip_longest(*values, fillvalue=None))
-            n_rows = len(values)
             self._values_dict = {
-                col: (
-                    list(transposed[i])
-                    if i < len(transposed)
-                    else [None] * n_rows
-                )
+                col: [row[i] if i < len(row) else None for row in values]
                 for i, col in enumerate(columns)
             }
         else:
-            self._values_dict = dict(zip(columns, values))
+            self._values_dict = {
+                col: (values[i] if i < len(values) else None)
+                for i, col in enumerate(columns)
+            }
         return self._values_dict
 
     @property
