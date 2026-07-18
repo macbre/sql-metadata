@@ -724,15 +724,23 @@ def test_with_queries_empty_cte_body():
 
 
 def test_empty_cte_body_columns_do_not_crash():
-    """Referencing an empty CTE must not assert via nested Parser('')."""
+    """Empty CTE bodies must not assert via nested Parser('')."""
     p = Parser("WITH a AS () SELECT * FROM a")
     assert p.with_queries == {"a": ""}
     assert p.columns == ["*"]
 
-    # Sibling empty CTE must not poison resolution of a real CTE.
-    p2 = Parser("WITH a AS (), b AS (SELECT 1 AS x) SELECT x FROM b")
+    # Sibling empty CTE must not poison star resolution of a real CTE.
+    p2 = Parser("WITH a AS (), b AS (SELECT 1 AS x) SELECT * FROM b")
     assert p2.with_queries == {"a": "", "b": "SELECT 1 AS x"}
-    assert p2.columns_dict["select"] == ["x"]
+    assert p2.columns_dict["select"] == ["*", "x"]
+
+    # Qualified refs exercise _resolve_nested_query empty-body branch.
+    p_star = Parser("WITH a AS () SELECT a.* FROM a")
+    assert p_star.columns == []
+    assert p_star.columns_dict.get("select") == []
+
+    p_col = Parser("WITH a AS () SELECT a.x FROM a")
+    assert p_col.columns == ["a.x"]
 
 
 def test_cte_subquery_full_resolution():
