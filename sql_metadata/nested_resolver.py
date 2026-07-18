@@ -466,6 +466,9 @@ class NestedResolver:
         """
         for nested_name in names:
             nested_def = definitions[nested_name]
+            # Empty CTE/subquery bodies cannot be re-parsed (Parser("") asserts).
+            if not nested_def:
+                continue
             nested_parser = parser_cache.setdefault(
                 nested_name, self._parser_factory(nested_def)
             )
@@ -515,6 +518,9 @@ class NestedResolver:
             return [subquery_alias]
         sub_query, column_name = parts[0], parts[-1]
         sub_query_definition = nested_queries[sub_query]
+        # Empty bodies have no columns/aliases to resolve through.
+        if not sub_query_definition:
+            return [] if column_name == "*" else [subquery_alias]
         subparser = already_parsed.setdefault(
             sub_query, self._parser_factory(sub_query_definition)
         )
