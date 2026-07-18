@@ -151,6 +151,13 @@ def test_insert_multi_row_values():
     assert p.values_dict == {"field1": [1, 3], "field2": [2, 4]}
 
 
+def test_insert_multi_row_ragged_values_dict():
+    """Ragged multi-row VALUES must not IndexError in values_dict."""
+    p = Parser("INSERT INTO t (a, b) VALUES (1, 2), (3)")
+    assert p.values == [[1, 2], [3]]
+    assert p.values_dict == {"a": [1, 3], "b": [2, None]}
+
+
 def test_insert_with_expression_value():
     """INSERT with a function call in VALUES uses str(val) fallback."""
     p = Parser("INSERT INTO t (a) VALUES (CURRENT_TIMESTAMP)")

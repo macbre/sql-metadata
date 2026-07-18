@@ -487,8 +487,10 @@ class Parser:
             )
 
         if is_multi:
+            # Pad short rows with None so ragged VALUES tuples do not IndexError.
             self._values_dict = {
-                col: [row[i] for row in values] for i, col in enumerate(columns)
+                col: [row[i] if i < len(row) else None for row in values]
+                for i, col in enumerate(columns)
             }
         else:
             self._values_dict = dict(zip(columns, values))
