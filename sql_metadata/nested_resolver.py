@@ -240,10 +240,6 @@ class NestedResolver:
         for cte in self._cte_nodes():
             alias = cte.alias
             original_name = cte_name_map.get(alias, alias)
-            # Empty CTE bodies (WITH a AS ()) leave cte.this as None.
-            if cte.this is None:
-                results[original_name] = ""
-                continue
             results[original_name] = self._body_sql(cte.this)
 
         return results
@@ -671,7 +667,7 @@ class NestedResolver:
     # -------------------------------------------------------------------
 
     @staticmethod
-    def _body_sql(node: exp.Expression) -> str:
+    def _body_sql(node: exp.Expression | None) -> str:
         """Render an AST node to SQL, stripping identifier quoting.
 
         Example SQL::
@@ -679,7 +675,10 @@ class NestedResolver:
             WITH cte AS (SELECT "id" FROM "users") ...
 
         Renders the CTE body as ``SELECT id FROM users`` (quotes stripped).
+        Empty CTE bodies (``WITH a AS ()``) leave ``cte.this`` as None.
         """
+        if node is None:
+            return ""
         body = node.copy()
         for ident in body.find_all(exp.Identifier):
             ident.set("quoted", False)
