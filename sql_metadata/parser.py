@@ -488,10 +488,16 @@ class Parser:
             )
 
         if is_multi:
-            # zip_longest pads short VALUES rows with None (avoids IndexError).
+            # Pad short rows to column width so trailing columns stay present.
+            transposed = list(zip_longest(*values, fillvalue=None))
+            n_rows = len(values)
             self._values_dict = {
-                col: list(col_vals)
-                for col, col_vals in zip(columns, zip_longest(*values, fillvalue=None))
+                col: (
+                    list(transposed[i])
+                    if i < len(transposed)
+                    else [None] * n_rows
+                )
+                for i, col in enumerate(columns)
             }
         else:
             self._values_dict = dict(zip(columns, values))

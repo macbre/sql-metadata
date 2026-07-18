@@ -158,6 +158,13 @@ def test_insert_multi_row_ragged_values_dict():
     assert p.values_dict == {"a": [1, 3], "b": [2, None]}
 
 
+def test_insert_multi_row_all_rows_shorter_than_columns():
+    """Every VALUES row shorter than the column list still yields all keys."""
+    p = Parser("INSERT INTO t (a, b) VALUES (1), (2)")
+    assert p.values == [[1], [2]]
+    assert p.values_dict == {"a": [1, 2], "b": [None, None]}
+
+
 def test_insert_with_expression_value():
     """INSERT with a function call in VALUES uses str(val) fallback."""
     p = Parser("INSERT INTO t (a) VALUES (CURRENT_TIMESTAMP)")
