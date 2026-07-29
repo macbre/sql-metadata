@@ -888,8 +888,7 @@ def test_presto_unnest_not_table():
 def test_bigquery_unnest_not_table():
     # Solved: https://github.com/macbre/sql-metadata/issues/352
     p = Parser(
-        "SELECT A, B, metrics.C, metrics.D "
-        "FROM table1, UNNEST(metrics) as metrics"
+        "SELECT A, B, metrics.C, metrics.D FROM table1, UNNEST(metrics) as metrics"
     )
     assert p.tables == ["table1"]
     assert "metrics" in p.columns

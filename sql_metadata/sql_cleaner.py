@@ -91,9 +91,9 @@ def _normalize_cte_names(sql: str) -> tuple[str, dict[str, str]]:
     )
 
     def replacer(match: re.Match[str]) -> str:
-        prefix = match.group(1)
-        qualified_name = match.group(2)
-        suffix = match.group(3)
+        prefix = match[1]
+        qualified_name = match[2]
+        suffix = match[3]
         placeholder = qualified_name.replace(".", DOT_PLACEHOLDER)
         name_map[placeholder] = qualified_name
         return f"{prefix}{placeholder}{suffix}"
@@ -247,9 +247,11 @@ class SqlCleaner:
         if not re.match(r"\s*WITH\b", clean_sql, re.IGNORECASE):
             return
         main_kw = r"(?:SELECT|INSERT|UPDATE|DELETE)"
-        if re.search(
-            r"\)\s+AS\s+" + main_kw + r"\b", clean_sql, re.IGNORECASE
-        ) or re.search(r"\)\s+AS\s+\w+\s+" + main_kw + r"\b", clean_sql, re.IGNORECASE):
+        pattern_a = r"\)\s+AS\s+" + main_kw + r"\b"
+        pattern_b = r"\)\s+AS\s+\w+\s+" + main_kw + r"\b"
+        if re.search(pattern_a, clean_sql, re.IGNORECASE) or re.search(
+            pattern_b, clean_sql, re.IGNORECASE
+        ):
             raise InvalidQueryDefinition(
                 "Malformed WITH clause — extra AS keyword after CTE body"
             )

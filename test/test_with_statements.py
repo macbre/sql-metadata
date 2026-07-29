@@ -628,10 +628,7 @@ def test_group_by_not_table_alias_in_cte():
 
 def test_coalesce_three_args_in_cte():
     """COALESCE with 3+ args should render as COALESCE, not IFNULL."""
-    p = Parser(
-        "WITH cte AS (SELECT COALESCE(a, b, c) FROM t) "
-        "SELECT * FROM cte"
-    )
+    p = Parser("WITH cte AS (SELECT COALESCE(a, b, c) FROM t) SELECT * FROM cte")
     body = p.with_queries["cte"]
     assert "COALESCE" in body.upper()
 
@@ -658,20 +655,14 @@ def test_date_sub_in_cte():
 
 def test_not_expression_in_cte():
     """NOT applied to a boolean expression (not IS NULL or IN) in CTE body."""
-    p = Parser(
-        "WITH cte AS (SELECT * FROM t WHERE NOT (active > 0)) "
-        "SELECT * FROM cte"
-    )
+    p = Parser("WITH cte AS (SELECT * FROM t WHERE NOT (active > 0)) SELECT * FROM cte")
     body = p.with_queries["cte"]
     assert "NOT" in body.upper()
 
 
 def test_nested_resolver_unresolvable_reference():
     """A dotted column reference not matching any CTE/subquery stays as-is."""
-    p = Parser(
-        "WITH cte AS (SELECT id FROM t) "
-        "SELECT nonexistent.col FROM cte"
-    )
+    p = Parser("WITH cte AS (SELECT id FROM t) SELECT nonexistent.col FROM cte")
     assert "nonexistent.col" in p.columns
 
 
@@ -686,7 +677,9 @@ def test_cte_with_subquery_and_star_alias():
     ) q
     inner join x on q.s2_fk = x.af_pk""")
     assert p.tables == [
-        "test_db.test_table3", "testdb.test_table", "testdb.test_table2"
+        "test_db.test_table3",
+        "testdb.test_table",
+        "testdb.test_table2",
     ]
     assert p.with_names == ["x"]
     assert "testdb.test_table.*" in p.columns

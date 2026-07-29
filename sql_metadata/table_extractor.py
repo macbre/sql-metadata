@@ -304,4 +304,4 @@ class TableExtractor:
             if isinstance((n := table.args.get(key)), exp.Identifier)
             and "start" in n.meta
         ]
-        return min(positions) if positions else 0
+        return min(positions, default=0)

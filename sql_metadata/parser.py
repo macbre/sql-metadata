@@ -581,8 +581,8 @@ class Parser:
         sql = strip_comments(self._raw_query)
         match = re.search(r"LIMIT\s+(\d+)\s*,\s*(\d+)", sql, re.IGNORECASE)
         if match:
-            offset_val = int(match.group(1))
-            limit_val = int(match.group(2))
+            offset_val = int(match[1])
+            limit_val = int(match[2])
             self._limit_and_offset = limit_val, offset_val
             return self._limit_and_offset
 
@@ -592,8 +592,8 @@ class Parser:
             re.IGNORECASE,
         )
         if match:
-            limit_val = int(match.group(1))
-            offset_val = int(match.group(2)) if match.group(2) else 0
+            limit_val = int(match[1])
+            offset_val = int(match[2]) if match[2] else 0
             self._limit_and_offset = limit_val, offset_val
             return self._limit_and_offset
         return None
@@ -615,7 +615,7 @@ class Parser:
         if not match:
             return []
         cols = []
-        for col in match.group(1).split(","):
+        for col in match[1].split(","):
             col = col.strip().strip("`").strip('"').strip("'")
             if col:
                 cols.append(col)

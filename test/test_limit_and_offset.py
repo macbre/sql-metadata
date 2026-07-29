@@ -75,27 +75,21 @@ def test_limit_regex_mysql_comma_via_subquery():
     LIMIT ALL makes sqlglot produce a non-integer limit node, triggering the
     regex fallback which then matches the inner subquery's LIMIT 10, 20.
     """
-    p = Parser(
-        "SELECT * FROM (SELECT id FROM t LIMIT 10, 20) AS sub LIMIT ALL"
-    )
+    p = Parser("SELECT * FROM (SELECT id FROM t LIMIT 10, 20) AS sub LIMIT ALL")
     assert p.limit_and_offset == (20, 10)
 
 
 def test_limit_regex_standard_via_subquery():
     """Regex fallback finds standard LIMIT in subquery."""
     p = Parser(
-        "SELECT * FROM (SELECT id FROM t LIMIT 30) AS sub"
-        " FETCH FIRST 5 ROWS ONLY"
+        "SELECT * FROM (SELECT id FROM t LIMIT 30) AS sub FETCH FIRST 5 ROWS ONLY"
     )
     assert p.limit_and_offset == (30, 0)
 
 
 def test_limit_regex_with_offset_via_subquery():
     """Regex fallback finds LIMIT with OFFSET when outer is unparseable."""
-    p = Parser(
-        "SELECT * FROM (SELECT id FROM t LIMIT 50 OFFSET 100)"
-        " AS sub LIMIT ALL"
-    )
+    p = Parser("SELECT * FROM (SELECT id FROM t LIMIT 50 OFFSET 100) AS sub LIMIT ALL")
     assert p.limit_and_offset == (50, 100)
 
 

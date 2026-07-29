@@ -233,7 +233,14 @@ def test_create_table_with_comments_and_keyword_columns():
     """)
     assert p.tables == ["accounts"]
     assert p.columns == [
-        "id", "username", "status", "online_at", "hash", "uid", "test", "usage"
+        "id",
+        "username",
+        "status",
+        "online_at",
+        "hash",
+        "uid",
+        "test",
+        "usage",
     ]
 
 

@@ -578,9 +578,7 @@ def test_unaliased_subquery():
 
 def test_multiple_unaliased_subqueries():
     p = Parser(
-        "SELECT * FROM t "
-        "WHERE a IN (SELECT id FROM t2) "
-        "AND b IN (SELECT id FROM t3)"
+        "SELECT * FROM t WHERE a IN (SELECT id FROM t2) AND b IN (SELECT id FROM t3)"
     )
     assert p.subqueries_names == ["subquery_1", "subquery_2"]
     assert "subquery_1" in p.subqueries
@@ -588,10 +586,7 @@ def test_multiple_unaliased_subqueries():
 
 
 def test_mixed_aliased_and_unaliased_subqueries():
-    p = Parser(
-        "SELECT * FROM (SELECT id FROM t2) sub "
-        "WHERE a IN (SELECT id FROM t3)"
-    )
+    p = Parser("SELECT * FROM (SELECT id FROM t2) sub WHERE a IN (SELECT id FROM t3)")
     assert "sub" in p.subqueries_names
     assert "subquery_1" in p.subqueries_names
     assert "sub" in p.subqueries
