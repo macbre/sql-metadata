@@ -584,7 +584,7 @@ class ColumnExtractor:
             target = (
                 target_cols[0]
                 if len(target_cols) == 1
-                else (target_cols if target_cols else None)
+                else target_cols or None
             )
             c.add_alias(alias_name, target, clause)
             return

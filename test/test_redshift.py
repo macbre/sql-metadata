@@ -1,5 +1,4 @@
-from sql_metadata import Parser
-from sql_metadata import QueryType
+from sql_metadata import Parser, QueryType
 
 
 def test_redshift():

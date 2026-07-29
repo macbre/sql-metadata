@@ -129,7 +129,11 @@ def test_output_columns():
         dj.field_3 as field_3
     FROM dj""")
     assert parser.output_columns == [
-        "dj.field_1", "field_1_count", "dj.field_2", "field_2_count", "field_3"
+        "dj.field_1",
+        "field_1_count",
+        "dj.field_2",
+        "field_2_count",
+        "field_3",
     ]
 
     # Simple alias
@@ -156,7 +160,10 @@ def test_output_columns():
     JOIN customers c ON o.customer_id = c.customer_id
     JOIN order_items oi ON o.order_id = oi.order_id""")
     assert parser.output_columns == [
-        "month", "customers.customer_id", "revenue", "revenue_rank"
+        "month",
+        "customers.customer_id",
+        "revenue",
+        "revenue_rank",
     ]
     assert "revenue_rank" in parser.columns_aliases
 
@@ -759,18 +766,12 @@ def test_columns_via_regex_on_completely_invalid_sql():
 
 def test_cte_with_more_column_aliases_than_body():
     """CTE defines more column names than the body SELECT produces."""
-    p = Parser(
-        "WITH cte(a, b, c) AS (SELECT x FROM t) "
-        "SELECT a FROM cte"
-    )
+    p = Parser("WITH cte(a, b, c) AS (SELECT x FROM t) SELECT a FROM cte")
     assert "a" in p.columns_aliases_names
 
 
 def test_cte_with_table_star_in_body():
     """CTE body uses table.* — exercises _flat_columns with table-qualified star."""
-    p = Parser(
-        "WITH cte(a) AS (SELECT t.* FROM t) "
-        "SELECT a FROM cte"
-    )
+    p = Parser("WITH cte(a) AS (SELECT t.* FROM t) SELECT a FROM cte")
     assert p.columns == ["t.*"]
     assert p.columns_aliases_names == ["a"]

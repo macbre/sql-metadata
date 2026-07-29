@@ -120,9 +120,7 @@ def test_negative_integer_values():
 
 def test_negative_float_values():
     """INSERT with a negative float value."""
-    p = Parser(
-        "INSERT INTO measurements (sensor, reading) VALUES ('temp', -3.14)"
-    )
+    p = Parser("INSERT INTO measurements (sensor, reading) VALUES ('temp', -3.14)")
     assert p.values == ["temp", -3.14]
     assert p.values_dict == {"sensor": "temp", "reading": -3.14}
 
