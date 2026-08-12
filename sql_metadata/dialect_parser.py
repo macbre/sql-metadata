@@ -249,6 +249,18 @@ class DialectParser:
                 dialect=dialect,
                 error_level=sqlglot.ErrorLevel.WARN,
             )
+        except (ParseError, TokenError):
+            # Re-raise so _try_dialects can report a real syntax error on the
+            # last dialect (see its except clause).
+            raise
+        except Exception:
+            # WARN mode is supposed to return a best-effort AST instead of
+            # raising, but sqlglot can still blow up while assembling that tree,
+            # e.g. an AttributeError on a node whose key is None for input like
+            # "{ =". Treat any such failure as "this dialect produced nothing"
+            # so the query is reported as invalid rather than crashing the
+            # public accessors with a raw sqlglot exception.
+            return None
         finally:
             logger.setLevel(old_level)
 
