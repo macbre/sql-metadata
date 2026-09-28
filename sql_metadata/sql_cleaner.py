@@ -50,24 +50,21 @@ def _strip_outer_parens(sql: str) -> str:
     """Strip redundant outer parentheses from *sql*.
 
     Needed because sqlglot cannot parse double-wrapped non-SELECT
-    statements like ``((UPDATE ...))``.  A depth guard prevents stack
-    overflow on pathological input.
+    statements like ``((UPDATE ...))``.  Implemented iteratively (rather
+    than via recursion) so pathological input with hundreds of nesting
+    levels can't blow the Python call stack — and so every layer of
+    redundant parens is removed, leaving nothing left to trip sqlglot's
+    own recursive-descent parser into a ``RecursionError``.
 
     :param sql: SQL string that may be wrapped in outer parentheses.
     :type sql: str
     :returns: The unwrapped SQL string.
     :rtype: str
     """
-
-    def _recur(s: str, depth: int) -> str:
-        if depth > 100:
-            return s
-        s = s.strip()
-        if _is_wrapped(s):
-            return _recur(s[1:-1], depth + 1)
-        return s
-
-    return _recur(sql, 0)
+    s = sql.strip()
+    while _is_wrapped(s):
+        s = s[1:-1].strip()
+    return s
 
 
 def _normalize_cte_names(sql: str) -> tuple[str, dict[str, str]]:
