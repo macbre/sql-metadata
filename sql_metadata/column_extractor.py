@@ -135,7 +135,7 @@ def _is_date_part_unit(node: exp.Column) -> bool:
     parent = node.parent
     if (
         isinstance(parent, exp.Anonymous)
-        and parent.this.lower() in _DATE_PART_FUNCTIONS
+        and parent.name.lower() in _DATE_PART_FUNCTIONS
     ):
         exprs = parent.expressions
         return len(exprs) > 0 and exprs[0] is node
