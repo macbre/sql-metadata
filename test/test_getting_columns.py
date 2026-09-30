@@ -708,6 +708,22 @@ def test_dateadd_unit_not_column():
     assert parser.columns_dict == {"select": ["DateReleased"]}
 
 
+def test_quoted_anonymous_function_name():
+    # solved: https://github.com/macbre/sql-metadata/issues/688
+    # a quoted function name is an Identifier, not a str, in sqlglot's AST
+    query = """
+    SELECT date_trunc('DAY', "timezone"('UTC', tbl.data_timestamp))
+    FROM tbl
+    """
+    parser = Parser(query)
+    assert parser.tables == ["tbl"]
+    assert parser.columns == ["tbl.data_timestamp"]
+
+    # date-part unit is still skipped when the function name is quoted
+    parser = Parser('SELECT "dateadd"(dd, 30, DateReleased) FROM test')
+    assert parser.tables == ["test"]
+    assert parser.columns == ["DateReleased"]
+
 def test_backtick_column_with_operation():
     # solved: https://github.com/macbre/sql-metadata/issues/448
     query = "SELECT `col1 with space` / `col2_anything` FROM table1"
