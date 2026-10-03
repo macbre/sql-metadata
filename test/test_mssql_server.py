@@ -203,3 +203,18 @@ def test_for_xml_path_does_not_emit_sqlglot_warning(caplog):
     with caplog.at_level("WARNING", logger="sqlglot"):
         Parser(query).columns  # .columns drives NestedResolver._body_sql
     assert caplog.records == []
+
+
+def test_tsql_temp_tables():
+    """Test table extraction with T-SQL temporary tables (#693)."""
+    assert Parser("DROP TABLE IF EXISTS #HistRaw; SELECT 1").tables == ["#HistRaw"]
+    assert Parser("SELECT a INTO #tmp FROM t; SELECT a FROM #tmp").tables == [
+        "#tmp",
+        "t",
+    ]
+    assert Parser("SELECT a FROM #tmp").tables == ["#tmp"]
+    assert Parser("SELECT * FROM t INNER JOIN #tmp ON t.id = #tmp.id").tables == [
+        "t",
+        "#tmp",
+    ]
+
