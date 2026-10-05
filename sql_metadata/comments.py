@@ -49,6 +49,13 @@ def _choose_tokenizer(sql: str) -> Tokenizer:
     return Tokenizer()
 
 
+#: Matches T-SQL temporary table references (#tmp, ##tmp) following keywords
+#: like FROM, JOIN, INTO, TABLE, EXISTS, UPDATE, or after a comma.
+_TEMP_TABLE_RE = re.compile(
+    r"(?i)(?:\b(?:FROM|JOIN|INTO|TABLE|EXISTS|UPDATE)\s+|,\s*)#+\w"
+)
+
+
 def _has_hash_variables(sql: str) -> bool:
     """Determine whether ``#`` characters in *sql* are variable references.
 
@@ -61,6 +68,7 @@ def _has_hash_variables(sql: str) -> bool:
 
     * ``#WORD#`` — bracketed template variable.
     * ``= #WORD`` or ``(#WORD`` — assignment / parameter context.
+    * ``FROM #table``, ``JOIN #table``, etc. — T-SQL temporary tables.
 
     :param sql: Raw SQL string.
     :type sql: str
@@ -72,6 +80,9 @@ def _has_hash_variables(sql: str) -> bool:
         return True
     # = #WORD or (#WORD with optional whitespace before #
     if re.search(r"[=(]\s*#\w", sql):
+        return True
+    # T-SQL temporary table references (e.g. #tmp, ##tmp, #HistRaw)
+    if _TEMP_TABLE_RE.search(sql):
         return True
     return False
 
