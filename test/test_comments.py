@@ -189,3 +189,57 @@ def test_strip_comments_for_parsing_empty():
     from sql_metadata.comments import strip_comments_for_parsing
 
     assert strip_comments_for_parsing("") == ""
+
+
+def test_without_comments_preserves_tsql_temp_tables():
+    """Preserve T-SQL temporary table names (#tmp, ##tmp) in without_comments."""
+    # DROP TABLE
+    drop_query = "DROP TABLE IF EXISTS #HistRaw; SELECT 1"
+    parser = Parser(drop_query)
+    assert parser.without_comments == "DROP TABLE IF EXISTS #HistRaw; SELECT 1"
+    assert parser.comments == []
+
+    drop_simple = "DROP TABLE #tmp"
+    parser = Parser(drop_simple)
+    assert parser.without_comments == "DROP TABLE #tmp"
+    assert parser.comments == []
+
+    # SELECT INTO
+    into_query = "SELECT a INTO #tmp FROM t; SELECT a FROM #tmp"
+    parser = Parser(into_query)
+    assert parser.without_comments == "SELECT a INTO #tmp FROM t; SELECT a FROM #tmp"
+    assert parser.comments == []
+
+    # FROM
+    from_query = "SELECT a FROM #tmp"
+    parser = Parser(from_query)
+    assert parser.without_comments == "SELECT a FROM #tmp"
+    assert parser.comments == []
+
+    # JOIN
+    join_query = "SELECT t.a, tmp.b FROM t INNER JOIN #tmp tmp ON t.id = tmp.id"
+    parser = Parser(join_query)
+    assert (
+        parser.without_comments
+        == "SELECT t.a, tmp.b FROM t INNER JOIN #tmp tmp ON t.id = tmp.id"
+    )
+    assert parser.comments == []
+
+    # UPDATE
+    update_query = "UPDATE #tmp SET val = 1"
+    parser = Parser(update_query)
+    assert parser.without_comments == "UPDATE #tmp SET val = 1"
+    assert parser.comments == []
+
+    # Comma-separated tables
+    comma_query = "SELECT * FROM t, #tmp WHERE t.id = #tmp.id"
+    parser = Parser(comma_query)
+    assert parser.without_comments == "SELECT * FROM t, #tmp WHERE t.id = #tmp.id"
+    assert parser.comments == []
+
+    # Global temp table (##tmp)
+    global_query = "SELECT a FROM ##tmp"
+    parser = Parser(global_query)
+    assert parser.without_comments == "SELECT a FROM ##tmp"
+    assert parser.comments == []
+
