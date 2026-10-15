@@ -274,6 +274,16 @@ class DialectParser:
         :returns: ``True`` if the result should be discarded in favour
             of the next dialect.
         """
+        # A top-level ``WITH``/CTE with no following main statement means the
+        # dialect silently dropped the body of the query.  This happens, for
+        # example, when the TSQL ``BracketedTableDialect`` misreads a map/array
+        # subscript such as ``m['key']`` (or ``ARRAY_JOIN(m['key'], ' ')``) as a
+        # bracket-quoted identifier and discards everything after the CTEs.  A
+        # complete query always parses to its main statement (``Select``,
+        # ``Insert``, …) with the CTE attached as a ``with`` argument, so a bare
+        # top-level ``With`` is unambiguously a degraded result.
+        if isinstance(result, exp.With):
+            return True
         if isinstance(result, exp.Command) and not self._is_expected_command(clean_sql):
             return True
         return self._has_parse_issues(result)
