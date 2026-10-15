@@ -21,8 +21,21 @@ the MySQL tokenizer so that ``#``-style comments are reliably stripped.
 import re
 from typing import Any
 
+from sqlglot.dialects.mysql import MySQL
 from sqlglot.errors import TokenError
 from sqlglot.tokens import Tokenizer
+
+
+class _MySQLCommentTokenizer(MySQL.Tokenizer):
+    """MySQL tokenizer that treats any ``--`` as a line comment.
+
+    sqlglot >=30.22 follows MySQL semantics where ``--`` only starts a
+    comment when followed by whitespace, so ``--foo`` would be tokenized
+    as two dashes and an identifier.  We use this tokenizer purely to
+    strip comments, and ``--foo`` is meant as a comment in practice.
+    """
+
+    DASH_COMMENT_REQUIRES_BOUNDARY = False
 
 
 def _choose_tokenizer(sql: str) -> Tokenizer:
@@ -39,13 +52,11 @@ def _choose_tokenizer(sql: str) -> Tokenizer:
     :rtype: sqlglot.tokens.Tokenizer
     """
     if "#" in sql and not _has_hash_variables(sql):
-        from sqlglot.dialects.mysql import MySQL
-
         # Pass dialect="mysql" so the cached TokenizerCore (sqlglot >=30.7.0
         # caches per-class) is built with MySQL identifier semantics — without
         # it the cache is primed from the default dialect and later mysql
         # parses misclassify e.g. ``0020_big_table`` as NUMBER + VAR.
-        return MySQL.Tokenizer(dialect="mysql")
+        return _MySQLCommentTokenizer(dialect="mysql")
     return Tokenizer()
 
 
@@ -180,12 +191,10 @@ def strip_comments_for_parsing(sql: str) -> str:
     if upper.startswith("CREATE FUNCTION") or _has_hash_variables(sql):
         tokenizer = Tokenizer()
     else:
-        from sqlglot.dialects.mysql import MySQL
-
         # See _choose_tokenizer — the explicit dialect prevents the
         # sqlglot >=30.7.0 TokenizerCore cache from being primed with
         # default-dialect semantics.
-        tokenizer = MySQL.Tokenizer(dialect="mysql")
+        tokenizer = _MySQLCommentTokenizer(dialect="mysql")
     try:
         tokens = list(tokenizer.tokenize(sql))
     except TokenError:
