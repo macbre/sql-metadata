@@ -772,3 +772,28 @@ def test_chained_cte_cross_reference():
     """)
     assert p.tables == ["t1"]
     assert p.columns == ["a", "b"]
+
+
+def test_with_map_subscript_in_cte_does_not_drop_main_statement():
+    """Regression test for #698.
+
+    A map/array subscript such as ``m['key']`` or ``ARRAY_JOIN(m['key'], ' ')``
+    inside a non-first CTE used to make the TSQL ``BracketedTableDialect``
+    misread the ``[`` as a bracket-quoted identifier and silently drop the
+    trailing main SELECT, leaving a bare ``WITH``.  The parser then raised
+    ``InvalidQueryDefinition("WITH clause without a main statement ...")``
+    instead of extracting the real tables.  The degraded parse must be rejected
+    so the correct dialect is tried.
+    """
+    queries = {
+        "WITH cte1 AS (SELECT a FROM t1), "
+        "cte2 AS (SELECT ARRAY_JOIN(m['k'], ' ') AS x FROM t2) "
+        "SELECT cte1.a FROM cte1 JOIN cte2": ["t1", "t2"],
+        "WITH cte AS (SELECT a FROM t1) SELECT m['k'] FROM cte": ["t1"],
+        "WITH c1 AS (SELECT a FROM t1), "
+        "c2 AS (SELECT arr[1] AS x FROM t2) "
+        "SELECT c1.a FROM c1 JOIN c2": ["t1", "t2"],
+    }
+    for sql, expected in queries.items():
+        p = Parser(sql)
+        assert p.tables == expected
