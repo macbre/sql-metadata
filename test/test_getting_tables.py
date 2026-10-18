@@ -895,6 +895,18 @@ def test_bigquery_unnest_not_table():
     assert "metrics" in p.columns
 
 
+def test_bigquery_unnest_alias_flattened_field_not_table():
+    # Test for issue #689 - flattening a repeated field off an alias bound by
+    # an earlier UNNEST still reports it as a table.
+    # https://github.com/macbre/sql-metadata/issues/689
+    p = Parser(
+        "SELECT h.value FROM `proj.ds.ga_sessions_*` t, "
+        "UNNEST(t.hits) h, h.customDimensions cd"
+    )
+    assert p.tables == ["proj.ds.ga_sessions_*"]
+    assert p.tables_aliases == {"t": "proj.ds.ga_sessions_*"}
+
+
 def test_from_order_does_not_affect_tables():
     # solved: https://github.com/macbre/sql-metadata/issues/335
     query1 = "SELECT aa FROM (SELECT bb FROM bbb GROUP BY bb) AS a, omg"
