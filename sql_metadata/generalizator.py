@@ -9,6 +9,9 @@ that structurally identical queries can be grouped for analysis
 
 import re
 
+from sqlglot.errors import TokenError
+from sqlglot.tokens import Tokenizer, TokenType
+
 from sql_metadata.comments import strip_comments
 
 
@@ -37,11 +40,32 @@ class Generalizator:
 
     # SQL queries normalization (#16)
     @staticmethod
+    def _normalize_strings(sql: str) -> str:
+        """Replace whole string tokens, including doubled quote escapes."""
+        if "'" not in sql:
+            return sql
+        try:
+            tokens = Tokenizer().tokenize(sql)
+        except TokenError:
+            # Preserve best-effort normalization of lexically malformed SQL.
+            return re.sub(r"'[^\']*'", "X", sql)
+
+        parts: list[str] = []
+        previous_end = 0
+        for token in tokens:
+            if token.token_type in (TokenType.STRING, TokenType.NATIONAL_STRING):
+                # Keep the N/n prefix, as the previous normalization did.
+                start = token.start + (token.token_type == TokenType.NATIONAL_STRING)
+                parts.extend((sql[previous_end:start], "X"))
+                previous_end = token.end + 1
+        return "".join(parts) + sql[previous_end:]
+
+    @staticmethod
     def _normalize_likes(sql: str) -> str:
         """Normalise and collapse repeated ``LIKE`` clauses.
 
-        Strips ``%`` wildcards, replaces ``LIKE '...'`` with ``LIKE X``,
-        and collapses consecutive ``or/and ... LIKE X`` clauses into a
+        Strips ``%`` wildcards and collapses consecutive
+        ``or/and ... LIKE X`` clauses into a
         single instance with ``...`` suffix.
 
         :param sql: SQL string with LIKE clauses.
@@ -50,9 +74,6 @@ class Generalizator:
         :rtype: str
         """
         sql = sql.replace("%", "")
-
-        # LIKE '%bot'
-        sql = re.sub(r"LIKE '[^\']+'", "LIKE X", sql)
 
         # or all_groups LIKE X or all_groups LIKE X
         found = re.finditer(r"(or|and) [^\s]+ LIKE X", sql, flags=re.IGNORECASE)
@@ -86,9 +107,9 @@ class Generalizator:
         1. Strip comments.
         2. Remove double-quotes.
         3. Collapse multiple spaces.
-        4. Normalise ``LIKE`` clauses.
-        5. Replace escaped characters.
-        6. Replace string literals with ``X``.
+        4. Replace escaped characters.
+        5. Replace string literals with ``X``.
+        6. Normalise ``LIKE`` clauses.
         7. Collapse whitespace to single spaces.
         8. Replace numbers with ``N``.
         9. Collapse ``IN (...)`` / ``VALUES (...)`` lists to ``(XYZ)``.
@@ -107,14 +128,11 @@ class Generalizator:
         # multiple spaces
         sql = re.sub(r"\s{2,}", " ", sql)
 
-        # handle LIKE statements
-        sql = self._normalize_likes(sql)
-
         sql = re.sub(r"\\\\", "", sql)
         sql = re.sub(r"\\'", "", sql)
         sql = re.sub(r'\\"', "", sql)
-        sql = re.sub(r"'[^\']*'", "X", sql)
-        sql = re.sub(r'"[^\"]*"', "X", sql)
+        sql = self._normalize_strings(sql)
+        sql = self._normalize_likes(sql)
 
         # All newlines, tabs, etc replaced by single space
         sql = re.sub(r"\s+", " ", sql)
