@@ -136,6 +136,7 @@ class TableExtractor:
             dialect, BracketedTableDialect
         )
         self._cached_table_nodes: list[exp.Table] | None = None
+        self._cached_unnest_aliases: set[str] | None = None
 
     # -------------------------------------------------------------------
     # Public API
@@ -163,9 +164,14 @@ class TableExtractor:
             create_target = self._extract_create_target()
 
         tables_with_pos: list[tuple[str, int]] = []
+        unnest_aliases = self._unnest_aliases()
         for node in self._table_nodes():
             name = self._table_full_name(node)
-            if name and name not in self._cte_names:
+            if (
+                name
+                and name not in self._cte_names
+                and not self._is_flattened_field(node, unnest_aliases)
+            ):
                 tables_with_pos.append((name, self._table_start_position(node)))
         tables_with_pos.sort(key=lambda pair: pair[1])
         sorted_names = [name for name, _ in tables_with_pos]
@@ -239,6 +245,49 @@ class TableExtractor:
         if self._cached_table_nodes is None:
             self._cached_table_nodes = list(self._ast.find_all(exp.Table))
         return self._cached_table_nodes
+
+    def _unnest_aliases(self) -> set[str]:
+        """Return the aliases introduced by UNNEST expressions (cached).
+
+        BigQuery (and other dialects) flatten nested/repeated fields with
+        ``UNNEST(...) [AS] alias``.  sqlglot records the alias in the
+        ``TableAlias`` attached to each :class:`exp.Unnest` node — either in
+        ``TableAlias.this`` (``UNNEST(x) AS a``) or in ``TableAlias.columns``
+        (``UNNEST(x) a``), depending on the dialect.  A later reference such
+        as ``alias.field`` names a flattened field rather than a real table,
+        so its root alias must be excluded from table extraction.
+
+        :returns: Set of UNNEST alias names.
+        """
+        if self._cached_unnest_aliases is None:
+            aliases: set[str] = set()
+            for unnest in self._ast.find_all(exp.Unnest):
+                table_alias = unnest.args.get("alias")
+                if isinstance(table_alias, exp.TableAlias):
+                    if table_alias.this:
+                        aliases.add(table_alias.this.name)
+                    for column in table_alias.columns or []:
+                        aliases.add(column.name)
+            self._cached_unnest_aliases = aliases
+        return self._cached_unnest_aliases
+
+    @staticmethod
+    def _is_flattened_field(table: exp.Table, unnest_aliases: set[str]) -> bool:
+        """Return ``True`` if *table* is a flattened-field reference.
+
+        A reference whose catalog or db segment matches an UNNEST alias
+        (e.g. ``h.customDimensions`` where ``h`` comes from
+        ``UNNEST(t.hits) h``) is a field of the flattened relation, not a
+        standalone table, and must be dropped from table extraction.
+
+        :param table: An ``exp.Table`` AST node.
+        :param unnest_aliases: Set of UNNEST alias names.
+        :returns: ``True`` when the table should be excluded as a flattened
+            field.
+        """
+        if not unnest_aliases:
+            return False
+        return table.catalog in unnest_aliases or table.db in unnest_aliases
 
     # -------------------------------------------------------------------
     # Table name construction
