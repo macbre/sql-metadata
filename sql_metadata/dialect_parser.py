@@ -16,6 +16,7 @@ from sqlglot.dialects.tsql import TSQL
 from sqlglot.errors import ParseError, TokenError
 from sqlglot.parsers.redshift import RedshiftParser
 from sqlglot.tokens import Tokenizer as BaseTokenizer
+from sqlglot.tokens import TokenType
 
 from sql_metadata.comments import _has_hash_variables
 from sql_metadata.exceptions import InvalidQueryDefinition
@@ -187,45 +188,67 @@ class DialectParser:
         """Try each candidate dialect in order and return the first good result.
 
         Iterates over *dialects*, calling :meth:`_parse_with_dialect` for
-        each.  A result is accepted immediately if it is the last dialect
-        in the list (best-effort) or if :meth:`_is_degraded` reports no
-        quality issues.  Degraded results from non-last dialects are
-        skipped so the next candidate gets a chance.
+        each.  A result is accepted immediately if sqlglot reported no
+        syntax errors and it is either the last dialect in the list
+        (best-effort) or :meth:`_is_degraded` reports no quality issues.
+        Degraded results from non-last dialects are skipped so the next
+        candidate gets a chance.
+
+        A result that sqlglot parsed with syntax errors is not accepted
+        straight away, because sqlglot recovers from an error by
+        dropping or misreading part of the statement while a later
+        dialect may parse the same SQL without any error.  The first such
+        result is kept as a fallback and returned when no later dialect
+        parses without errors.
 
         :param clean_sql: Preprocessed SQL string.
         :param dialects: Priority-ordered list from :meth:`_detect_dialects`.
         :returns: 2-tuple of ``(ast_root_node, winning_dialect)``.
         :raises InvalidQueryDefinition: If the last dialect raises a
-            parse error, or if no dialect produces a usable AST.
+            parse error and no earlier dialect gave a usable result, or
+            if no dialect produces a usable AST.
         """
+        fallback: tuple[exp.Expression, DialectType] | None = None
         for dialect in dialects:
             try:
-                result = self._parse_with_dialect(clean_sql, dialect)
-                if result is None:
+                parsed = self._parse_with_dialect(clean_sql, dialect)
+                if parsed is None:
                     continue
+                result, has_errors = parsed
                 is_last = dialect == dialects[-1]
                 if not is_last and self._is_degraded(result, clean_sql):
                     continue
-                return result, dialect
+                if not has_errors:
+                    return result, dialect
+                # Keep only the first errored result as the fallback.
+                fallback = fallback or (result, dialect)
             except (ParseError, TokenError):
-                if dialect is not None and dialect == dialects[-1]:
+                if fallback is None and dialect is not None and dialect == dialects[-1]:
                     raise InvalidQueryDefinition(
                         "Query could not be parsed — SQL syntax error"
                     )
                 continue
 
+        if fallback is not None:
+            return fallback
         raise InvalidQueryDefinition(
             "Query could not be parsed — no dialect could handle this SQL"
         )
 
     @staticmethod
-    def _parse_with_dialect(clean_sql: str, dialect: Any) -> exp.Expression | None:
+    def _parse_with_dialect(
+        clean_sql: str, dialect: Any
+    ) -> tuple[exp.Expression, bool] | None:
         """Parse *clean_sql* with a single sqlglot dialect.
 
         Uses ``ErrorLevel.WARN`` so that sqlglot returns a best-effort
         AST instead of raising on the first syntax problem — the caller
         decides whether the result is good enough via
-        :meth:`_is_degraded`.
+        :meth:`_is_degraded` and the returned error flag.  The flag is
+        read from the parser's error list, which is how a clean parse is
+        told apart from one that sqlglot recovered from.  Only the first
+        statement is used, so with several statements the flag is read for
+        the first one parsed on its own.
 
         The sqlglot logger is temporarily raised to ``CRITICAL`` during
         the parse call because ``WARN`` mode emits noisy warnings for
@@ -237,24 +260,36 @@ class DialectParser:
         :param clean_sql: Preprocessed SQL string.
         :param dialect: A sqlglot dialect identifier, class, or ``None``
             for the default dialect.
-        :returns: The root AST node, or ``None`` if sqlglot could not
-            produce any result.
+        :returns: 2-tuple of ``(root_node, has_errors)`` where
+            ``has_errors`` is ``True`` when sqlglot reported at least one
+            syntax error, or ``None`` if sqlglot could not produce any
+            result.
         """
+        sqlglot_dialect = Dialect.get_or_raise(dialect)
+        parser = sqlglot_dialect.parser(error_level=sqlglot.ErrorLevel.WARN)
         logger = logging.getLogger("sqlglot")
         old_level = logger.level
         logger.setLevel(logging.CRITICAL)
         try:
-            results = sqlglot.parse(
-                clean_sql,
-                dialect=dialect,
-                error_level=sqlglot.ErrorLevel.WARN,
-            )
+            tokens = sqlglot_dialect.tokenize(clean_sql)
+            results = parser.parse(tokens, clean_sql)
+            has_errors = bool(parser.errors)
+            if has_errors and len(results) > 1:
+                # Only the first statement is used, but ``parser.errors``
+                # covers every statement: parse the first one on its own.
+                end = next(
+                    i
+                    for i, token in enumerate(tokens)
+                    if token.token_type == TokenType.SEMICOLON
+                )
+                parser.parse(tokens[:end], clean_sql)
+                has_errors = bool(parser.errors)
         finally:
             logger.setLevel(old_level)
 
         if not results or results[0] is None:
             return None
-        return results[0]  # type: ignore[return-value]
+        return results[0], has_errors  # type: ignore[return-value]
 
     # -- quality checks -----------------------------------------------------
 
