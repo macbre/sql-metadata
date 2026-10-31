@@ -790,3 +790,52 @@ def test_cte_with_table_star_in_body():
     )
     assert p.columns == ["t.*"]
     assert p.columns_aliases_names == ["a"]
+
+
+def test_array_brackets_do_not_select_tsql_dialect():
+    parser = Parser("SELECT a[1] FROM t")
+    assert parser.tables == ["t"]
+    assert parser.columns_aliases == {}
+
+    parser = Parser("SELECT t.a[1] AS x FROM t")
+    assert parser.tables == ["t"]
+    assert parser.columns_aliases == {"x": "t.a"}
+
+    parser = Parser("SELECT ARRAY[1, 2] AS arr, b FROM t")
+    assert parser.tables == ["t"]
+    assert parser.columns == ["b"]
+
+    parser = Parser("SELECT x FROM t WHERE y = ANY(ARRAY[1, 2])")
+    assert parser.columns == ["x", "y"]
+
+
+def test_spaced_array_subscript_does_not_select_tsql_dialect():
+    parser = Parser("SELECT a [i] FROM t")
+    assert parser.tables == ["t"]
+    assert parser.columns_aliases == {}
+
+
+def test_numeric_tsql_identifiers_still_select_tsql_dialect():
+    parser = Parser("SELECT [123] FROM [456]")
+    assert parser.tables == ["[456]"]
+    assert parser.columns == ["123"]
+
+
+def test_expression_array_subscripts_do_not_select_tsql_dialect():
+    for expression in ("(ARRAY[10, 20])[1]", "make_array()[1]"):
+        parser = Parser(f"SELECT {expression} AS x FROM t")
+        assert parser.tables == ["t"]
+        assert parser.columns == []
+        assert parser.columns_aliases == {}
+
+    parser = Parser('SELECT "arr"[1] AS x FROM t')
+    assert parser.tables == ["t"]
+    assert parser.columns == ["arr"]
+    assert parser.columns_aliases == {"x": "arr"}
+
+
+def test_spaced_tsql_alias_after_function_still_selects_tsql_dialect():
+    parser = Parser("SELECT COUNT(*) [alias] FROM t")
+    assert parser.tables == ["t"]
+    assert parser.columns == []
+    assert parser.columns_aliases == {"alias": "*"}
