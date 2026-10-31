@@ -170,6 +170,7 @@ class TableExtractor:
             if (
                 name
                 and name not in self._cte_names
+                and not self._is_drop_index_name(node)
                 and not self._is_flattened_field(node, unnest_aliases)
             ):
                 tables_with_pos.append((name, self._table_start_position(node)))
@@ -245,6 +246,16 @@ class TableExtractor:
         if self._cached_table_nodes is None:
             self._cached_table_nodes = list(self._ast.find_all(exp.Table))
         return self._cached_table_nodes
+
+    def _is_drop_index_name(self, node: exp.Table) -> bool:
+        """Return whether *node* names an index in ``DROP INDEX``.
+
+        sqlglot represents both the index name and an optional ``ON`` table
+        as :class:`exp.Table` nodes.  Only the latter is table metadata.
+        """
+        if not isinstance(self._ast, exp.Drop) or self._ast.kind != "INDEX":
+            return False
+        return any(node is target for target in self._ast.args.get("tables") or [])
 
     def _unnest_aliases(self) -> set[str]:
         """Return the aliases introduced by UNNEST expressions (cached).
