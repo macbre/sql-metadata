@@ -790,3 +790,25 @@ def test_cte_with_table_star_in_body():
     )
     assert p.columns == ["t.*"]
     assert p.columns_aliases_names == ["a"]
+
+
+def test_parameter_placeholders_are_not_columns():
+    for placeholder in ("%s", "%(name)s", "$1", "?", ":name"):
+        parser = Parser(f"SELECT a FROM t WHERE b = {placeholder}")
+        assert parser.columns == ["a", "b"]
+        assert parser.columns_dict == {"select": ["a"], "where": ["b"]}
+
+        parser = Parser(f"UPDATE t SET a = {placeholder} WHERE b = {placeholder}")
+        assert parser.columns == ["a", "b"]
+        assert parser.columns_dict == {"update": ["a"], "where": ["b"]}
+
+
+def test_placeholder_detection_preserves_modulo_and_literals():
+    for expression in ("a % s", "a%s", "a % (n)"):
+        assert Parser(f"SELECT {expression} FROM t").columns == [
+            "a",
+            "n" if "(n)" in expression else "s",
+        ]
+    for literal in ("%s", "%(name)s", "$1"):
+        parser = Parser(f"SELECT a FROM t WHERE b = '{literal}'")
+        assert parser.columns == ["a", "b"]
