@@ -238,8 +238,18 @@ class Parser:
         # Resolve aliases used in other sections
         if self.columns_aliases_dict:
             resolver = self._get_resolver()
+            literal_aliases = {
+                node.alias
+                for node in self._require_ast().find_all(exp.Alias)
+                if isinstance(node.this, (exp.Literal, exp.Null, exp.Boolean))
+            }
             for key, value in self.columns_aliases_dict.items():
                 for alias in value:
+                    if (
+                        alias in literal_aliases
+                        and alias not in self.columns_aliases
+                    ):
+                        continue
                     resolved = resolver.resolve_column_alias(
                         alias, self.columns_aliases
                     )
