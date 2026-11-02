@@ -242,3 +242,9 @@ def test_create_table_as_select_with_cte_same_name():
     query = "CREATE TABLE foo AS WITH foo AS (SELECT 1 as id) SELECT * FROM foo"
     parser = Parser(query)
     assert parser.tables == ["foo"]
+
+
+def test_create_procedure_keeps_every_statement_of_its_body():
+    """The body runs past the first semicolon, so it is one statement."""
+    query = "CREATE PROCEDURE p() BEGIN SELECT * FROM a; SELECT * FROM b; END"
+    assert Parser(query).tables == ["p", "a", "b"]
