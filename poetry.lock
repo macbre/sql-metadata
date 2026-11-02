@@ -620,20 +620,20 @@ files = [
 
 [[package]]
 name = "sqlglot"
-version = "30.25.0"
+version = "30.26.0"
 description = "An easily customizable SQL parser and transpiler"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "sqlglot-30.25.0-py3-none-any.whl", hash = "sha256:7d5a292d5f61b7fc860e65a8fa41083c726db0e27fb6efb224cca63c3a5980f7"},
-    {file = "sqlglot-30.25.0.tar.gz", hash = "sha256:d2d6e4d4865a210b1e33a801b105a6782ef12280cc2b6d0969bdc2634aef427a"},
+    {file = "sqlglot-30.26.0-py3-none-any.whl", hash = "sha256:58fe0d44cc5ae2947a08d16c4e1affb8716e6ddb47154674e3b6180a2f2b315c"},
+    {file = "sqlglot-30.26.0.tar.gz", hash = "sha256:aa7de4670aa393f3d92878749b2ebfe6fbd41435e1827df0a1b4edfb5407f930"},
 ]
 
 [package.extras]
-c = ["sqlglotc (==30.25.0) ; python_version >= \"3.10\""]
-dev = ["duckdb (>=0.6)", "mypy (>=2.4.0) ; python_version >= \"3.10\"", "mypy ; python_version < \"3.10\"", "pandas", "pandas-stubs", "pdoc", "pre-commit", "pyperf", "python-dateutil", "pytz", "ruff (==0.15.6)", "setuptools_scm", "types-python-dateutil", "types-pytz", "typing_extensions"]
-rs = ["sqlglotc (==30.25.0) ; python_version >= \"3.10\"", "sqlglotrs (==0.13.0)"]
+c = ["sqlglotc (==30.26.0) ; python_version >= \"3.10\""]
+dev = ["duckdb (>=0.6)", "mypy (>=2.4.0) ; python_version >= \"3.10\"", "mypy ; python_version < \"3.10\"", "pandas", "pandas-stubs", "pdoc", "pre-commit", "pyperf", "python-dateutil", "pytz", "ruff (==0.15.6)", "setuptools_scm (>=10.2)", "types-python-dateutil", "types-pytz", "typing_extensions"]
+rs = ["sqlglotc (==30.26.0) ; python_version >= \"3.10\"", "sqlglotrs (==0.13.0)"]
 
 [[package]]
 name = "tomli"
