@@ -346,4 +346,4 @@ Created and maintained by [@macbre](https://github.com/macbre) with a great cont
 
 ## Stargazers over time
 
-[![Stargazers over time](https://starchart.cc/macbre/sql-metadata.svg)](https://starchart.cc/macbre/sql-metadata)
+[![Star History Chart](https://api.star-history.com/chart?repos=macbre/sql-metadata&type=date&legend=top-left)](https://www.star-history.com/?repos=macbre%2Fsql-metadata&type=date&legend=top-left)
