@@ -988,6 +988,15 @@ def test_degraded_parse_falls_through_to_last_dialect():
     assert "t" in p.tables
 
 
+def test_group_concat_separator_keeps_tables():
+    """SEPARATOR is MySQL-only: the default dialect drops the FROM clause."""
+    query = (
+        "SELECT user_id, GROUP_CONCAT(tag SEPARATOR ',') AS tags "
+        "FROM user_tags GROUP BY user_id"
+    )
+    assert Parser(query).tables == ["user_tags"]
+
+
 def test_parenthesized_select_unwrapping():
     """Parenthesized top-level SELECT is correctly unwrapped."""
     p = Parser("(SELECT a, b FROM t)")
