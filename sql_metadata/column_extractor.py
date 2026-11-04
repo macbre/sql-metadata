@@ -253,6 +253,8 @@ class ColumnExtractor:
         self._cte_name_map = cte_name_map or {}
         self._collector = _Collector()
         self._cte_restore_map = self._cte_name_map
+        self._cte_names: set[str] = set()
+        self._cte_sources: dict[int, dict[str, exp.CTE | None]] = {}
 
     # -------------------------------------------------------------------
     # Public API
@@ -327,6 +329,7 @@ class ColumnExtractor:
         for cte in self._ast.find_all(exp.CTE):
             alias = cte.alias
             if alias:
+                self._cte_names.add(alias)
                 self._collector.cte_names.append(
                     self._cte_restore_map.get(alias, alias)
                 )
@@ -738,7 +741,7 @@ class ColumnExtractor:
             # e.g. SELECT t.* — table-qualified star
             table = col.table
             if table:
-                table = self._resolve_table_alias(table)
+                table = self._column_table(col)
                 c.add_column(f"{table}.*", clause)
             return
 
@@ -780,6 +783,61 @@ class ColumnExtractor:
         """
         return self._table_aliases.get(col_table, col_table)
 
+    def _column_table(self, col: exp.Column) -> str:
+        """Resolve missing CTE aliases without changing physical alias precedence.
+
+        Keep these internal: public table aliases deliberately exclude CTEs.
+        A local physical or derived source shadows an outer CTE alias, while
+        correlated references may use an enclosing SELECT's source.
+        """
+        if col.table in self._table_aliases:
+            return self._resolve_table_alias(col.table)
+        if self._cte_names and col.table and not col.db and not col.catalog:
+            parent = col.parent
+            while parent is not None and not isinstance(parent, exp.CTE):
+                if isinstance(parent, exp.Select):
+                    sources = self._cte_sources_for(parent)
+                    if col.table in sources:
+                        cte = sources[col.table]
+                        return self._cte_column_table(cte, col) if cte else col.table
+                parent = parent.parent
+        return self._resolve_table_alias(col.table)
+
+    def _cte_sources_for(self, select: exp.Select) -> dict[str, exp.CTE | None]:
+        """Cache SELECT-local sources, including shadows that are not CTEs."""
+        key = id(select)
+        if key not in self._cte_sources:
+            sources: dict[str, exp.CTE | None] = {}
+            for source in select.find_all(exp.Table, exp.Subquery, exp.UDTF):
+                if source.find_ancestor(exp.Select) is not select:
+                    continue
+                table = source.unnest()
+                sources[source.alias_or_name] = self._cte_source_for(table)
+            self._cte_sources[key] = sources
+        return self._cte_sources[key]
+
+    def _cte_source_for(self, source: exp.Expr) -> exp.CTE | None:
+        """Find a source's CTE definition without seeing nested, unrelated WITHs."""
+        if isinstance(source, exp.Table) and not source.db:
+            parent = source.parent
+            while parent is not None:
+                with_clause = parent.args.get("with_")
+                if isinstance(with_clause, exp.With):
+                    for cte in with_clause.expressions:
+                        if isinstance(cte, exp.CTE) and cte.alias == source.name:
+                            return cte
+                parent = parent.parent
+        return None
+
+    def _cte_column_table(self, cte: exp.CTE, col: exp.Column) -> str:
+        """Keep an unknown column's original qualifier, as nested resolution does."""
+        names = cte.alias_column_names
+        if not names and isinstance(cte.this, exp.Query):
+            names = cte.this.named_selects
+        if col.is_star or "*" in names or col.name in names:
+            return self._cte_restore_map.get(cte.alias, cte.alias)
+        return col.table
+
     def _column_full_name(self, col: exp.Column) -> str:
         """Build a dot-separated fully-qualified column name.
 
@@ -803,7 +861,7 @@ class ColumnExtractor:
 
         if table:
             # e.g. SELECT t.col — table-qualified column
-            resolved = self._resolve_table_alias(table)
+            resolved = self._column_table(col)
             parts = []
             if catalog:
                 # e.g. SELECT catalog.schema.t.col — has catalog prefix
@@ -883,7 +941,7 @@ class ColumnExtractor:
         c = self._collector
         return bool(
             col.table
-            and col.table in c.cte_names
+            and self._column_table(col) in c.cte_names
             and col.name in c.cte_alias_names
         )
 
@@ -1101,7 +1159,7 @@ class ColumnExtractor:
                 seen_stars.add(id(star))
                 table = child.table
                 if table:
-                    table = self._resolve_table_alias(table)
+                    table = self._column_table(child)
                     return f"{table}.*"
             return self._column_full_name(child)  # e.g. SELECT t.col
         if isinstance(child, exp.Star):

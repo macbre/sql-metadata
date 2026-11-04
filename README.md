@@ -256,6 +256,17 @@ parser.tables
 # ["table3", "table4", "database2.table2"]
 ```
 
+References through an alias of a WITH query are resolved to its source columns:
+
+```python
+Parser("WITH cte AS (SELECT a AS x FROM t) SELECT c.x FROM cte c").columns
+# ["a"]
+```
+
+WITH queries remain excluded from `tables` and `tables_aliases`. Existing physical
+table alias mappings retain precedence; unresolved columns keep their original
+qualifier.
+
 ### Extracting sub-queries
 
 ```python
