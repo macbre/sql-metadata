@@ -752,6 +752,48 @@ def test_separator_not_column():
     assert "separator" not in columns_lower
 
 
+def test_use_index_hint_keeps_where_columns():
+    """USE INDEX is MySQL-only: the default dialect drops the WHERE clause."""
+    query = (
+        "SELECT wp_posts.ID FROM wp_posts USE INDEX (type_status_date) "
+        "WHERE wp_posts.post_status = 'publish' AND wp_posts.post_type = 'post'"
+    )
+    assert Parser(query).columns == [
+        "wp_posts.ID",
+        "wp_posts.post_status",
+        "wp_posts.post_type",
+    ]
+
+
+def test_hex_string_literal_is_not_a_column():
+    """X'..' is a MySQL hex literal: it is not a column and WHERE continues."""
+    query = "SELECT * FROM users WHERE token = X'0A1B2C' AND deleted = 0"
+    assert Parser(query).columns == ["*", "token", "deleted"]
+
+
+def test_straight_join_modifier_does_not_crash():
+    """STRAIGHT_JOIN after SELECT is MySQL-only; it used to raise AttributeError."""
+    query = "SELECT STRAIGHT_JOIN t1.a FROM t1 JOIN t2 ON t1.x = t2.x WHERE t1.y = 1"
+    assert Parser(query).columns == ["t1.a", "t1.x", "t2.x", "t1.y"]
+
+
+def test_string_ending_with_backslash_after_default_dialect_errors():
+    """The mysql dialect cannot tokenize a string ending with a backslash.
+
+    The default dialect parses it, with an error, and its result is kept.
+    """
+    query = "SELECT name FROM authors WHERE path = 'C:\\' AND name LIKE"
+    parser = Parser(query)
+    assert parser.tables == ["authors"]
+    assert parser.columns == ["name", "path"]
+
+
+def test_error_in_later_statement_keeps_first_statement_dialect():
+    """Only the first statement counts: a MySQL-only second one changes nothing."""
+    query = "SELECT \"a\" FROM t1; SELECT GROUP_CONCAT(x SEPARATOR ',') FROM t2"
+    assert Parser(query).columns == ["a"]
+
+
 def test_mssql_top_columns():
     # solved: https://github.com/macbre/sql-metadata/issues/318
     query = "SELECT TOP 10 id, name FROM foo"

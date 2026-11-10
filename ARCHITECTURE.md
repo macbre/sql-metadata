@@ -202,10 +202,11 @@ flowchart TD
 
 `_try_dialects` iterates through the dialect list. For each dialect:
 
-1. Parse with `sqlglot.parse()` (warnings suppressed)
+1. Parse with the dialect's sqlglot parser in `ErrorLevel.WARN` mode (warnings suppressed) and note whether the first statement reported syntax errors
 2. Check for degradation via `_is_degraded` — phantom tables (`IGNORE`, `""`), keyword-as-column names (`UNIQUE`, `DISTINCT`)
 3. If degraded and not the last dialect, try the next one
-4. If all fail, raise `InvalidQueryDefinition` (a `ValueError` subclass from [`exceptions.py`](sql_metadata/exceptions.py))
+4. If the parse reported syntax errors, keep the first such result as a fallback and try the next one
+5. If no dialect parsed without errors, return the fallback; with no fallback, raise `InvalidQueryDefinition` (a `ValueError` subclass from [`exceptions.py`](sql_metadata/exceptions.py))
 
 ---
 
