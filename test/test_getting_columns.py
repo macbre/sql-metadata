@@ -790,3 +790,21 @@ def test_cte_with_table_star_in_body():
     )
     assert p.columns == ["t.*"]
     assert p.columns_aliases_names == ["a"]
+
+
+def test_literal_aliases_are_not_columns():
+    for literal in ("1", "'value'", "NULL", "TRUE"):
+        parser = Parser(f"SELECT {literal} AS label, actual FROM data")
+        assert parser.columns == ["actual"]
+        assert parser.columns_dict == {"select": ["actual"]}
+
+
+def test_literal_alias_in_subquery_does_not_hide_column_alias():
+    parser = Parser(
+        "SELECT actual AS label FROM data "
+        "WHERE EXISTS (SELECT 1 AS label) ORDER BY label"
+    )
+    assert parser.columns_dict == {
+        "select": ["actual"],
+        "order_by": ["actual"],
+    }
