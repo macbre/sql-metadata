@@ -6,6 +6,8 @@ unterminated comments, deeply nested parentheses) by feeding them into
 are imported.
 """
 
+import pytest
+
 from sql_metadata import Parser
 from sql_metadata.sql_cleaner import SqlCleaner
 from sql_metadata.utils import UniqueList
@@ -65,3 +67,49 @@ def test_strip_outer_parens_unbalanced_middle():
     # intact so both SELECT branches parse.
     parser = Parser("(SELECT a FROM t1) UNION (SELECT b FROM t2)")
     assert parser.tables == ["t1", "t2"]
+
+
+@pytest.mark.parametrize("depth", [1, 2])
+@pytest.mark.parametrize("literal", ["')'", "'left)right'", "'it'')s'", "'('"])
+@pytest.mark.parametrize(
+    "template",
+    [
+        "UPDATE target SET value = {literal} WHERE id = 1",
+        "INSERT INTO target (value) VALUES ({literal})",
+        "DELETE FROM target WHERE value = {literal}",
+    ],
+)
+def test_outer_parens_ignore_quoted_parentheses(
+    depth: int, literal: str, template: str
+) -> None:
+    query = template.format(literal=literal)
+    wrapped = "(" * depth + query + ")" * depth
+    assert SqlCleaner.clean(wrapped).sql == query
+    expected = Parser(query)
+    actual = Parser(wrapped)
+    assert actual.query_type == expected.query_type
+    assert actual.tables == expected.tables
+    assert actual.columns == expected.columns
+
+
+def test_outer_parens_preserve_unterminated_literal() -> None:
+    query = "((UPDATE target SET value = 'unterminated))"
+    assert SqlCleaner.clean(query).sql == query
+    with pytest.raises(ValueError):
+        Parser(query).tables
+
+
+@pytest.mark.parametrize("name", ["we're", 'say"hello', "a)b"])
+def test_outer_parens_preserve_mysql_quoted_names(name: str) -> None:
+    query = f"UPDATE `{name}` SET value = 1"
+    expected = Parser(query)
+    actual = Parser(f"(({query}))")
+    assert actual.tables == expected.tables
+
+
+@pytest.mark.parametrize("name", ["we're", 'say"hello', "a)b"])
+def test_outer_parens_preserve_tsql_quoted_names(name: str) -> None:
+    query = f"UPDATE [{name}] SET value = 1"
+    expected = Parser(query)
+    actual = Parser(f"(({query}))")
+    assert actual.tables == expected.tables
