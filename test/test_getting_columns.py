@@ -790,3 +790,27 @@ def test_cte_with_table_star_in_body():
     )
     assert p.columns == ["t.*"]
     assert p.columns_aliases_names == ["a"]
+
+
+def test_limit_all_is_not_a_column():
+    """LIMIT ALL means no limit; ALL must not be reported as a column."""
+    p = Parser("SELECT a FROM t ORDER BY a LIMIT ALL")
+    assert p.columns == ["a"]
+    assert p.columns_dict == {"select": ["a"], "order_by": ["a"]}
+
+    p = Parser("SELECT a FROM t LIMIT ALL OFFSET 5")
+    assert p.columns == ["a"]
+
+    p = Parser(
+        "WITH cte AS (SELECT a FROM t LIMIT ALL) SELECT a FROM cte"
+    )
+    assert p.columns == ["a"]
+
+    p = Parser("SELECT * FROM (SELECT id FROM t LIMIT 10, 20) AS sub LIMIT ALL")
+    assert p.columns == ["*", "id"]
+
+
+def test_quoted_all_in_where_is_still_a_column():
+    """A real column named "all" outside LIMIT is still extracted."""
+    p = Parser('SELECT "all" FROM t WHERE "all" > 1')
+    assert p.columns == ["all"]
