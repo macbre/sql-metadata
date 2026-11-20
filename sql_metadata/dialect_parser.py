@@ -6,6 +6,7 @@ class so that callers only need to call :meth:`DialectParser.parse`.
 """
 
 import logging
+import re
 from typing import Any
 
 import sqlglot
@@ -158,6 +159,8 @@ class DialectParser:
           (ambiguous across engines).
         * ``APPEND FROM`` → :class:`RedshiftAppendDialect` (Redshift
           ``ALTER TABLE … APPEND FROM`` not natively supported).
+        * DB-API percent placeholders or PostgreSQL positional parameters →
+          ``"postgres"``, default, ``"mysql"``.
         * No markers → default dialect with ``"mysql"`` fallback.
 
         :param sql: Cleaned SQL string.
@@ -177,6 +180,8 @@ class DialectParser:
             return [None, "mysql", "oracle"]
         if "APPEND FROM" in upper:
             return [RedshiftAppendDialect, None, "mysql"]
+        if re.search(r"%s\b|%\(\w+\)s|\$[1-9]\d*\b", sql):
+            return ["postgres", None, "mysql"]
         return [None, "mysql"]
 
     # -- parsing ------------------------------------------------------------
