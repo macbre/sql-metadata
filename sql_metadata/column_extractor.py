@@ -142,6 +142,27 @@ def _is_date_part_unit(node: exp.Column) -> bool:
     return False
 
 
+def _is_limit_all(node: exp.Column) -> bool:
+    """Return ``True`` if *node* is the ``ALL`` keyword of ``LIMIT ALL``.
+
+    Outside the PostgreSQL dialect, sqlglot parses ``LIMIT ALL`` as a
+    ``Limit`` whose expression is an ``exp.Column`` named ``ALL``.  It
+    means "no limit", not a column reference, so it must be skipped.
+
+    :param node: A column AST node to inspect.
+    :type node: exp.Column
+    :rtype: bool
+    """
+    if not isinstance(node.parent, exp.Limit) or node.table:
+        return False
+    ident = node.this
+    return (
+        isinstance(ident, exp.Identifier)
+        and not ident.quoted
+        and ident.name.upper() == "ALL"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Collector — accumulates results during AST walk
 # ---------------------------------------------------------------------------
@@ -733,6 +754,10 @@ class ColumnExtractor:
         """
         c = self._collector
 
+        if _is_limit_all(col):
+            # e.g. LIMIT ALL — "ALL" is a keyword, not a column
+            return
+
         star = col.find(exp.Star)
         if star:
             # e.g. SELECT t.* — table-qualified star
@@ -1092,8 +1117,8 @@ class ColumnExtractor:
         """
         if isinstance(child, exp.Column):
             # e.g. SELECT t.col, DATEDIFF(day, a, b)
-            if _is_date_part_unit(child):
-                # e.g. DATEDIFF(day, ...) — "day" is a unit keyword, not a column
+            if _is_date_part_unit(child) or _is_limit_all(child):
+                # e.g. DATEDIFF(day, ...) or LIMIT ALL — keywords, not columns
                 return None
             star = child.find(exp.Star)
             if star:
