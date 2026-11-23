@@ -437,7 +437,11 @@ class Parser:
         if ast is None:
             return None
 
-        select = ast if isinstance(ast, exp.Select) else ast.find(exp.Select)
+        select = (
+            ast
+            if isinstance(ast, (exp.Select, exp.SetOperation))
+            else ast.find(exp.Select)
+        )
         if select is None:
             return None
 

@@ -1,3 +1,5 @@
+import pytest
+
 from sql_metadata.parser import Parser
 
 
@@ -103,3 +105,25 @@ def test_limit_and_offset_comment_only():
     """LIMIT/OFFSET on comment-only SQL returns None (AST is None)."""
     p = Parser("/* just a comment */")
     assert p.limit_and_offset is None
+
+
+@pytest.mark.parametrize("operator", ["UNION", "UNION ALL", "INTERSECT", "EXCEPT"])
+@pytest.mark.parametrize("limited_branch", ["left", "right"])
+def test_set_operation_outer_limit_takes_precedence(
+    operator: str, limited_branch: str
+) -> None:
+    left = "SELECT id FROM a"
+    right = "SELECT id FROM b"
+    if limited_branch == "left":
+        left = f"({left} LIMIT 10 OFFSET 1)"
+    else:
+        right = f"({right} LIMIT 20 OFFSET 3)"
+    parser = Parser(f"{left} {operator} {right} LIMIT 5 OFFSET 2")
+    assert parser.limit_and_offset == (5, 2)
+    assert parser.limit_and_offset == (5, 2)  # cached result
+
+
+@pytest.mark.parametrize("limit", [0, 5])
+def test_set_operation_outer_limit_without_offset(limit: int) -> None:
+    query = f"(SELECT id FROM a LIMIT 10) UNION SELECT id FROM b LIMIT {limit}"
+    assert Parser(query).limit_and_offset == (limit, 0)
