@@ -9,6 +9,7 @@ outer-parenthesis removal.
 import re
 from typing import NamedTuple
 
+from sqlglot import Dialect
 from sqlglot.errors import TokenError
 from sqlglot.tokens import Tokenizer, TokenType
 
@@ -35,11 +36,16 @@ def _is_wrapped(text: str) -> bool:
     """
     if len(text) < 2 or text[0] != "(" or text[-1] != ")":
         return False
+    dialect = "mysql" if "`" in text else "tsql" if "[" in text else None
+    try:
+        tokens = Dialect.get_or_raise(dialect).tokenize(text[1:-1])
+    except TokenError:
+        return False
     depth = 0
-    for c in text[1:-1]:
-        if c == "(":
+    for token in tokens:
+        if token.token_type == TokenType.L_PAREN:
             depth += 1
-        elif c == ")":
+        elif token.token_type == TokenType.R_PAREN:
             depth -= 1
             if depth < 0:
                 return False
