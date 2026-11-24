@@ -137,6 +137,14 @@ def test_columns_aliases_dict_triggers_extraction():
     assert parser.columns == ["a"]
 
 
+def test_order_by_unquoted_alias_with_different_case():
+    # Test for issue #731 - unquoted alias references are case-insensitive
+    # https://github.com/macbre/sql-metadata/issues/731
+    parser = Parser("SELECT a AS X FROM [dbo].[t] ORDER BY x")
+    assert parser.columns == ["a"]
+    assert parser.columns_dict == {"select": ["a"], "order_by": ["a"]}
+
+
 def test_convert_in_join():
     parser = Parser(
         "SELECT la1.col1, la2.col2, CONVERT(la1.col2 USING utf8) FROM latin1_table la1 "

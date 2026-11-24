@@ -160,6 +160,7 @@ class _Collector:
         "cte_alias_names",
         "subquery_items",
         "output_columns",
+        "unquoted_aliases",
     )
 
     def __init__(self) -> None:
@@ -172,6 +173,7 @@ class _Collector:
         self.cte_alias_names: set[str] = set()
         self.subquery_items: list[tuple[int, str]] = []
         self.output_columns: list[str] = []
+        self.unquoted_aliases: dict[str, str] = {}
 
     def add_column(self, name: str, clause: str) -> None:
         """Record a column name, filing it into the appropriate clause section.
@@ -185,7 +187,7 @@ class _Collector:
         if clause:
             self.columns_dict.setdefault(clause, UniqueList()).append(name)
 
-    def add_alias(self, name: str, target: Any, clause: str) -> None:
+    def add_alias(self, name: str, target: Any, clause: str, quoted: bool) -> None:
         """Record a column alias and its target expression.
 
         :param name: The alias name.
@@ -195,8 +197,12 @@ class _Collector:
         :type target: Any
         :param clause: The SQL clause section where the alias was defined.
         :type clause: str
+        :param quoted: Whether the alias was a quoted identifier.
+        :type quoted: bool
         """
         self.alias_names.append(name)
+        if not quoted:
+            self.unquoted_aliases.setdefault(name.casefold(), name)
         if clause:
             self.alias_dict.setdefault(clause, UniqueList()).append(name)
         if target is None:
@@ -574,6 +580,8 @@ class ColumnExtractor:
         """
         c = self._collector
         alias_name = alias_node.alias
+        alias_identifier = alias_node.args.get("alias")
+        alias_quoted = bool(getattr(alias_identifier, "quoted", False))
         inner = alias_node.this
 
         select = inner.find(exp.Select)
@@ -586,7 +594,7 @@ class ColumnExtractor:
                 if len(target_cols) == 1
                 else (target_cols if target_cols else None)
             )
-            c.add_alias(alias_name, target, clause)
+            c.add_alias(alias_name, target, clause, alias_quoted)
             return
 
         inner_cols = self._flat_columns(inner)
@@ -608,14 +616,14 @@ class ColumnExtractor:
                 if not is_self_alias:
                     # e.g. SELECT a + b AS total → target = ["a", "b"]
                     target = unique_inner[0] if len(unique_inner) == 1 else unique_inner
-                c.add_alias(alias_name, target, clause)
+                c.add_alias(alias_name, target, clause, alias_quoted)
         else:
             # Case 3: no column references — e.g. SELECT COUNT(*) AS cnt
             target = None
             if inner.find(exp.Star):
                 # e.g. SELECT * AS all_cols — star target
                 target = "*"
-            c.add_alias(alias_name, target, clause)
+            c.add_alias(alias_name, target, clause, alias_quoted)
 
     def _handle_cte(self, cte: exp.CTE, depth: int) -> None:
         """Process a CTE (Common Table Expression) AST node.
@@ -651,12 +659,12 @@ class ColumnExtractor:
             assert table_alias is not None
             body_cols = self._flat_columns(body)
             real_cols = [x for x in body_cols if x != "*"]
-            cte_col_names = [col.name for col in table_alias.columns]
 
             for col in body_cols:
                 c.add_column(col, "select")
 
-            for i, cte_col in enumerate(cte_col_names):
+            for i, cte_col in enumerate(table_alias.columns):
+                cte_col_name = cte_col.name
                 if i < len(real_cols):
                     # Map CTE alias to body column by position
                     target = real_cols[i]
@@ -666,8 +674,8 @@ class ColumnExtractor:
                 else:
                     # More aliases than body columns — no target
                     target = None
-                c.add_alias(cte_col, target, "select")
-                c.cte_alias_names.add(cte_col)
+                c.add_alias(cte_col_name, target, "select", cte_col.quoted)
+                c.cte_alias_names.add(cte_col_name)
         elif self._is_cte_with_query_body(body):
             # CTE without column aliases — e.g. WITH cte AS (SELECT a ...)
             self._walk(body, "", depth + 1)
@@ -749,10 +757,10 @@ class ColumnExtractor:
 
         full = self._column_full_name(col)
 
-        unqualified = col.name
-        if self._is_unqualified_alias_reference(col):
+        alias_name = self._unqualified_alias_reference(col)
+        if alias_name is not None:
             # e.g. ORDER BY alias_name — name matches a known alias
-            c.alias_dict.setdefault(clause, UniqueList()).append(unqualified)
+            c.alias_dict.setdefault(clause, UniqueList()).append(alias_name)
             return
 
         # e.g. SELECT t.col — regular column, no alias match
@@ -887,25 +895,32 @@ class ColumnExtractor:
             and col.name in c.cte_alias_names
         )
 
-    def _is_unqualified_alias_reference(
+    def _unqualified_alias_reference(
         self, col: exp.Column
-    ) -> bool:
-        """Check whether *col* is an unqualified reference to a known alias.
+    ) -> str | None:
+        """Return the matching alias for an unqualified column reference.
 
-        Returns ``True`` when the column has no table qualifier and its
-        name matches a previously recorded column alias.  This typically
-        occurs in ``ORDER BY``, ``GROUP BY``, or ``HAVING`` clauses
-        that reference a SELECT alias by name.
+        Exact matches are preserved for quoted and unquoted identifiers.
+        Otherwise, unquoted SQL identifiers are case-insensitive, so the
+        reference is matched case-insensitively against unquoted aliases.
+        The canonical alias spelling is returned so later alias resolution
+        can use the exact key in the alias map.
 
         Example SQL::
 
-            SELECT a AS x ... ORDER BY x  -- True (x has no table qualifier)
+            SELECT a AS X ... ORDER BY x  -- returns "X"
 
         :param col: A ``Column`` AST node.
-        :returns: ``True`` if this is an unqualified alias reference.
+        :returns: The canonical alias name, or ``None`` if there is no match.
         """
+        if col.table:
+            return None
         c = self._collector
-        return not col.table and col.name in c.alias_names
+        if col.name in c.alias_names:
+            return col.name
+        if getattr(col.this, "quoted", False):
+            return None
+        return c.unquoted_aliases.get(col.name.casefold())
 
     @staticmethod
     def _is_self_alias(
