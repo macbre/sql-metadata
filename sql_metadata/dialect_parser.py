@@ -26,6 +26,46 @@ _BAD_TABLE_NAMES = frozenset({"IGNORE", ""})
 #: SQL keywords that should not appear as bare column names.
 _BAD_COLUMN_NAMES = frozenset({"UNIQUE", "DISTINCT", "SELECT", "FROM", "WHERE"})
 
+# Words after which ``[name]`` starts an expression or object reference rather
+# than subscripting the expression on its left.
+_BRACKET_IDENTIFIER_PRECEDERS = frozenset(
+    "AND AS BY DELETE DISTINCT ELSE FROM INSERT INTO JOIN MERGE ON OR SELECT SET "
+    "TABLE THEN UPDATE USING WHEN WHERE WITH".split()
+)
+
+
+def _bracket_starts_identifier(prefix: str) -> bool:
+    """Return whether a bracket after *prefix* starts an identifier."""
+    previous = prefix[-1:]
+    if not previous.isspace():
+        return not (previous.isalnum() or previous in "_])'\"`")
+    stripped = prefix.rstrip()
+    last_nonspace = stripped[-1:]
+    return not (last_nonspace.isalnum() or last_nonspace in "_]") or (
+        stripped.rsplit(maxsplit=1)[-1].upper() in _BRACKET_IDENTIFIER_PRECEDERS
+    )
+
+
+def _has_bracketed_identifier(sql: str) -> bool:
+    """Return whether *sql* contains a TSQL-style bracketed identifier.
+
+    Array constructors and subscripts also use square brackets, but their
+    opening bracket follows an expression such as ``ARRAY`` or ``column``.
+    A bracketed identifier starts at a position where SQL expects a new
+    expression or object name.  Attached brackets and brackets following a
+    non-keyword expression are treated as array subscripts.
+    """
+    for start, character in enumerate(sql):
+        end = sql.find("]", start + 1)
+        if (
+            character == "["
+            and end >= 0
+            and sql[start + 1 : end]
+            and _bracket_starts_identifier(sql[:start])
+        ):
+            return True
+    return False
+
 
 # ---------------------------------------------------------------------------
 # Custom dialect classes
@@ -171,7 +211,7 @@ class DialectParser:
             return ["mysql", None]
         if "LATERAL VIEW" in upper:
             return ["spark", None, "mysql"]
-        if "[" in sql or " TOP " in upper:
+        if _has_bracketed_identifier(sql) or " TOP " in upper:
             return [BracketedTableDialect, None, "mysql"]
         if " UNIQUE " in upper:
             return [None, "mysql", "oracle"]
